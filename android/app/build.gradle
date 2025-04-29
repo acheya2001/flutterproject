@@ -1,0 +1,56 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'com.google.gms.google-services'
+    id 'dev.flutter.flutter-gradle-plugin'
+}
+
+android {
+    namespace "com.example.constat_tunisie"
+    compileSdkVersion flutter.compileSdkVersion
+    // ndkVersion flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+        // Ajout de la configuration pour le desugaring
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+
+    defaultConfig {
+        applicationId "com.example.constat_tunisie"
+        minSdkVersion 23
+        targetSdkVersion flutter.targetSdkVersion
+        // Utiliser des valeurs fixes au lieu de variables
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+
+dependencies {
+    // Ajout de la dépendance pour le desugaring
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:1.2.2'
+    
+    // Import the Firebase BoM
+    implementation platform('com.google.firebase:firebase-bom:33.13.0')
+
+    // Firebase products
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-auth'
+    implementation 'com.google.firebase:firebase-firestore'
+    implementation 'com.google.firebase:firebase-storage'
+}
+
+flutter {
+    source '../..'
+}
