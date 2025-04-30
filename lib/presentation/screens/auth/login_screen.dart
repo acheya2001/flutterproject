@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:constat_tunisie/core/providers/auth_provider.dart';
 import 'package:constat_tunisie/core/theme/app_theme.dart';
-import 'package:constat_tunisie/core/enums/user_role.dart';
+import 'package:constat_tunisie/data/enums/user_role.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
@@ -256,7 +256,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                         elevation: 3,
                                       ),
                                       child: authProvider.isLoading
-                                          ? const CircularProgressIndicator(color: Colors.white)
+                                          ? const SizedBox(
+                                              height: 24,
+                                              width: 24,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2,
+                                              ),
+                                            )
                                           : Row(
                                               mainAxisAlignment: MainAxisAlignment.center,
                                               children: const [

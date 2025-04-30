@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key}); // Utilisation de super.key
+  const ForgotPasswordScreen({super.key});
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -99,7 +99,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           Text(
             'Entrez votre adresse email pour recevoir un lien de réinitialisation de mot de passe.',
             style: TextStyle(
-              color: Colors.grey.withAlpha(230), // Remplacé withOpacity par withAlpha
+              color: Colors.grey.withAlpha(230),
               fontSize: 16,
             ),
             textAlign: TextAlign.center,
@@ -142,7 +142,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
             ),
             child: authProvider.isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
+                ? const SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
                 : const Text(
                     'Envoyer le lien',
                     style: TextStyle(
@@ -162,7 +169,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             child: Text(
               'Retour à la connexion',
               style: TextStyle(
-                color: AppTheme.greyColor, // Utilisation de la couleur ajoutée
+                color: AppTheme.greyColor,
               ),
             ),
           ),
@@ -202,7 +209,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Text(
           'Un lien de réinitialisation a été envoyé à ${_emailController.text}. Veuillez vérifier votre boîte de réception et suivre les instructions.',
           style: TextStyle(
-            color: Colors.grey.withAlpha(230), // Remplacé withOpacity par withAlpha
+            color: Colors.grey.withAlpha(230),
             fontSize: 16,
           ),
           textAlign: TextAlign.center,
@@ -214,10 +221,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.blue.withAlpha(30), // Remplacé withOpacity par withAlpha
+            color: Colors.blue.withAlpha(30),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Colors.blue.withAlpha(100), // Remplacé withOpacity par withAlpha
+              color: Colors.blue.withAlpha(100),
             ),
           ),
           child: Column(

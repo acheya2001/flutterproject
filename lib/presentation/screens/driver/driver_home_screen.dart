@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:constat_tunisie/core/enums/user_role.dart';
+import 'package:constat_tunisie/data/enums/user_role.dart';
 import 'package:constat_tunisie/core/providers/auth_provider.dart';
 import 'package:constat_tunisie/core/theme/app_theme.dart';
 import 'package:provider/provider.dart';
@@ -89,11 +89,11 @@ class DriverHomeScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Rôle: ${user?.role.displayName ?? 'Conducteur'}',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                            ),
-                          ),
+  'Rôle: ${user?.role.name ?? 'Conducteur'}',
+  style: TextStyle(
+    color: Colors.grey[600],
+  ),
+),
                         ],
                       ),
                     ),

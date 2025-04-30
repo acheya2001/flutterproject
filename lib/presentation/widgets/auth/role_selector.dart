@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:constat_tunisie/core/enums/user_role.dart';
+import 'package:constat_tunisie/data/enums/user_role.dart';
 import 'package:constat_tunisie/core/theme/app_theme.dart';
 
 class RoleSelector extends StatefulWidget {

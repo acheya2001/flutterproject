@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:constat_tunisie/core/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:constat_tunisie/core/services/firebase_service.dart';
+import 'package:logger/logger.dart';
+import 'package:constat_tunisie/presentation/screens/auth/auth_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -11,7 +14,12 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
+  final Logger _logger = Logger();
   int _currentPage = 0;
+  bool _isFirebaseInitialized = false;
+  bool _isFirebaseInitializing = true;
+  String? _firebaseError;
+  bool _isNavigating = false;
   
   final List<OnboardingPage> _pages = [
     OnboardingPage(
@@ -35,20 +43,94 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _initializeFirebase();
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     super.dispose();
   }
+  
+  Future<void> _initializeFirebase() async {
+    try {
+      _logger.i("Initialisation de Firebase depuis OnboardingScreen...");
+      final result = await FirebaseService.initialize();
+      
+      if (mounted) {
+        setState(() {
+          _isFirebaseInitialized = result;
+          _isFirebaseInitializing = false;
+          if (!result) {
+            _firebaseError = "Impossible d'initialiser Firebase";
+          }
+        });
+      }
+      
+      _logger.i("Firebase initialisé avec succès: $result");
+    } catch (e) {
+      _logger.e("Erreur lors de l'initialisation de Firebase: $e");
+      if (mounted) {
+        setState(() {
+          _isFirebaseInitialized = false;
+          _isFirebaseInitializing = false;
+          _firebaseError = e.toString();
+        });
+      }
+    }
+  }
 
-  // Marquer l'onboarding comme terminé
+  // Marquer l'onboarding comme terminé - MÉTHODE CORRIGÉE
   Future<void> _completeOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_complete', true);
+    if (_isNavigating) return; // Éviter les navigations multiples
+    _isNavigating = true;
     
-    if (!mounted) return;
-    
-    // Naviguer vers l'écran d'authentification
-    Navigator.of(context).pushReplacementNamed('/auth');
+    try {
+      _logger.i("Tentative de navigation vers l'écran d'authentification");
+      
+      // Essayer d'enregistrer la préférence, mais ne pas attendre si ça échoue
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('onboarding_complete', true);
+        _logger.i("Préférence onboarding_complete enregistrée");
+      } catch (e) {
+        _logger.e("Erreur lors de l'enregistrement des préférences: $e");
+        // Continuer même en cas d'erreur
+      }
+      
+      if (!mounted) {
+        _logger.w("Widget non monté, navigation annulée");
+        return;
+      }
+      
+      // Utiliser pushReplacement avec MaterialPageRoute au lieu de pushReplacementNamed
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const AuthScreen(),
+        ),
+      );
+    } catch (e) {
+      _isNavigating = false; // Réinitialiser le flag en cas d'erreur
+      _logger.e("Erreur lors de la navigation: $e");
+      
+      // Afficher un message d'erreur à l'utilisateur
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erreur: $e"),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Réessayer',
+              textColor: Colors.white,
+              onPressed: _completeOnboarding,
+            ),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -94,7 +176,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               children: [
                 // Bouton Passer
                 TextButton(
-                  onPressed: _completeOnboarding, // Utiliser la fonction pour terminer l'onboarding
+                  onPressed: _isFirebaseInitializing || _isNavigating ? null : _completeOnboarding,
                   child: const Text(
                     'Passer',
                     style: TextStyle(
@@ -106,16 +188,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 
                 // Bouton Suivant ou Commencer
                 ElevatedButton(
-                  onPressed: () {
-                    if (_currentPage < _pages.length - 1) {
-                      _pageController.nextPage(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
-                    } else {
-                      _completeOnboarding(); // Utiliser la fonction pour terminer l'onboarding
-                    }
-                  },
+                  onPressed: _isFirebaseInitializing || _isNavigating
+                    ? null 
+                    : () {
+                        if (_currentPage < _pages.length - 1) {
+                          _pageController.nextPage(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        } else {
+                          _completeOnboarding();
+                        }
+                      },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
@@ -125,17 +209,81 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       borderRadius: BorderRadius.circular(30),
                     ),
                   ),
-                  child: Text(
-                    _currentPage < _pages.length - 1 ? 'Suivant' : 'Commencer',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _isFirebaseInitializing || _isNavigating
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Text(
+                        _currentPage < _pages.length - 1 ? 'Suivant' : 'Commencer',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                 ),
               ],
             ),
           ),
+          
+          // Message d'erreur Firebase si nécessaire
+          if (_firebaseError != null)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 10,
+              left: 20,
+              right: 20,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Attention: $_firebaseError\nCertaines fonctionnalités peuvent être limitées.',
+                  style: const TextStyle(color: Colors.white),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          
+          // Bouton de secours pour la navigation
+          if (_firebaseError != null || _currentPage == _pages.length - 1)
+            Positioned(
+              bottom: 80,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: TextButton.icon(
+                  onPressed: _isNavigating ? null : () {
+                    _logger.i("Navigation de secours vers l'écran d'authentification");
+                    setState(() {
+                      _isNavigating = true;
+                    });
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (context) => const AuthScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.login, color: Colors.white),
+                  label: const Text(
+                    "Aller directement à l'authentification",
+                    style: TextStyle(
+                      decoration: TextDecoration.underline,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.black.withOpacity(0.3),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

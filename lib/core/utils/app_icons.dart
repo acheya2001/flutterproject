@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:constat_tunisie/core/enums/user_role.dart';
+import 'package:constat_tunisie/data/enums/user_role.dart';
 
 class AppIcons {
   // Icônes pour les rôles
   static IconData getIconForRole(UserRole role) {
     switch (role) {
-      case UserRole.driver:
+      case UserRole.driver:  // Changé de driver à conducteur
         return Icons.drive_eta;
-      case UserRole.insurance:
+      case UserRole.insurance:   // Changé de insurance à assurance
         return Icons.security;
       case UserRole.expert:
         return Icons.engineering;
+      case UserRole.admin:       // Ajouté pour gérer tous les cas de l'enum
+        return Icons.admin_panel_settings;
     }
   }
 

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:constat_tunisie/core/enums/user_role.dart';
+import 'package:constat_tunisie/data/enums/user_role.dart';
 import 'package:constat_tunisie/core/providers/auth_provider.dart';
 import 'package:constat_tunisie/core/theme/app_theme.dart';
 import 'package:provider/provider.dart';
@@ -63,6 +63,35 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     super.dispose();
   }
   
+  Map<String, dynamic> _buildProfileData() {
+    // Données de base communes à tous les rôles
+    final Map<String, dynamic> profileData = {
+      'createdAt': DateTime.now().toIso8601String(),
+      'lastUpdated': DateTime.now().toIso8601String(),
+    };
+    
+    // Ajouter des données spécifiques au rôle
+    switch (_selectedRole) {
+      case UserRole.driver:
+        profileData['vehicleInfo'] = {};
+        profileData['licenseInfo'] = {};
+        break;
+      case UserRole.insurance:
+        profileData['companyName'] = '';
+        profileData['registrationNumber'] = '';
+        break;
+      case UserRole.expert:
+        profileData['specialization'] = '';
+        profileData['certifications'] = [];
+        break;
+      case UserRole.admin:
+        profileData['adminLevel'] = 'standard';
+        break;
+    }
+    
+    return profileData;
+  }
+  
   Future<void> _register() async {
     if (_formKey.currentState?.validate() ?? false) {
       setState(() {
@@ -78,6 +107,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
           displayName: _nameController.text.trim(),
           role: _selectedRole,
           phoneNumber: _phoneController.text.trim(),
+          profileData: _buildProfileData(), // Ajout de l'argument manquant
         );
         
         if (!mounted) return;
@@ -100,6 +130,9 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
             break;
           case UserRole.expert:
             Navigator.of(context).pushReplacementNamed('/expert-home');
+            break;
+          case UserRole.admin:
+            Navigator.of(context).pushReplacementNamed('/admin-home');
             break;
         }
       } catch (e) {
@@ -128,7 +161,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  _getRoleColor(_selectedRole).withOpacity(0.8),
+                  _getRoleColor(_selectedRole).withAlpha(204), // 0.8 * 255 = 204
                   Colors.white,
                 ],
                 stops: const [0.0, 0.4],
@@ -161,7 +194,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           Shadow(
                             offset: const Offset(0, 1),
                             blurRadius: 3,
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withAlpha(77), // 0.3 * 255 = 77
                           ),
                         ],
                       ),
@@ -176,7 +209,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           Shadow(
                             offset: const Offset(0, 1),
                             blurRadius: 2,
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withAlpha(77), // 0.3 * 255 = 77
                           ),
                         ],
                       ),
@@ -374,7 +407,14 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                                         elevation: 3,
                                       ),
                                       child: authProvider.isLoading
-                                          ? const CircularProgressIndicator(color: Colors.white)
+                                          ? const SizedBox(
+                                              height: 24,
+                                              width: 24,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2,
+                                              ),
+                                            )
                                           : Row(
                                               mainAxisAlignment: MainAxisAlignment.center,
                                               children: const [
@@ -532,6 +572,8 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
         return AppTheme.insuranceColor;
       case UserRole.expert:
         return AppTheme.expertColor;
+      case UserRole.admin:
+        return Colors.purple; // Ou AppTheme.adminColor si disponible
     }
   }
 }

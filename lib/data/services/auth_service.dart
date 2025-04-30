@@ -1,50 +1,55 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:constat_tunisie/core/enums/user_role.dart';
-import 'package:constat_tunisie/data/models/user_model.dart';
 import 'package:logger/logger.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final Logger _logger = Logger();
-  final Connectivity _connectivity = Connectivity();
 
   // Obtenir l'utilisateur actuel
-  User? get currentUser => _auth.currentUser;
-  
-  // Stream pour suivre les changements d'état d'authentification
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  User? getCurrentUser() {
+    return _auth.currentUser;
+  }
 
-  // Vérifier si l'email est vérifié
-  bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
-
-  // Vérifier la connectivité
-  Future<bool> checkConnectivity() async {
+  // Obtenir les données utilisateur depuis Firestore
+  Future<Map<String, dynamic>?> getUserData(String uid) async {
     try {
-      final result = await _connectivity.checkConnectivity();
-      return result != ConnectivityResult.none;
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists) {
+        return doc.data();
+      }
+      return null;
     } catch (e) {
-      _logger.e('Erreur lors de la vérification de la connectivité: $e');
-      // En cas d'erreur, supposer que la connexion est disponible
-      return true;
+      _logger.e('Erreur lors de la récupération des données utilisateur: $e');
+      rethrow;
     }
   }
 
+  // Vérifier la connectivité avant les opérations d'authentification
+  Future<bool> _checkConnectivity() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    return connectivityResult != ConnectivityResult.none;
+  }
+
   // Inscription avec email et mot de passe
-  Future<UserModel> registerWithEmailAndPassword({
+  Future<UserCredential> registerWithEmailAndPassword({
     required String email,
     required String password,
     required String displayName,
-    required UserRole role,
-    String? phoneNumber,
+    required String phoneNumber,
+    required String role,
+    required Map<String, dynamic> profileData,
   }) async {
     try {
       // Vérifier la connectivité
-      final isConnected = await checkConnectivity();
-      if (!isConnected) {
-        throw Exception('Pas de connexion Internet. Veuillez vérifier votre connexion et réessayer.');
+      if (!await _checkConnectivity()) {
+        throw FirebaseAuthException(
+          code: 'network-error',
+          message: 'Pas de connexion Internet. Veuillez vérifier votre connexion et réessayer.',
+        );
       }
       
       // Créer l'utilisateur dans Firebase Auth
@@ -53,87 +58,125 @@ class AuthService {
         password: password,
       );
       
-      final user = userCredential.user!;
-      
-      // Envoyer un email de vérification
-      await user.sendEmailVerification();
-      
-      // Mettre à jour le profil utilisateur
-      await user.updateDisplayName(displayName);
+      // Mettre à jour le profil de l'utilisateur
+      await userCredential.user?.updateDisplayName(displayName);
       
       // Créer le document utilisateur dans Firestore
-      final userModel = UserModel(
-        uid: user.uid,
-        email: email,
-        displayName: displayName,
-        phoneNumber: phoneNumber,
-        role: role,
-        createdAt: DateTime.now(),
-        emailVerified: false,
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+        'uid': userCredential.user!.uid,
+        'email': email,
+        'displayName': displayName,
+        'phoneNumber': phoneNumber,
+        'role': role,
+        'profileData': profileData,
+        'isActive': true,
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastLoginAt': FieldValue.serverTimestamp(),
+      });
+      
+      return userCredential;
+    } on FirebaseAuthException catch (e) {
+      _logger.e('Erreur d\'authentification: ${e.code} - ${e.message}');
+      
+      // Traduire les messages d'erreur courants
+      String message;
+      switch (e.code) {
+        case 'email-already-in-use':
+          message = 'Cette adresse email est déjà utilisée par un autre compte.';
+          break;
+        case 'invalid-email':
+          message = 'L\'adresse email n\'est pas valide.';
+          break;
+        case 'operation-not-allowed':
+          message = 'L\'inscription par email et mot de passe n\'est pas activée.';
+          break;
+        case 'weak-password':
+          message = 'Le mot de passe est trop faible. Utilisez au moins 6 caractères.';
+          break;
+        case 'network-error':
+          message = e.message ?? 'Erreur de connexion réseau.';
+          break;
+        default:
+          message = e.message ?? 'Une erreur inconnue s\'est produite.';
+      }
+      
+      throw FirebaseAuthException(
+        code: e.code,
+        message: message,
       );
-      
-      await _firestore.collection('users').doc(user.uid).set(userModel.toFirestore());
-      
-      return userModel;
     } catch (e) {
-      _logger.e('Erreur lors de l\'inscription: $e');
-      rethrow;
+      _logger.e('Erreur inattendue lors de l\'inscription: $e');
+      throw Exception('Une erreur inattendue s\'est produite. Veuillez réessayer.');
     }
   }
 
   // Connexion avec email et mot de passe
-  Future<UserModel> signInWithEmailAndPassword({
+  Future<UserCredential> signInWithEmailAndPassword({
     required String email,
     required String password,
   }) async {
     try {
       // Vérifier la connectivité
-      final isConnected = await checkConnectivity();
-      if (!isConnected) {
-        throw Exception('Pas de connexion Internet. Veuillez vérifier votre connexion et réessayer.');
+      if (!await _checkConnectivity()) {
+        throw FirebaseAuthException(
+          code: 'network-error',
+          message: 'Pas de connexion Internet. Veuillez vérifier votre connexion et réessayer.',
+        );
       }
       
+      // Connexion à Firebase Auth
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
       
-      final user = userCredential.user!;
-      
-      // Récupérer les données utilisateur depuis Firestore
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      
-      if (!userDoc.exists) {
-        // Si l'utilisateur n'existe pas dans Firestore, créer un document par défaut
-        final defaultUserModel = UserModel(
-          uid: user.uid,
-          email: user.email!,
-          displayName: user.displayName,
-          role: UserRole.driver, // Rôle par défaut
-          createdAt: DateTime.now(),
-          emailVerified: user.emailVerified,
-        );
-        
-        await _firestore.collection('users').doc(user.uid).set(defaultUserModel.toFirestore());
-        
-        return defaultUserModel;
-      }
-      
-      // Convertir le document en UserModel
-      final userModel = UserModel.fromFirestore(userDoc);
-      
-      // Mettre à jour le statut de vérification de l'email et la date de dernière connexion
-      await _firestore.collection('users').doc(user.uid).update({
-        'lastLoginAt': Timestamp.now(),
-        'emailVerified': user.emailVerified,
+      // Mettre à jour la date de dernière connexion
+      await _firestore.collection('users').doc(userCredential.user!.uid).update({
+        'lastLoginAt': FieldValue.serverTimestamp(),
       });
       
-      return userModel.copyWith(
-        lastLoginAt: DateTime.now(),
-        emailVerified: user.emailVerified,
+      return userCredential;
+    } on FirebaseAuthException catch (e) {
+      _logger.e('Erreur de connexion: ${e.code} - ${e.message}');
+      
+      // Traduire les messages d'erreur courants
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'Aucun utilisateur trouvé avec cette adresse email.';
+          break;
+        case 'wrong-password':
+          message = 'Mot de passe incorrect.';
+          break;
+        case 'invalid-email':
+          message = 'L\'adresse email n\'est pas valide.';
+          break;
+        case 'user-disabled':
+          message = 'Ce compte a été désactivé.';
+          break;
+        case 'network-error':
+          message = e.message ?? 'Erreur de connexion réseau.';
+          break;
+        default:
+          message = e.message ?? 'Une erreur inconnue s\'est produite.';
+      }
+      
+      throw FirebaseAuthException(
+        code: e.code,
+        message: message,
       );
     } catch (e) {
-      _logger.e('Erreur lors de la connexion: $e');
+      _logger.e('Erreur inattendue lors de la connexion: $e');
+      throw Exception('Une erreur inattendue s\'est produite. Veuillez réessayer.');
+    }
+  }
+
+  // Réinitialisation du mot de passe
+  Future<void> resetPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } catch (e) {
+      _logger.e('Erreur lors de la réinitialisation du mot de passe: $e');
       rethrow;
     }
   }
@@ -148,117 +191,28 @@ class AuthService {
     }
   }
 
-  // Réinitialisation du mot de passe
-  Future<void> resetPassword(String email) async {
-    try {
-      // Vérifier la connectivité
-      final isConnected = await checkConnectivity();
-      if (!isConnected) {
-        throw Exception('Pas de connexion Internet. Veuillez vérifier votre connexion et réessayer.');
-      }
-      
-      await _auth.sendPasswordResetEmail(email: email);
-    } catch (e) {
-      _logger.e('Erreur lors de la réinitialisation du mot de passe: $e');
-      rethrow;
-    }
-  }
-
-  // Renvoyer l'email de vérification
-  Future<void> sendEmailVerification() async {
-    try {
-      // Vérifier la connectivité
-      final isConnected = await checkConnectivity();
-      if (!isConnected) {
-        throw Exception('Pas de connexion Internet. Veuillez vérifier votre connexion et réessayer.');
-      }
-      
-      final user = _auth.currentUser;
-      if (user != null && !user.emailVerified) {
-        await user.sendEmailVerification();
-      }
-    } catch (e) {
-      _logger.e('Erreur lors de l\'envoi de l\'email de vérification: $e');
-      rethrow;
-    }
-  }
-
-  // Obtenir les données utilisateur depuis Firestore
-  Future<UserModel?> getUserData() async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return null;
-      
-      final doc = await _firestore.collection('users').doc(user.uid).get();
-      if (!doc.exists) return null;
-      
-      return UserModel.fromFirestore(doc);
-    } catch (e) {
-      _logger.e('Erreur lors de la récupération des données utilisateur: $e');
-      return null;
-    }
-  }
-
-  // Mettre à jour le profil utilisateur
-  Future<void> updateUserProfile({
-    String? displayName,
-    String? phoneNumber,
-    String? photoURL,
-  }) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return;
-      
-      // Mettre à jour dans Firebase Auth
-      if (displayName != null) {
-        await user.updateDisplayName(displayName);
-      }
-      
-      if (photoURL != null) {
-        await user.updatePhotoURL(photoURL);
-      }
-      
-      // Mettre à jour dans Firestore
-      final updates = <String, dynamic>{};
-      if (displayName != null) updates['displayName'] = displayName;
-      if (phoneNumber != null) updates['phoneNumber'] = phoneNumber;
-      if (photoURL != null) updates['photoURL'] = photoURL;
-      
-      if (updates.isNotEmpty) {
-        await _firestore.collection('users').doc(user.uid).update(updates);
-      }
-    } catch (e) {
-      _logger.e('Erreur lors de la mise à jour du profil: $e');
-      rethrow;
-    }
-  }
-
   // Mettre à jour les données utilisateur
-  Future<void> updateUserData(UserModel user) async {
+  Future<void> updateUserData(String uid, Map<String, dynamic> data) async {
     try {
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .update(user.toFirestore());
+      await _firestore.collection('users').doc(uid).update(data);
     } catch (e) {
       _logger.e('Erreur lors de la mise à jour des données utilisateur: $e');
       rethrow;
     }
   }
 
-  // Vérifier si un utilisateur existe
-  Future<bool> userExists(String email) async {
+  // Mettre à jour le mot de passe
+  Future<void> updatePassword(String newPassword) async {
     try {
-      final result = await _firestore
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
-      
-      return result.docs.isNotEmpty;
+      final user = _auth.currentUser;
+      if (user != null) {
+        await user.updatePassword(newPassword);
+      } else {
+        throw Exception('Aucun utilisateur connecté');
+      }
     } catch (e) {
-      _logger.e('Erreur lors de la vérification de l\'existence de l\'utilisateur: $e');
-      return false;
+      _logger.e('Erreur lors de la mise à jour du mot de passe: $e');
+      rethrow;
     }
   }
 }

@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:constat_tunisie/core/enums/user_role.dart';
+import 'package:constat_tunisie/data/enums/user_role.dart';
 import 'package:constat_tunisie/data/models/user_model.dart';
 import 'package:logger/logger.dart';
 
@@ -35,7 +35,7 @@ class PieonUserDetails {
     return PieonUserDetails(
       uid: uid,
       email: email,
-      role: UserRole.driver.name,
+      role: UserRole.driver.name, // Corrigé: conducteur -> driver
     );
   }
 
@@ -50,7 +50,7 @@ class PieonUserDetails {
       photoURL: user.photoURL,
       createdAt: user.createdAt,
       lastLoginAt: user.lastLoginAt,
-      additionalData: user.additionalData,
+      additionalData: user.profileData, // Changé de additionalData à profileData
     );
   }
 
@@ -75,13 +75,13 @@ class PieonUserDetails {
       return UserModel(
         uid: uid,
         email: email,
-        displayName: displayName,
+        displayName: displayName ?? '', // Ajout d'une valeur par défaut pour le paramètre requis
         phoneNumber: phoneNumber,
         role: _parseRole(role),
         photoURL: photoURL,
         createdAt: createdAt ?? DateTime.now(),
         lastLoginAt: lastLoginAt,
-        additionalData: additionalData,
+        profileData: additionalData ?? {}, // Changé de additionalData à profileData
       );
     } catch (e) {
       _logger.e('Erreur lors de la conversion PieonUserDetails -> UserModel: $e');
@@ -89,8 +89,11 @@ class PieonUserDetails {
       return UserModel(
         uid: uid,
         email: email,
-        role: UserRole.driver,
+        displayName: '', // Ajout du displayName requis
+        role: UserRole.driver, // Corrigé: conducteur -> driver
         createdAt: DateTime.now(),
+        lastLoginAt: DateTime.now(),
+        profileData: {}, // Ajout du champ obligatoire
       );
     }
   }
@@ -113,16 +116,16 @@ class PieonUserDetails {
   /// Méthode d'aide pour analyser le rôle
   static UserRole _parseRole(String? roleStr) {
     if (roleStr == null || roleStr.isEmpty) {
-      return UserRole.driver;
+      return UserRole.driver; // Corrigé: conducteur -> driver
     }
 
     try {
       return UserRole.values.firstWhere(
         (e) => e.name == roleStr,
-        orElse: () => UserRole.driver,
+        orElse: () => UserRole.driver, // Corrigé: conducteur -> driver
       );
     } catch (e) {
-      return UserRole.driver;
+      return UserRole.driver; // Corrigé: conducteur -> driver
     }
   }
 
@@ -151,5 +154,3 @@ class PieonUserDetails {
     return null;
   }
 }
-
-// SUPPRESSION DES EXTENSIONS PROBLÉMATIQUES

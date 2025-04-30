@@ -1,36 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:constat_tunisie/core/providers/auth_provider.dart';
-import 'package:constat_tunisie/core/theme/app_theme.dart';
-import 'package:constat_tunisie/presentation/screens/splash_screen.dart';
-import 'package:constat_tunisie/presentation/screens/onboarding/onboarding_screen.dart';
-import 'package:constat_tunisie/presentation/screens/auth/auth_screen.dart';
-import 'package:constat_tunisie/presentation/screens/auth/register_screen.dart';
-import 'package:constat_tunisie/presentation/screens/auth/login_screen.dart';
-import 'package:constat_tunisie/presentation/screens/auth/forgot_password_screen.dart';
-import 'package:constat_tunisie/presentation/screens/driver/driver_home_screen.dart';
-import 'package:constat_tunisie/presentation/screens/insurance/insurance_home_screen.dart';
-import 'package:constat_tunisie/presentation/screens/expert/expert_home_screen.dart';
-import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:logger/logger.dart';
+import 'package:constat_tunisie/core/providers/auth_provider.dart';
+import 'package:constat_tunisie/presentation/screens/auth/login_screen.dart';
+import 'package:constat_tunisie/presentation/screens/auth/register_screen.dart';
+import 'package:constat_tunisie/presentation/screens/dashboard/dashboard_screen.dart';
+import 'package:constat_tunisie/presentation/screens/report/create_report_screen.dart';
+import 'package:constat_tunisie/presentation/screens/report/report_details_screen.dart';
+import 'package:constat_tunisie/presentation/screens/report/report_list_screen.dart';
+import 'package:constat_tunisie/presentation/screens/report/join_report_screen.dart';
+import 'package:constat_tunisie/presentation/screens/profile/profile_screen.dart';
+import 'package:constat_tunisie/presentation/screens/settings/settings_screen.dart';
+
+final logger = Logger();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  final logger = Logger();
-  
-  // Définir l'orientation de l'application
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-  
-  runApp(const MyApp());
+  await Firebase.initializeApp();
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -39,49 +30,49 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Constat Tunisie',
-        debugShowCheckedModeBanner: false, // Supprimer la bannière DEBUG
-        theme: AppTheme.lightTheme,
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          visualDensity: VisualDensity.adaptivePlatformDensity,
+        ),
         initialRoute: '/',
-        routes: {
-          '/': (context) => const SplashScreen(),
-          '/onboarding': (context) => const OnboardingScreen(),
-          '/auth': (context) => const AuthScreen(),
-          '/register': (context) => const RegisterScreen(),
-          '/login': (context) => const LoginScreen(),
-          '/forgot-password': (context) => const ForgotPasswordScreen(),
-          '/driver-home': (context) => DriverHomeScreen(),
-          '/insurance-home': (context) => const InsuranceHomeScreen(),
-          '/expert-home': (context) => const ExpertHomeScreen(),
-          // Ajouter d'autres routes ici
-        },
-        // Gestionnaire d'erreurs de navigation
-        onUnknownRoute: (settings) {
-          return MaterialPageRoute(
-            builder: (context) => Scaffold(
-              appBar: AppBar(
-                title: const Text('Page non trouvée'),
-              ),
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'Oups! La page demandée n\'existe pas.',
-                      style: TextStyle(fontSize: 18),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pushReplacementNamed('/');
-                      },
-                      child: const Text('Retour à l\'accueil'),
-                    ),
-                  ],
+        onGenerateRoute: (settings) {
+          logger.d('Navigation vers: ${settings.name}');
+          
+          // Extraire les arguments si présents
+          final args = settings.arguments as Map<String, dynamic>? ?? {};
+          
+          switch (settings.name) {
+            case '/':
+              return MaterialPageRoute(builder: (_) => LoginScreen());
+            case '/register':
+              return MaterialPageRoute(builder: (_) => RegisterScreen());
+            case '/dashboard':
+              return MaterialPageRoute(builder: (_) => DashboardScreen());
+            case '/report/create':
+              final invitationCode = args['invitationCode'] as String? ?? '';
+              return MaterialPageRoute(
+                builder: (_) => CreateReportScreen(invitationCode: invitationCode),
+              );
+            case '/report/details':
+              final reportId = args['reportId'] as String? ?? '';
+              return MaterialPageRoute(
+                builder: (_) => ReportDetailsScreen(reportId: reportId),
+              );
+            case '/report/list':
+              return MaterialPageRoute(builder: (_) => ReportListScreen());
+            case '/report/join':
+              return MaterialPageRoute(builder: (_) => JoinReportScreen());
+            case '/profile':
+              return MaterialPageRoute(builder: (_) => ProfileScreen());
+            case '/settings':
+              return MaterialPageRoute(builder: (_) => SettingsScreen());
+            default:
+              return MaterialPageRoute(
+                builder: (_) => Scaffold(
+                  body: Center(child: Text('Route non trouvée: ${settings.name}')),
                 ),
-              ),
-            ),
-          );
+              );
+          }
         },
       ),
     );

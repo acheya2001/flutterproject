@@ -19,11 +19,14 @@ dependencies:
   firebase_auth: ^4.7.3
   cloud_firestore: ^4.8.5
   firebase_storage: ^11.2.6
+  firebase_messaging: ^14.6.7
+  firebase_analytics: ^10.4.5
+  firebase_crashlytics: ^3.3.5
 
   # Autres dépendances
   provider: ^6.0.5
   go_router: ^10.1.2
-  shared_preferences: ^2.2.0
+  shared_preferences: ^2.2.1
   flutter_native_splash: ^2.3.10  # Pour configurer le splash screen natif
   lottie: ^3.0.0  # Pour les animations (optionnel)
   cached_network_image: ^3.3.0
@@ -43,9 +46,19 @@ dependencies:
   google_maps_flutter: ^2.5.0
   pdf: ^3.10.4
   share_plus: ^7.1.0
+  photo_view: ^0.14.0
+  flutter_signature_pad: ^3.0.1
+  printing: ^5.11.0
+  geocoding: ^2.1.0
+  intl: ^0.18.1
+  google_mlkit_text_recognition: ^0.10.0
+
+
+
+
   # Commenté temporairement pour résoudre les problèmes de compilation
   # flutter_local_notifications: ^14.1.1
-  permission_handler: ^11.0.0
+  permission_handler: ^11.4.0
 
 dev_dependencies:
   flutter_test:

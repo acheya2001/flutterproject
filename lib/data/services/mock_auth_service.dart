@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:constat_tunisie/core/enums/user_role.dart';
+import 'package:constat_tunisie/data/enums/user_role.dart';
 import 'package:constat_tunisie/data/models/user_model.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -124,6 +124,7 @@ class MockAuthService {
     required String displayName,
     required UserRole role,
     String? phoneNumber,
+    required Map<String, dynamic> profileData,
   }) async {
     try {
       // Vérifier si l'utilisateur existe déjà
@@ -143,7 +144,9 @@ class MockAuthService {
         role: role,
         phoneNumber: phoneNumber,
         createdAt: DateTime.now(),
+        lastLoginAt: DateTime.now(),
         emailVerified: true,
+        profileData: profileData,
         additionalData: {'password': password}, // Stocker le mot de passe (en clair pour la simulation)
       );
       

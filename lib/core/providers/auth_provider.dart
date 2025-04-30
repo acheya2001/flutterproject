@@ -1,233 +1,232 @@
-import 'package:flutter/material.dart';
-import 'package:constat_tunisie/core/enums/user_role.dart';
-import 'package:constat_tunisie/data/models/user_model.dart';
-import 'package:constat_tunisie/data/services/mock_auth_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:logger/logger.dart';
+import 'package:constat_tunisie/data/services/auth_service.dart';
+import 'package:constat_tunisie/data/models/user_model.dart';
+import 'package:constat_tunisie/data/enums/user_role.dart';
 
-class AuthProvider extends ChangeNotifier {
-  final MockAuthService _authService = MockAuthService();
+
+
+
+class AuthProvider with ChangeNotifier {
+  final AuthService _authService = AuthService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final Logger _logger = Logger();
   
   UserModel? _currentUser;
   bool _isLoading = false;
   String? _error;
   bool _isInitialized = false;
-
+  
   // Getters
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isLoggedIn => _currentUser != null;
-  bool get isEmailVerified => _currentUser?.emailVerified ?? false;
   bool get isInitialized => _isInitialized;
-
+  
+  // Constructeur
   AuthProvider() {
-    _initialize();
+    _initializeUser();
   }
-
-  Future<void> _initialize() async {
-    _isLoading = true;
-    notifyListeners();
-
+  
+  // Initialiser l'utilisateur actuel
+  Future<void> _initializeUser() async {
+    _setLoading(true);
     try {
-      // Vérifier si l'utilisateur est déjà connecté
-      final userData = await _authService.getUserData();
-      if (userData != null) {
-        _currentUser = userData;
+      final user = _authService.getCurrentUser();
+      if (user != null) {
+        await _fetchUserData(user.uid);
       }
-      
-      // Écouter les changements d'état d'authentification
-      _authService.authStateChanges.listen((user) async {
-        _currentUser = user;
-        _isInitialized = true;
-        _isLoading = false;
-        notifyListeners();
-      });
     } catch (e) {
-      _logger.e('Erreur lors de l\'initialisation: $e');
-      _error = e.toString();
-      _isLoading = false;
+      _setError(e.toString());
+      _logger.e('Erreur lors de l\'initialisation de l\'utilisateur: $e');
+    } finally {
+      _setLoading(false);
       _isInitialized = true;
-      notifyListeners();
     }
   }
-
+  
+  // Récupérer les données utilisateur depuis Firestore
+  Future<void> _fetchUserData(String uid) async {
+    try {
+      final userData = await _authService.getUserData(uid);
+      if (userData != null) {
+        _currentUser = UserModel.fromFirestore(
+          await _firestore.collection('users').doc(uid).get(),
+        );
+        notifyListeners();
+      }
+    } catch (e) {
+      _setError(e.toString());
+      _logger.e('Erreur lors de la récupération des données utilisateur: $e');
+    }
+  }
+  
   // Inscription avec email et mot de passe
-  Future<void> registerWithEmailAndPassword({
+  Future<bool> registerWithEmailAndPassword({
     required String email,
     required String password,
     required String displayName,
+    required String phoneNumber,
     required UserRole role,
-    String? phoneNumber,
+    required Map<String, dynamic> profileData,
   }) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
+    _setLoading(true);
+    _clearError();
+    
     try {
-      final userModel = await _authService.registerWithEmailAndPassword(
-        email: email,
-        password: password,
-        displayName: displayName,
-        role: role,
-        phoneNumber: phoneNumber,
-      );
+  final userCredential = await _authService.registerWithEmailAndPassword(
+    email: email,
+    password: password,
+    displayName: displayName,
+    phoneNumber: phoneNumber,
+    role: role.toString().split('.').last, // Conversion simple de l'enum en string
+    // OU si vous avez implémenté l'extension: role: role.value,
+    profileData: profileData,
+  );
       
-      _currentUser = userModel;
-      _isLoading = false;
-      notifyListeners();
+      await _fetchUserData(userCredential.user!.uid);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _setError(e.message ?? 'Une erreur s\'est produite lors de l\'inscription.');
+      _logger.e('Erreur d\'authentification: ${e.code} - ${e.message}');
+      return false;
     } catch (e) {
-      _logger.e('Erreur lors de l\'inscription: $e');
-      _error = _handleAuthError(e);
-      _isLoading = false;
-      notifyListeners();
-      rethrow;
+      _setError(e.toString());
+      _logger.e('Erreur inattendue lors de l\'inscription: $e');
+      return false;
+    } finally {
+      _setLoading(false);
     }
   }
-
+  
   // Connexion avec email et mot de passe
-  Future<void> signInWithEmailAndPassword({
+  Future<bool> signInWithEmailAndPassword({
     required String email,
     required String password,
   }) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
+    _setLoading(true);
+    _clearError();
+    
     try {
-      final userModel = await _authService.signInWithEmailAndPassword(
+      final userCredential = await _authService.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
       
-      _currentUser = userModel;
-      _isLoading = false;
-      notifyListeners();
+      await _fetchUserData(userCredential.user!.uid);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _setError(e.message ?? 'Une erreur s\'est produite lors de la connexion.');
+      _logger.e('Erreur d\'authentification: ${e.code} - ${e.message}');
+      return false;
     } catch (e) {
-      _logger.e('Erreur lors de la connexion: $e');
-      _error = _handleAuthError(e);
-      _isLoading = false;
-      notifyListeners();
-      rethrow;
+      _setError(e.toString());
+      _logger.e('Erreur inattendue lors de la connexion: $e');
+      return false;
+    } finally {
+      _setLoading(false);
     }
   }
-
+  
+  // Récupération du mot de passe
+  Future<bool> resetPassword(String email) async {
+    _setLoading(true);
+    _clearError();
+    
+    try {
+      await _authService.resetPassword(email);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _setError(e.message ?? 'Une erreur s\'est produite lors de la réinitialisation du mot de passe.');
+      _logger.e('Erreur d\'authentification: ${e.code} - ${e.message}');
+      return false;
+    } catch (e) {
+      _setError(e.toString());
+      _logger.e('Erreur inattendue lors de la réinitialisation du mot de passe: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
   // Déconnexion
-  Future<void> signOut() async {
-    _isLoading = true;
-    notifyListeners();
-
+  Future<bool> signOut() async {
+    _setLoading(true);
+    _clearError();
+    
     try {
       await _authService.signOut();
       _currentUser = null;
-      _isLoading = false;
       notifyListeners();
+      return true;
     } catch (e) {
+      _setError(e.toString());
       _logger.e('Erreur lors de la déconnexion: $e');
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      rethrow;
+      return false;
+    } finally {
+      _setLoading(false);
     }
-  }
-
-  // Réinitialisation du mot de passe
-  Future<void> resetPassword(String email) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      await _authService.resetPassword(email);
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _logger.e('Erreur lors de la réinitialisation du mot de passe: $e');
-      _error = _handleAuthError(e);
-      _isLoading = false;
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  // Renvoyer l'email de vérification
-  Future<void> sendEmailVerification() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      await _authService.sendEmailVerification();
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _logger.e('Erreur lors de l\'envoi de l\'email de vérification: $e');
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  // Rafraîchir les données utilisateur
-  Future<void> refreshUserData() async {
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      final userData = await _authService.getUserData();
-      _currentUser = userData;
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _logger.e('Erreur lors du rafraîchissement des données utilisateur: $e');
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  // Mettre à jour le profil utilisateur
-  Future<void> updateUserProfile({
-    String? displayName,
-    String? phoneNumber,
-    String? photoURL,
-  }) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      await _authService.updateUserProfile(
-        displayName: displayName,
-        phoneNumber: phoneNumber,
-        photoURL: photoURL,
-      );
-      
-      await refreshUserData();
-    } catch (e) {
-      _logger.e('Erreur lors de la mise à jour du profil: $e');
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  // Effacer les erreurs
-  void clearError() {
-    _error = null;
-    notifyListeners();
-  }
-
-  // Gérer les erreurs d'authentification
-  String _handleAuthError(dynamic e) {
-    return e.toString();
   }
   
-  @override
-  void dispose() {
-    _authService.dispose();
-    super.dispose();
+  // Mettre à jour les données utilisateur
+  Future<bool> updateUserData(Map<String, dynamic> data) async {
+    _setLoading(true);
+    _clearError();
+    
+    try {
+      if (_currentUser == null) {
+        throw Exception('Aucun utilisateur connecté');
+      }
+      
+      await _authService.updateUserData(_currentUser!.uid, data);
+      await _fetchUserData(_currentUser!.uid);
+      return true;
+    } catch (e) {
+      _setError(e.toString());
+      _logger.e('Erreur lors de la mise à jour des données utilisateur: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // Mettre à jour le mot de passe
+  Future<bool> updatePassword(String newPassword) async {
+    _setLoading(true);
+    _clearError();
+    
+    try {
+      await _authService.updatePassword(newPassword);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _setError(e.message ?? 'Une erreur s\'est produite lors de la mise à jour du mot de passe.');
+      _logger.e('Erreur d\'authentification: ${e.code} - ${e.message}');
+      return false;
+    } catch (e) {
+      _setError(e.toString());
+      _logger.e('Erreur inattendue lors de la mise à jour du mot de passe: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // Helpers
+  void _setLoading(bool value) {
+    _isLoading = value;
+    notifyListeners();
+  }
+  
+  void _setError(String error) {
+    _error = error;
+    notifyListeners();
+  }
+  
+  void _clearError() {
+    _error = null;
+    notifyListeners();
   }
 }
