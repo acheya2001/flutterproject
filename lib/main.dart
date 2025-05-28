@@ -1,80 +1,94 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:logger/logger.dart';
-import 'package:constat_tunisie/core/providers/auth_provider.dart';
-import 'package:constat_tunisie/presentation/screens/auth/login_screen.dart';
-import 'package:constat_tunisie/presentation/screens/auth/register_screen.dart';
-import 'package:constat_tunisie/presentation/screens/dashboard/dashboard_screen.dart';
-import 'package:constat_tunisie/presentation/screens/report/create_report_screen.dart';
-import 'package:constat_tunisie/presentation/screens/report/report_details_screen.dart';
-import 'package:constat_tunisie/presentation/screens/report/report_list_screen.dart';
-import 'package:constat_tunisie/presentation/screens/report/join_report_screen.dart';
-import 'package:constat_tunisie/presentation/screens/profile/profile_screen.dart';
-import 'package:constat_tunisie/presentation/screens/settings/settings_screen.dart';
+import 'package:provider/provider.dart';
 
-final logger = Logger();
+import 'core/config/app_routes.dart';
+import 'core/config/app_theme.dart';
+import 'core/services/notification_reminder_service.dart';
+import 'features/auth/providers/auth_provider.dart';
+import 'features/vehicule/providers/vehicule_provider.dart';
+import 'features/conducteur/providers/conducteur_provider.dart';
+import 'features/splash/screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  runApp(MyApp());
+  
+  // Activer les logs détaillés en mode debug
+  if (kDebugMode) {
+    debugPrint('[CONSTAT_APP] Starting application in debug mode');
+  }
+  
+  try {
+    await Firebase.initializeApp();
+    debugPrint('[CONSTAT_APP] Firebase initialized successfully');
+    
+    // Initialiser le service de notifications de rappel
+    try {
+      await NotificationReminderService().initialize();
+      debugPrint('[CONSTAT_APP] Notification reminder service initialized successfully');
+    } catch (e) {
+      debugPrint('[CONSTAT_APP] Warning: Could not initialize notification service: $e');
+      // Ne pas bloquer l'application si les notifications échouent
+    }
+  } catch (e) {
+    debugPrint('[CONSTAT_APP] Error during initialization: $e');
+  }
+  
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => VehiculeProvider()),
+        ChangeNotifierProvider(create: (_) => ConducteurProvider()),
       ],
       child: MaterialApp(
         title: 'Constat Tunisie',
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          visualDensity: VisualDensity.adaptivePlatformDensity,
-        ),
-        initialRoute: '/',
-        onGenerateRoute: (settings) {
-          logger.d('Navigation vers: ${settings.name}');
-          
-          // Extraire les arguments si présents
-          final args = settings.arguments as Map<String, dynamic>? ?? {};
-          
-          switch (settings.name) {
-            case '/':
-              return MaterialPageRoute(builder: (_) => LoginScreen());
-            case '/register':
-              return MaterialPageRoute(builder: (_) => RegisterScreen());
-            case '/dashboard':
-              return MaterialPageRoute(builder: (_) => DashboardScreen());
-            case '/report/create':
-              final invitationCode = args['invitationCode'] as String? ?? '';
-              return MaterialPageRoute(
-                builder: (_) => CreateReportScreen(invitationCode: invitationCode),
-              );
-            case '/report/details':
-              final reportId = args['reportId'] as String? ?? '';
-              return MaterialPageRoute(
-                builder: (_) => ReportDetailsScreen(reportId: reportId),
-              );
-            case '/report/list':
-              return MaterialPageRoute(builder: (_) => ReportListScreen());
-            case '/report/join':
-              return MaterialPageRoute(builder: (_) => JoinReportScreen());
-            case '/profile':
-              return MaterialPageRoute(builder: (_) => ProfileScreen());
-            case '/settings':
-              return MaterialPageRoute(builder: (_) => SettingsScreen());
-            default:
-              return MaterialPageRoute(
-                builder: (_) => Scaffold(
-                  body: Center(child: Text('Route non trouvée: ${settings.name}')),
-                ),
-              );
-          }
-        },
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.lightTheme,
+        themeMode: ThemeMode.light,
+        debugShowCheckedModeBanner: false,
+        navigatorObservers: [
+          _NavigationObserver(),
+        ],
+        initialRoute: AppRoutes.splash,
+        routes: AppRoutes.routes,
+        home: const SplashScreen(),
       ),
     );
+  }
+}
+
+// Observer pour déboguer la navigation
+class _NavigationObserver extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    debugPrint('[CONSTAT_APP] Navigation: Pushed ${route.settings.name} (from ${previousRoute?.settings.name})');
+    super.didPush(route, previousRoute);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    debugPrint('[CONSTAT_APP] Navigation: Popped ${route.settings.name} (back to ${previousRoute?.settings.name})');
+    super.didPop(route, previousRoute);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    debugPrint('[CONSTAT_APP] Navigation: Replaced ${oldRoute?.settings.name} with ${newRoute?.settings.name}');
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    debugPrint('[CONSTAT_APP] Navigation: Removed ${route.settings.name}');
+    super.didRemove(route, previousRoute);
   }
 }
