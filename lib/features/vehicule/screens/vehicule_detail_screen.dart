@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../../core/widgets/custom_app_bar.dart';
-import '../../../core/widgets/custom_button.dart';
+
 import '../models/vehicule_model.dart';
 import '../providers/vehicule_provider.dart';
 import 'vehicule_form_screen.dart';
 
-class VehiculeDetailScreen extends StatelessWidget {
+class VehiculeDetailScreen extends ConsumerWidget {
   final VehiculeModel vehicule;
 
   const VehiculeDetailScreen({Key? key, required this.vehicule}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dateFormat = DateFormat('dd/MM/yyyy');
-    
+
+    // Debug : Afficher les URLs des images
+    debugPrint('[VehiculeDetailScreen] 🖼️ Photo recto URL: ${vehicule.photoCarteGriseRecto}');
+    debugPrint('[VehiculeDetailScreen] 🖼️ Photo verso URL: ${vehicule.photoCarteGriseVerso}');
+    debugPrint('[VehiculeDetailScreen] 🚗 Véhicule ID: ${vehicule.id}');
+    debugPrint('[VehiculeDetailScreen] 🚗 Immatriculation: ${vehicule.immatriculation}');
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
@@ -100,7 +105,7 @@ class VehiculeDetailScreen extends StatelessWidget {
             const SizedBox(height: 24),
             
             // Action buttons
-            _buildActionButtons(context),
+            _buildActionButtons(context, ref),
           ],
         ),
       ),
@@ -154,21 +159,28 @@ class VehiculeDetailScreen extends StatelessWidget {
                           imageUrl: vehicule.photoCarteGriseRecto!,
                           fit: BoxFit.cover,
                           height: 144,
-                          placeholder: (context, url) => Container(
-                            color: const Color(0xFFF7FAFC),
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4299E1)),
+                          placeholder: (context, url) {
+                            debugPrint('[VehiculeDetailScreen] 📥 Chargement image recto: $url');
+                            return Container(
+                              color: const Color(0xFFF7FAFC),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4299E1)),
+                                ),
                               ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: const Color(0xFFFED7D7),
-                            child: const Center(
-                              child: Icon(Icons.error_outline, color: Color(0xFFE53E3E), size: 24),
-                            ),
-                          ),
+                            );
+                          },
+                          errorWidget: (context, url, error) {
+                            debugPrint('[VehiculeDetailScreen] ❌ Erreur image recto: $error');
+                            debugPrint('[VehiculeDetailScreen] ❌ URL problématique: $url');
+                            return Container(
+                              color: const Color(0xFFFED7D7),
+                              child: const Center(
+                                child: Icon(Icons.error_outline, color: Color(0xFFE53E3E), size: 24),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -185,21 +197,28 @@ class VehiculeDetailScreen extends StatelessWidget {
                           imageUrl: vehicule.photoCarteGriseVerso!,
                           fit: BoxFit.cover,
                           height: 144,
-                          placeholder: (context, url) => Container(
-                            color: const Color(0xFFF7FAFC),
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4299E1)),
+                          placeholder: (context, url) {
+                            debugPrint('[VehiculeDetailScreen] 📥 Chargement image verso: $url');
+                            return Container(
+                              color: const Color(0xFFF7FAFC),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4299E1)),
+                                ),
                               ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: const Color(0xFFFED7D7),
-                            child: const Center(
-                              child: Icon(Icons.error_outline, color: Color(0xFFE53E3E), size: 24),
-                            ),
-                          ),
+                            );
+                          },
+                          errorWidget: (context, url, error) {
+                            debugPrint('[VehiculeDetailScreen] ❌ Erreur image verso: $error');
+                            debugPrint('[VehiculeDetailScreen] ❌ URL problématique: $url');
+                            return Container(
+                              color: const Color(0xFFFED7D7),
+                              child: const Center(
+                                child: Icon(Icons.error_outline, color: Color(0xFFE53E3E), size: 24),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -345,7 +364,7 @@ class VehiculeDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context) {
+  Widget _buildActionButtons(BuildContext context, WidgetRef ref) {
     return Row(
       children: [
         Expanded(
@@ -359,7 +378,7 @@ class VehiculeDetailScreen extends StatelessWidget {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: () => _editVehicule(context),
+                onTap: () => _editVehicule(context, ref),
                 child: const Center(
                   child: Text(
                     'Modifier',
@@ -386,7 +405,7 @@ class VehiculeDetailScreen extends StatelessWidget {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: () => _deleteVehicule(context),
+                onTap: () => _deleteVehicule(context, ref),
                 child: const Center(
                   child: Text(
                     'Supprimer',
@@ -405,18 +424,18 @@ class VehiculeDetailScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _editVehicule(BuildContext context) async {
+  Future<void> _editVehicule(BuildContext context, WidgetRef ref) async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => VehiculeFormScreen(vehicule: vehicule),
       ),
     );
-    
+
     if (result == true && context.mounted) {
-      final vehiculeProvider = Provider.of<VehiculeProvider>(context, listen: false);
-      await vehiculeProvider.fetchVehiculesByProprietaireId(vehicule.proprietaireId);
-      
+      final vehiculeProviderInstance = ref.read(vehiculeProvider);
+      await vehiculeProviderInstance.fetchVehiculesByProprietaireId(vehicule.proprietaireId);
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -429,7 +448,7 @@ class VehiculeDetailScreen extends StatelessWidget {
     }
   }
 
-  Future<void> _deleteVehicule(BuildContext context) async {
+  Future<void> _deleteVehicule(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -460,12 +479,12 @@ class VehiculeDetailScreen extends StatelessWidget {
         ],
       ),
     );
-    
+
     if (confirmed == true && context.mounted) {
       try {
-        final vehiculeProvider = Provider.of<VehiculeProvider>(context, listen: false);
-        await vehiculeProvider.deleteVehicule(vehicule.id!, vehicule.proprietaireId);
-        
+        final vehiculeProviderInstance = ref.read(vehiculeProvider);
+        await vehiculeProviderInstance.deleteVehicule(vehicule.id!, vehicule.proprietaireId);
+
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

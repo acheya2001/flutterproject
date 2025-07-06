@@ -35,6 +35,9 @@ class TemoinModel {
     };
   }
 
+  // Alias pour toMap pour compatibilité
+  Map<String, dynamic> toJson() => toMap();
+
   factory TemoinModel.fromMap(Map<String, dynamic> map) {
     return TemoinModel(
       id: map['id'] ?? '',
@@ -48,6 +51,9 @@ class TemoinModel {
       updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt']) : null,
     );
   }
+
+  // Alias pour fromMap pour compatibilité
+  factory TemoinModel.fromJson(Map<String, dynamic> json) => TemoinModel.fromMap(json);
 
   TemoinModel copyWith({
     String? id,

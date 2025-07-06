@@ -18,15 +18,15 @@ class ConducteurModel extends UserModel {
     required DateTime createdAt,
     required DateTime updatedAt,
   }) : super(
-          id: id,
+          uid: id,
           email: email,
           nom: nom,
           prenom: prenom,
           telephone: telephone,
-          type: UserType.conducteur,
+          userType: UserType.conducteur,
           adresse: adresse,
-          createdAt: createdAt,
-          updatedAt: updatedAt,
+          dateCreation: createdAt,
+          dateModification: updatedAt,
         );
 
   // Modifier la méthode fromMap pour accepter un seul argument
@@ -40,14 +40,14 @@ class ConducteurModel extends UserModel {
       cin: data['cin'] as String? ?? '',
       adresse: data['adresse'] as String?,
       vehiculeIds: List<String>.from(data['vehiculeIds'] ?? []),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['dateCreation'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['dateModification'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
   @override
-  Map<String, dynamic> toMap() {
-    final baseMap = super.toMap();
+  Map<String, dynamic> toFirestore() {
+    final baseMap = super.toFirestore();
     return {
       ...baseMap,
       'cin': cin,

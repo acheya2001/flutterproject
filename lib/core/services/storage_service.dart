@@ -1,73 +1,40 @@
-// lib/core/services/storage_service.dart
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
 
 class StorageService {
-  static SharedPreferences? _prefs;
-  static bool _initialized = false;
+  // Instance methods for file uploads (if needed by other parts of your app)
+  Future<String> uploadFile(String path, File file) async {
+    debugPrint('StorageService STUB: Uploading file ${file.path} to $path');
+    await Future.delayed(const Duration(milliseconds: 500));
+    return 'https://firebasestorage.googleapis.com/v0/b/your-project-id.appspot.com/o/${Uri.encodeComponent(path)}?alt=media';
+  }
 
-  // Initialiser le service
-  static Future<void> init() async {
-    if (!_initialized) {
-      _prefs = await SharedPreferences.getInstance();
-      _initialized = true;
+  Future<String> uploadBytes(String path, Uint8List bytes) async {
+    debugPrint('StorageService STUB: Uploading bytes to $path');
+    await Future.delayed(const Duration(milliseconds: 500));
+    return 'https://firebasestorage.googleapis.com/v0/b/your-project-id.appspot.com/o/${Uri.encodeComponent(path)}?alt=media';
+  }
+
+  // Static method to get a boolean value from shared preferences
+  static Future<bool?> getBool(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(key);
+    } catch (e) {
+      debugPrint('StorageService (getBool) Error: $e');
+      return null; // Return null or a default value like false in case of error
     }
   }
 
-  // Vérifier si le service est initialisé
-  static bool get isInitialized => _initialized;
-
-  // Enregistrer une valeur String
-  static Future<bool> setString(String key, String value) async {
-    if (!_initialized) await init();
-    return await _prefs!.setString(key, value);
-  }
-
-  // Récupérer une valeur String
-  static String? getString(String key) {
-    if (!_initialized) {
-      // Si non initialisé, retourner null au lieu de lancer une exception
-      return null;
-    }
-    return _prefs!.getString(key);
-  }
-
-  // Enregistrer une valeur bool
+  // Static method to set a boolean value in shared preferences
   static Future<bool> setBool(String key, bool value) async {
-    if (!_initialized) await init();
-    return await _prefs!.setBool(key, value);
-  }
-
-  // Récupérer une valeur bool
-  static bool? getBool(String key) {
-    if (!_initialized) {
-      return null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return await prefs.setBool(key, value);
+    } catch (e) {
+      debugPrint('StorageService (setBool) Error: $e');
+      return false; // Indicate failure
     }
-    return _prefs!.getBool(key);
-  }
-
-  // Enregistrer une valeur int
-  static Future<bool> setInt(String key, int value) async {
-    if (!_initialized) await init();
-    return await _prefs!.setInt(key, value);
-  }
-
-  // Récupérer une valeur int
-  static int? getInt(String key) {
-    if (!_initialized) {
-      return null;
-    }
-    return _prefs!.getInt(key);
-  }
-
-  // Supprimer une valeur
-  static Future<bool> remove(String key) async {
-    if (!_initialized) await init();
-    return await _prefs!.remove(key);
-  }
-
-  // Vider toutes les préférences
-  static Future<bool> clear() async {
-    if (!_initialized) await init();
-    return await _prefs!.clear();
   }
 }

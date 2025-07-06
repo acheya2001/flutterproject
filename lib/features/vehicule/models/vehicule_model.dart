@@ -7,27 +7,35 @@ class VehiculeModel {
   final String marque;
   final String modele;
   final String compagnieAssurance;
-  final String numeroContrat;
+  final String numeroContrat; // Était numeroPolice dans mon exemple, adapté à votre modèle
+  final String quittance; // Numéro de quittance d'assurance
   final String agence;
-  final DateTime? dateDebutValidite;
-  final DateTime? dateFinValidite;
+  final DateTime? dateDebutValidite; // Était dateDebutAssurance
+  final DateTime? dateFinValidite;   // Était dateFinAssurance
   final String? photoCarteGriseRecto;
   final String? photoCarteGriseVerso;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
-  // Getters pour la compatibilité avec l'ancien code
+  // Getters pour la compatibilité si l'ancien code les utilise encore
   String? get assureur => compagnieAssurance;
   DateTime? get dateDebutAssurance => dateDebutValidite;
   DateTime? get dateFinAssurance => dateFinValidite;
-  
-  // Propriétés supprimées mais gardées pour compatibilité (valeurs par défaut)
-  int get kilometrage => 0;
-  String? get numeroPolice => numeroContrat;
-  String? get numeroCarteGrise => null;
-  DateTime? get datePremiereCirculation => null;
-  String? get type => 'Voiture';
-  int? get annee => null;
+  String? get numeroPolice => numeroContrat; // Pour compatibilité
+
+  // Champs qui n'existent pas dans votre modèle mais que mon code précédent utilisait.
+  // Ils sont retirés des constructeurs et toMap, mais gardés ici pour montrer la différence.
+  // String couleur; (n'existe pas dans votre modèle)
+  // String energie; (n'existe pas dans votre modèle)
+  // int puissanceFiscale; (n'existe pas dans votre modèle)
+  // String numeroChassis; (n'existe pas dans votre modèle)
+  // DateTime dateMiseEnCirculation; (n'existe pas dans votre modèle)
+  // String usage; (n'existe pas dans votre modèle)
+  // String nomPrenomProprietaire; (n'existe pas dans votre modèle)
+  // String adresseProprietaire; (n'existe pas dans votre modèle)
+  // String telephoneProprietaire; (n'existe pas dans votre modèle)
+  // String? photoAssuranceUrl; (n'existe pas dans votre modèle)
+
 
   VehiculeModel({
     this.id,
@@ -37,6 +45,7 @@ class VehiculeModel {
     required this.modele,
     required this.compagnieAssurance,
     required this.numeroContrat,
+    required this.quittance,
     required this.agence,
     this.dateDebutValidite,
     this.dateFinValidite,
@@ -46,21 +55,18 @@ class VehiculeModel {
     this.updatedAt,
   });
 
-  // Vérifier si l'assurance est valide
   bool get estAssuranceValide {
-    if (dateFinValidite == null) return false;
+    if (dateFinValidite == null) return false; // Ou true si null signifie illimité
     return dateFinValidite!.isAfter(DateTime.now());
   }
 
-  // Calculer le nombre de jours restants avant expiration de l'assurance
   int get joursRestantsAssurance {
-    if (dateFinValidite == null) return 0;
+    if (dateFinValidite == null) return 0; // Ou un grand nombre si illimité
     final now = DateTime.now();
     if (dateFinValidite!.isBefore(now)) return 0;
     return dateFinValidite!.difference(now).inDays;
   }
 
-  // Créer une copie du modèle avec des valeurs modifiées
   VehiculeModel copyWith({
     String? id,
     String? proprietaireId,
@@ -69,6 +75,7 @@ class VehiculeModel {
     String? modele,
     String? compagnieAssurance,
     String? numeroContrat,
+    String? quittance,
     String? agence,
     DateTime? dateDebutValidite,
     DateTime? dateFinValidite,
@@ -85,6 +92,7 @@ class VehiculeModel {
       modele: modele ?? this.modele,
       compagnieAssurance: compagnieAssurance ?? this.compagnieAssurance,
       numeroContrat: numeroContrat ?? this.numeroContrat,
+      quittance: quittance ?? this.quittance,
       agence: agence ?? this.agence,
       dateDebutValidite: dateDebutValidite ?? this.dateDebutValidite,
       dateFinValidite: dateFinValidite ?? this.dateFinValidite,
@@ -95,74 +103,49 @@ class VehiculeModel {
     );
   }
 
-  // Convertir le modèle en Map pour Firestore
   Map<String, dynamic> toMap() {
     return {
-      if (id != null) 'id': id,
+      // id est géré par Firestore, ne pas l'inclure ici sauf si nécessaire pour des sous-collections
       'proprietaireId': proprietaireId,
       'immatriculation': immatriculation,
       'marque': marque,
       'modele': modele,
       'compagnieAssurance': compagnieAssurance,
       'numeroContrat': numeroContrat,
+      'quittance': quittance,
       'agence': agence,
-      'dateDebutValidite': dateDebutValidite,
-      'dateFinValidite': dateFinValidite,
+      'dateDebutValidite': dateDebutValidite != null ? Timestamp.fromDate(dateDebutValidite!) : null,
+      'dateFinValidite': dateFinValidite != null ? Timestamp.fromDate(dateFinValidite!) : null,
       'photoCarteGriseRecto': photoCarteGriseRecto,
       'photoCarteGriseVerso': photoCarteGriseVerso,
-      'createdAt': createdAt ?? FieldValue.serverTimestamp(),
-      'updatedAt': updatedAt ?? FieldValue.serverTimestamp(),
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
+      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : FieldValue.serverTimestamp(),
     };
   }
 
-  // Créer un modèle à partir d'un document Firestore
-  factory VehiculeModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
+  factory VehiculeModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    if (data == null) throw Exception("Document data was null!");
+
     return VehiculeModel(
       id: doc.id,
       proprietaireId: data['proprietaireId'] ?? '',
       immatriculation: data['immatriculation'] ?? '',
       marque: data['marque'] ?? '',
       modele: data['modele'] ?? '',
-      compagnieAssurance: data['compagnieAssurance'] ?? data['assureur'] ?? '',
-      numeroContrat: data['numeroContrat'] ?? data['numeroPolice'] ?? '',
+      compagnieAssurance: data['compagnieAssurance'] ?? data['assureur'] ?? '', // Compatibilité
+      numeroContrat: data['numeroContrat'] ?? data['numeroPolice'] ?? '', // Compatibilité
+      quittance: data['quittance'] ?? '',
       agence: data['agence'] ?? '',
-      dateDebutValidite: data['dateDebutValidite'] != null
-          ? (data['dateDebutValidite'] is Timestamp
-              ? (data['dateDebutValidite'] as Timestamp).toDate()
-              : DateTime.parse(data['dateDebutValidite'].toString()))
-          : data['dateDebutAssurance'] != null
-              ? (data['dateDebutAssurance'] is Timestamp
-                  ? (data['dateDebutAssurance'] as Timestamp).toDate()
-                  : DateTime.parse(data['dateDebutAssurance'].toString()))
-              : null,
-      dateFinValidite: data['dateFinValidite'] != null
-          ? (data['dateFinValidite'] is Timestamp
-              ? (data['dateFinValidite'] as Timestamp).toDate()
-              : DateTime.parse(data['dateFinValidite'].toString()))
-          : data['dateFinAssurance'] != null
-              ? (data['dateFinAssurance'] is Timestamp
-                  ? (data['dateFinAssurance'] as Timestamp).toDate()
-                  : DateTime.parse(data['dateFinAssurance'].toString()))
-              : null,
+      dateDebutValidite: (data['dateDebutValidite'] as Timestamp?)?.toDate() ?? (data['dateDebutAssurance'] as Timestamp?)?.toDate(), // Compatibilité
+      dateFinValidite: (data['dateFinValidite'] as Timestamp?)?.toDate() ?? (data['dateFinAssurance'] as Timestamp?)?.toDate(), // Compatibilité
       photoCarteGriseRecto: data['photoCarteGriseRecto'],
       photoCarteGriseVerso: data['photoCarteGriseVerso'],
-      createdAt: data['createdAt'] != null
-          ? (data['createdAt'] is Timestamp
-              ? (data['createdAt'] as Timestamp).toDate()
-              : DateTime.parse(data['createdAt'].toString()))
-          : null,
-      updatedAt: data['updatedAt'] != null
-          ? (data['updatedAt'] is Timestamp
-              ? (data['updatedAt'] as Timestamp).toDate()
-              : DateTime.parse(data['updatedAt'].toString()))
-          : null,
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
-
-  // Créer un modèle à partir d'un Map
-  factory VehiculeModel.fromMap(Map<String, dynamic> data, {String? id}) {
+    factory VehiculeModel.fromMap(Map<String, dynamic> data, {String? id}) {
     return VehiculeModel(
       id: id ?? data['id'],
       proprietaireId: data['proprietaireId'] ?? '',
@@ -171,39 +154,41 @@ class VehiculeModel {
       modele: data['modele'] ?? '',
       compagnieAssurance: data['compagnieAssurance'] ?? data['assureur'] ?? '',
       numeroContrat: data['numeroContrat'] ?? data['numeroPolice'] ?? '',
+      quittance: data['quittance'] ?? '',
       agence: data['agence'] ?? '',
       dateDebutValidite: data['dateDebutValidite'] != null
           ? (data['dateDebutValidite'] is Timestamp
               ? (data['dateDebutValidite'] as Timestamp).toDate()
-              : DateTime.parse(data['dateDebutValidite'].toString()))
+              : DateTime.tryParse(data['dateDebutValidite'].toString()))
           : data['dateDebutAssurance'] != null
               ? (data['dateDebutAssurance'] is Timestamp
                   ? (data['dateDebutAssurance'] as Timestamp).toDate()
-                  : DateTime.parse(data['dateDebutAssurance'].toString()))
+                  : DateTime.tryParse(data['dateDebutAssurance'].toString()))
               : null,
       dateFinValidite: data['dateFinValidite'] != null
           ? (data['dateFinValidite'] is Timestamp
               ? (data['dateFinValidite'] as Timestamp).toDate()
-              : DateTime.parse(data['dateFinValidite'].toString()))
+              : DateTime.tryParse(data['dateFinValidite'].toString()))
           : data['dateFinAssurance'] != null
               ? (data['dateFinAssurance'] is Timestamp
                   ? (data['dateFinAssurance'] as Timestamp).toDate()
-                  : DateTime.parse(data['dateFinAssurance'].toString()))
+                  : DateTime.tryParse(data['dateFinAssurance'].toString()))
               : null,
       photoCarteGriseRecto: data['photoCarteGriseRecto'],
       photoCarteGriseVerso: data['photoCarteGriseVerso'],
       createdAt: data['createdAt'] != null
           ? (data['createdAt'] is Timestamp
               ? (data['createdAt'] as Timestamp).toDate()
-              : DateTime.parse(data['createdAt'].toString()))
+              : DateTime.tryParse(data['createdAt'].toString()))
           : null,
       updatedAt: data['updatedAt'] != null
           ? (data['updatedAt'] is Timestamp
               ? (data['updatedAt'] as Timestamp).toDate()
-              : DateTime.parse(data['updatedAt'].toString()))
+              : DateTime.tryParse(data['updatedAt'].toString()))
           : null,
     );
   }
+
 
   @override
   String toString() {

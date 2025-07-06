@@ -8,7 +8,7 @@ import '../models/constat_model.dart';
 import '../models/participant_model.dart';
 // Import supprimé car non utilisé
 import '../../vehicule/services/vehicule_service.dart';
-import '../../../core/services/ocr_service.dart';
+import '../../../core/services/simple_ocr_service.dart';
 import '../../../core/services/ai_service.dart';
 import '../../../core/services/notification_service.dart';
 
@@ -16,7 +16,7 @@ class ConstatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final VehiculeService _vehiculeService = VehiculeService();
-  final OCRService _ocrService = OCRService();
+  final SimpleOCRService _ocrService = SimpleOCRService();
   final AIService _aiService = AIService();
   final NotificationService _notificationService = NotificationService();
   final Uuid _uuid = const Uuid();

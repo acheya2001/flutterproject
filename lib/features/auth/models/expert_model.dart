@@ -21,20 +21,20 @@ class ExpertModel extends UserModel {
     required DateTime createdAt,
     required DateTime updatedAt,
   }) : super(
-          id: id,
+          uid: id,
           email: email,
           nom: nom,
           prenom: prenom,
           telephone: telephone,
           adresse: adresse,
-          type: UserType.expert,
-          createdAt: createdAt,
-          updatedAt: updatedAt,
+          userType: UserType.expert,
+          dateCreation: createdAt,
+          dateModification: updatedAt,
         );
 
   @override
-  Map<String, dynamic> toMap() {
-    final map = super.toMap();
+  Map<String, dynamic> toFirestore() {
+    final map = super.toFirestore();
     map.addAll({
       'cabinet': cabinet,
       'agrement': agrement,
@@ -55,8 +55,8 @@ class ExpertModel extends UserModel {
         agrement: map['agrement'] as String? ?? '',
         expertiseIds: List<String>.from(map['expertiseIds'] ?? []),
         adresse: map['adresse'] as String?,
-        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        updatedAt: (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        createdAt: (map['dateCreation'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        updatedAt: (map['dateModification'] as Timestamp?)?.toDate() ?? DateTime.now(),
       );
     } catch (e) {
       debugPrint('Erreur lors de la conversion de ExpertModel: $e');

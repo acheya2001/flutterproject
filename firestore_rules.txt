@@ -1,0 +1,322 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 🔐 RÈGLES POUR LES UTILISATEURS
+    match /users/{userId} {
+      // Lecture : Utilisateur connecté peut lire son propre profil + Super Admin peut tout lire
+      allow read: if request.auth != null && 
+                     (request.auth.uid == userId || isSuperAdmin());
+      
+      // Création : Seul le Super Admin peut créer des utilisateurs
+      allow create: if isSuperAdmin();
+      
+      // Mise à jour : Utilisateur peut modifier son profil + Super Admin peut tout modifier
+      allow update: if request.auth != null && 
+                       (request.auth.uid == userId || isSuperAdmin());
+      
+      // Suppression : Seul le Super Admin peut supprimer
+      allow delete: if isSuperAdmin();
+    }
+    
+    // 📋 RÈGLES POUR LES DEMANDES DE COMPTES
+    match /account_requests/{requestId} {
+      // Lecture : Seul le Super Admin peut lire toutes les demandes
+      allow read: if isSuperAdmin();
+      
+      // Création : Tout utilisateur connecté peut faire une demande
+      allow create: if request.auth != null && 
+                       validateAccountRequest();
+      
+      // Mise à jour : Seul le Super Admin peut traiter les demandes
+      allow update: if isSuperAdmin() && 
+                       validateRequestUpdate();
+      
+      // Suppression : Seul le Super Admin peut supprimer
+      allow delete: if isSuperAdmin();
+    }
+    
+    // 🚗 RÈGLES POUR LES CONDUCTEURS
+    match /drivers/{driverId} {
+      // Lecture : Conducteur peut lire son profil + Agents/Experts/Admins peuvent lire
+      allow read: if request.auth != null && 
+                     (request.auth.uid == driverId || 
+                      isAgent() || isExpert() || isAdmin());
+      
+      // Création : Conducteur peut créer son profil
+      allow create: if request.auth != null && 
+                       request.auth.uid == driverId;
+      
+      // Mise à jour : Conducteur peut modifier son profil
+      allow update: if request.auth != null && 
+                       request.auth.uid == driverId;
+      
+      // Suppression : Seuls les admins peuvent supprimer
+      allow delete: if isAdmin();
+    }
+    
+    // 🏢 RÈGLES POUR LES AGENTS D'ASSURANCE
+    match /agents_assurance/{agentId} {
+      // Lecture : Agent peut lire son profil + Admins peuvent lire
+      allow read: if request.auth != null && 
+                     (request.auth.uid == agentId || isAdmin());
+      
+      // Création/Mise à jour/Suppression : Seuls les admins
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // 🔍 RÈGLES POUR LES EXPERTS
+    match /experts/{expertId} {
+      // Lecture : Expert peut lire son profil + Admins peuvent lire
+      allow read: if request.auth != null && 
+                     (request.auth.uid == expertId || isAdmin());
+      
+      // Création/Mise à jour/Suppression : Seuls les admins
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // 🏢 RÈGLES POUR LES COMPAGNIES D'ASSURANCE
+    match /compagnies_assurance/{companyId} {
+      // Lecture : Agents de la compagnie + Admins
+      allow read: if request.auth != null && 
+                     (belongsToCompany(companyId) || isAdmin());
+      
+      // Création/Mise à jour/Suppression : Seuls les Super Admins
+      allow create, update, delete: if isSuperAdmin();
+    }
+    
+    // 🏪 RÈGLES POUR LES AGENCES
+    match /agences_assurance/{agencyId} {
+      // Lecture : Agents de l'agence + Admins
+      allow read: if request.auth != null && 
+                     (belongsToAgency(agencyId) || isAdmin());
+      
+      // Création/Mise à jour/Suppression : Admins de compagnie et Super Admin
+      allow create, update, delete: if isCompanyAdmin() || isSuperAdmin();
+    }
+    
+    // 🚗 RÈGLES POUR LES VÉHICULES
+    match /vehicles/{vehicleId} {
+      // Lecture : Propriétaire + Agents + Experts + Admins
+      allow read: if request.auth != null && 
+                     (isVehicleOwner(vehicleId) || 
+                      isAgent() || isExpert() || isAdmin());
+      
+      // Création : Conducteurs et Agents
+      allow create: if request.auth != null && 
+                       (isDriver() || isAgent());
+      
+      // Mise à jour : Propriétaire + Agents
+      allow update: if request.auth != null && 
+                       (isVehicleOwner(vehicleId) || isAgent());
+      
+      // Suppression : Seuls les agents et admins
+      allow delete: if isAgent() || isAdmin();
+    }
+    
+    // 📄 RÈGLES POUR LES CONTRATS
+    match /contracts/{contractId} {
+      // Lecture : Parties concernées + Agents + Admins
+      allow read: if request.auth != null && 
+                     (isContractParty(contractId) || 
+                      isAgent() || isAdmin());
+      
+      // Création/Mise à jour : Seuls les agents
+      allow create, update: if isAgent();
+      
+      // Suppression : Seuls les admins
+      allow delete: if isAdmin();
+    }
+    
+    // 🚨 RÈGLES POUR LES SINISTRES/RÉCLAMATIONS
+    match /claims/{claimId} {
+      // Lecture : Parties concernées + Agents + Experts + Admins
+      allow read: if request.auth != null && 
+                     (isClaimParty(claimId) || 
+                      isAgent() || isExpert() || isAdmin());
+      
+      // Création : Conducteurs et Agents
+      allow create: if request.auth != null && 
+                       (isDriver() || isAgent());
+      
+      // Mise à jour : Agents et Experts (pour leurs parties respectives)
+      allow update: if request.auth != null && 
+                       (isAgent() || isExpert());
+      
+      // Suppression : Seuls les admins
+      allow delete: if isAdmin();
+    }
+    
+    // 📄 RÈGLES POUR LES DOCUMENTS
+    match /documents/{documentId} {
+      // Lecture : Propriétaire + Parties autorisées
+      allow read: if request.auth != null && 
+                     canAccessDocument(documentId);
+      
+      // Création : Utilisateurs connectés
+      allow create: if request.auth != null;
+      
+      // Mise à jour : Propriétaire du document
+      allow update: if request.auth != null && 
+                       isDocumentOwner(documentId);
+      
+      // Suppression : Propriétaire + Admins
+      allow delete: if request.auth != null && 
+                       (isDocumentOwner(documentId) || isAdmin());
+    }
+    
+    // 🔔 RÈGLES POUR LES NOTIFICATIONS
+    match /notifications/{notificationId} {
+      // Lecture : Destinataire de la notification
+      allow read: if request.auth != null && 
+                     isNotificationRecipient(notificationId);
+      
+      // Création : Système et Admins
+      allow create: if isAdmin();
+      
+      // Mise à jour : Destinataire (pour marquer comme lu)
+      allow update: if request.auth != null && 
+                       isNotificationRecipient(notificationId);
+      
+      // Suppression : Destinataire + Admins
+      allow delete: if request.auth != null && 
+                       (isNotificationRecipient(notificationId) || isAdmin());
+    }
+    
+    // 💬 RÈGLES POUR LES MESSAGES
+    match /messages/{messageId} {
+      // Lecture : Participants à la conversation
+      allow read: if request.auth != null && 
+                     isMessageParticipant(messageId);
+      
+      // Création : Utilisateurs connectés
+      allow create: if request.auth != null;
+      
+      // Mise à jour : Expéditeur du message
+      allow update: if request.auth != null && 
+                       isMessageSender(messageId);
+      
+      // Suppression : Expéditeur + Admins
+      allow delete: if request.auth != null && 
+                       (isMessageSender(messageId) || isAdmin());
+    }
+    
+    // 🔧 FONCTIONS UTILITAIRES
+    
+    // Vérifier si l'utilisateur est Super Admin
+    function isSuperAdmin() {
+      return request.auth != null && 
+             getUserRole() == 'super_admin';
+    }
+    
+    // Vérifier si l'utilisateur est Admin (Company ou Agency)
+    function isAdmin() {
+      return request.auth != null && 
+             (getUserRole() == 'company_admin' || 
+              getUserRole() == 'agency_admin' || 
+              getUserRole() == 'super_admin');
+    }
+    
+    // Vérifier si l'utilisateur est Admin de Compagnie
+    function isCompanyAdmin() {
+      return request.auth != null && 
+             (getUserRole() == 'company_admin' || 
+              getUserRole() == 'super_admin');
+    }
+    
+    // Vérifier si l'utilisateur est Agent
+    function isAgent() {
+      return request.auth != null && 
+             getUserRole() == 'agent';
+    }
+    
+    // Vérifier si l'utilisateur est Expert
+    function isExpert() {
+      return request.auth != null && 
+             getUserRole() == 'expert';
+    }
+    
+    // Vérifier si l'utilisateur est Conducteur
+    function isDriver() {
+      return request.auth != null && 
+             getUserRole() == 'driver';
+    }
+    
+    // Obtenir le rôle de l'utilisateur connecté
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    // Valider une demande de compte
+    function validateAccountRequest() {
+      return request.resource.data.keys().hasAll(['email', 'firstName', 'lastName', 'accountType']) &&
+             request.resource.data.status == 'pending';
+    }
+    
+    // Valider la mise à jour d'une demande
+    function validateRequestUpdate() {
+      return request.resource.data.status in ['approved', 'rejected'] &&
+             request.resource.data.processedBy == request.auth.uid;
+    }
+    
+    // Vérifier l'appartenance à une compagnie
+    function belongsToCompany(companyId) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId;
+    }
+    
+    // Vérifier l'appartenance à une agence
+    function belongsToAgency(agencyId) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyId == agencyId;
+    }
+    
+    // Vérifier si l'utilisateur est propriétaire du véhicule
+    function isVehicleOwner(vehicleId) {
+      return get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.ownerId == request.auth.uid;
+    }
+    
+    // Vérifier si l'utilisateur est partie au contrat
+    function isContractParty(contractId) {
+      let contract = get(/databases/$(database)/documents/contracts/$(contractId)).data;
+      return contract.driverId == request.auth.uid || 
+             contract.agentId == request.auth.uid;
+    }
+    
+    // Vérifier si l'utilisateur est partie au sinistre
+    function isClaimParty(claimId) {
+      let claim = get(/databases/$(database)/documents/claims/$(claimId)).data;
+      return claim.driverId == request.auth.uid || 
+             claim.agentId == request.auth.uid || 
+             claim.expertId == request.auth.uid;
+    }
+    
+    // Vérifier l'accès aux documents
+    function canAccessDocument(documentId) {
+      let doc = get(/databases/$(database)/documents/documents/$(documentId)).data;
+      return doc.ownerId == request.auth.uid || 
+             request.auth.uid in doc.authorizedUsers || 
+             isAdmin();
+    }
+    
+    // Vérifier si l'utilisateur est propriétaire du document
+    function isDocumentOwner(documentId) {
+      return get(/databases/$(database)/documents/documents/$(documentId)).data.ownerId == request.auth.uid;
+    }
+    
+    // Vérifier si l'utilisateur est destinataire de la notification
+    function isNotificationRecipient(notificationId) {
+      return get(/databases/$(database)/documents/notifications/$(notificationId)).data.recipientId == request.auth.uid;
+    }
+    
+    // Vérifier si l'utilisateur est participant au message
+    function isMessageParticipant(messageId) {
+      let message = get(/databases/$(database)/documents/messages/$(messageId)).data;
+      return request.auth.uid in message.participants;
+    }
+    
+    // Vérifier si l'utilisateur est expéditeur du message
+    function isMessageSender(messageId) {
+      return get(/databases/$(database)/documents/messages/$(messageId)).data.senderId == request.auth.uid;
+    }
+  }
+}

@@ -4,6 +4,7 @@ enum UserType {
   conducteur,
   assureur,
   expert,
+  admin,
 }
 
 extension UserTypeExtension on UserType {
@@ -15,6 +16,8 @@ extension UserTypeExtension on UserType {
         return 'Assureur';
       case UserType.expert:
         return 'Expert';
+      case UserType.admin:
+        return 'Administrateur';
     }
   }
 
@@ -26,6 +29,8 @@ extension UserTypeExtension on UserType {
         return Icons.business;
       case UserType.expert:
         return Icons.engineering;
+      case UserType.admin:
+        return Icons.admin_panel_settings;
     }
   }
 
@@ -37,6 +42,8 @@ extension UserTypeExtension on UserType {
         return 'Gérez les dossiers de sinistres';
       case UserType.expert:
         return 'Réalisez des expertises de véhicules';
+      case UserType.admin:
+        return 'Administrez et supervisez le système';
     }
   }
 
@@ -59,6 +66,12 @@ extension UserTypeExtension on UserType {
           'Expertise de véhicules',
           'Rapports d\'expertise',
           'Estimation des dommages',
+        ];
+      case UserType.admin:
+        return [
+          'Validation des comptes',
+          'Supervision du système',
+          'Gestion des utilisateurs',
         ];
     }
   }

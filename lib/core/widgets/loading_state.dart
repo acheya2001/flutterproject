@@ -5,7 +5,7 @@ class LoadingState extends StatelessWidget {
 
   const LoadingState({
     Key? key,
-    this.message = 'Chargement en cours...',
+    required this.message,
   }) : super(key: key);
 
   @override
@@ -18,11 +18,11 @@ class LoadingState extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             message,
+            textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.bold,
+              color: Colors.grey,
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),

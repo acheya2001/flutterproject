@@ -114,6 +114,21 @@ class Constants {
   static const String collectionMessages = 'messages';
   static const String collectionNotifications = 'notifications';
 
+  // Collections pour sessions collaboratives
+  static const String collectionSessions = 'sessions_collaboratives';
+  static const String collectionSessionCodes = 'session_codes';
+  static const String collectionConstatsCollaboratifs = 'constats_collaboratifs';
+  static const String collectionParticipants = 'participants_session';
+  static const String collectionInvitations = 'invitations';
+
+  // Nouvelles collections pour système complet
+  static const String collectionVehiculesAssures = 'vehicules_assures';
+  static const String collectionConstats = 'constats';
+  static const String collectionExpertises = 'expertises';
+  static const String collectionAnalytics = 'analytics';
+  static const String collectionAssureursCompagnies = 'assureurs_compagnies';
+  static const String collectionUserTypes = 'user_types';
+
   // Shared preferences keys
   static const String prefUserId = 'userId';
   static const String prefUserType = 'userType';

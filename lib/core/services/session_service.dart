@@ -1,15 +1,12 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-
-import '../../features/constat/models/session_constat_model.dart'; // Adjusted path
-import '../../features/constat/models/conducteur_info_model.dart'; // Adjusted path
-import '../../features/constat/models/vehicule_accident_model.dart'; // Adjusted path
-import '../../features/constat/models/assurance_info_model.dart'; // Adjusted path
-import '../../features/constat/models/temoin_model.dart ';
-import '../../features/constat/models/proprietaire_info.dart'; // Adjusted path
+import '../../features/constat/models/session_constat_model.dart';
+import '../../features/constat/models/conducteur_session_info.dart';
+import '../../features/constat/models/proprietaire_info.dart';
+import '../../features/conducteur/models/conducteur_info_model.dart';
+import '../../features/conducteur/models/vehicule_accident_model.dart';
+import '../../features/conducteur/models/assurance_info_model.dart';
+import '../../features/constat/models/temoin_model.dart';
 
 class SessionService {
   // Simulation d'une base de données locale
@@ -27,7 +24,7 @@ class SessionService {
       _sessions[sessionId] = sessionWithId;
       _sessionCodes[session.sessionCode] = sessionId;
       
-      debugPrint('Session créée: $sessionId');
+      debugPrint('Session créée: $sessionId avec code ${session.sessionCode}');
       return sessionId;
     } catch (e) {
       debugPrint('Erreur création session: $e');
@@ -41,7 +38,7 @@ class SessionService {
       
       final session = _sessions[sessionId];
       if (session == null) {
-        throw Exception('Session non trouvée');
+        throw Exception('Session non trouvée pour ID: $sessionId');
       }
       
       return session;
@@ -57,7 +54,7 @@ class SessionService {
       
       final sessionId = _sessionCodes[sessionCode];
       if (sessionId == null) {
-        throw Exception('Code de session invalide');
+        throw Exception('Code de session invalide ou session non trouvée pour code: $sessionCode');
       }
       
       return getSession(sessionId);
@@ -73,35 +70,46 @@ class SessionService {
       
       final session = await getSessionByCode(sessionCode);
       
-      // Trouver la position du conducteur
-      String? position;
+      String? positionToJoin;
+      // Find an available position for the joining user
+      // Prefer invited positions first
       for (var entry in session.conducteursInfo.entries) {
-        if (entry.value.email != null && !entry.value.hasJoined) {
-          position = entry.key;
+        if (entry.value.isInvited && entry.value.email != null /* could check email match if needed */ && !entry.value.hasJoined) {
+          positionToJoin = entry.key;
           break;
         }
       }
-      
-      if (position == null) {
-        throw Exception('Aucune place disponible dans cette session');
+      // If no invited spot, find any non-joined spot (if logic allows open joining)
+      if (positionToJoin == null) {
+        for (var entry in session.conducteursInfo.entries) {
+          if (!entry.value.hasJoined) { // Simplified: any non-joined spot
+            positionToJoin = entry.key;
+            break;
+          }
+        }
       }
       
-      // Marquer comme rejoint
-      final updatedInfo = session.conducteursInfo[position]!.copyWith(
-        userId: userId,
+      if (positionToJoin == null) {
+        throw Exception('Aucune place disponible ou invitation correspondante dans cette session.');
+      }
+      
+      final conducteurInfoToUpdate = session.conducteursInfo[positionToJoin]!;
+      final updatedInfo = conducteurInfoToUpdate.copyWith(
+        userId: userId, // Assign the joining user's ID
         hasJoined: true,
         joinedAt: DateTime.now(),
       );
       
+      final updatedConducteursInfo = Map<String, ConducteurSessionInfo>.from(session.conducteursInfo);
+      updatedConducteursInfo[positionToJoin] = updatedInfo;
+      
       final updatedSession = session.copyWith(
-        conducteursInfo: {
-          ...session.conducteursInfo,
-          position: updatedInfo,
-        },
+        conducteursInfo: updatedConducteursInfo,
+        updatedAt: DateTime.now(),
       );
       
       _sessions[session.id] = updatedSession;
-      
+      debugPrint('Utilisateur $userId a rejoint la session $sessionCode en tant que conducteur $positionToJoin');
       return updatedSession;
     } catch (e) {
       debugPrint('Erreur rejoindre session: $e');
@@ -112,19 +120,19 @@ class SessionService {
   Future<void> sauvegarderConducteur({
     required String sessionId,
     required String position,
-    required ConducteurInfoModel conducteurInfo,
-    required VehiculeAccidentModel vehiculeInfo,
-    required AssuranceInfoModel assuranceInfo,
+    required ConducteurInfoModel conducteurInfo, // From conducteur/models
+    required VehiculeAccidentModel vehiculeInfo, // From conducteur/models
+    required AssuranceInfoModel assuranceInfo,   // From conducteur/models
     required bool isProprietaire,
     ProprietaireInfo? proprietaireInfo,
     required List<int> circonstances,
     required List<String> degatsApparents,
     required List<TemoinModel> temoins,
-    required List<File> photosAccident,
+    required List<File> photosAccident, // These would be uploaded and URLs stored
     File? photoPermis,
     File? photoCarteGrise,
     File? photoAttestation,
-    Uint8List? signature,
+    Uint8List? signature, // This would be uploaded and URL stored
     required String observations,
   }) async {
     try {
@@ -132,54 +140,86 @@ class SessionService {
       
       final session = _sessions[sessionId];
       if (session == null) {
-        throw Exception('Session non trouvée');
+        throw Exception('Session non trouvée pour sauvegarde conducteur');
       }
       
-      // Simuler l'upload des fichiers
-      if (photosAccident.isNotEmpty) {
-        debugPrint('Upload de ${photosAccident.length} photos d\'accident');
+      // Simuler l'upload des fichiers et obtenir des URLs (non implémenté ici)
+      // List<String> photosAccidentUrls = await _uploadFiles(photosAccident);
+      // String? photoPermisUrl = photoPermis != null ? await _uploadFile(photoPermis) : null;
+      // ... etc. for other files and signature
+
+      final conducteurSessionInfoToUpdate = session.conducteursInfo[position];
+      if (conducteurSessionInfoToUpdate == null) {
+        throw Exception('Position $position non trouvée dans la session $sessionId');
       }
-      if (photoPermis != null) {
-        debugPrint('Upload photo permis');
-      }
-      if (photoCarteGrise != null) {
-        debugPrint('Upload photo carte grise');
-      }
-      if (photoAttestation != null) {
-        debugPrint('Upload photo attestation');
-      }
-      if (signature != null) {
-        debugPrint('Upload signature');
-      }
-      
-      // Mettre à jour les informations du conducteur
-      final updatedInfo = session.conducteursInfo[position]?.copyWith(
-        conducteurInfo: conducteurInfo,
-        vehiculeInfo: vehiculeInfo,
-        assuranceInfo: assuranceInfo,
+
+      final updatedInfo = conducteurSessionInfoToUpdate.copyWith(
+        conducteurInfo: conducteurInfo, // This is now correctly typed
+        vehiculeInfo: vehiculeInfo,     // This is now correctly typed
+        assuranceInfo: assuranceInfo,   // This is now correctly typed
         isProprietaire: isProprietaire,
-        proprietaireInfo: proprietaireInfo,
+        proprietaireInfo: proprietaireInfo, // This will be null if isProprietaire is true and proprietaireInfo is not provided
         circonstances: circonstances,
         degatsApparents: degatsApparents,
+        temoins: temoins,
         observations: observations,
+        // photosAccidentUrls: photosAccidentUrls,
+        // photoPermisUrl: photoPermisUrl,
+        // ... etc. for other URLs
         isCompleted: true,
         completedAt: DateTime.now(),
       );
       
-      if (updatedInfo != null) {
-        final updatedSession = session.copyWith(
-          conducteursInfo: {
-            ...session.conducteursInfo,
-            position: updatedInfo,
-          },
-          updatedAt: DateTime.now(),
-        );
-        
-        _sessions[sessionId] = updatedSession;
-        debugPrint('Conducteur $position sauvegardé dans session $sessionId');
-      }
+      final updatedConducteursInfo = Map<String, ConducteurSessionInfo>.from(session.conducteursInfo);
+      updatedConducteursInfo[position] = updatedInfo;
+
+      final updatedSession = session.copyWith(
+        conducteursInfo: updatedConducteursInfo,
+        updatedAt: DateTime.now(),
+      );
+      
+      _sessions[sessionId] = updatedSession;
+      debugPrint('Conducteur $position sauvegardé dans session $sessionId');
     } catch (e) {
       debugPrint('Erreur sauvegarde conducteur: $e');
+      rethrow;
+    }
+  }
+
+  /// Marque un conducteur comme ayant rejoint la session
+  Future<void> marquerConducteurRejoint(String sessionId, String position, String userId) async {
+    try {
+      debugPrint('[SessionService] Marquage conducteur rejoint: $position dans session $sessionId pour user $userId');
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      final session = _sessions[sessionId];
+      if (session == null) {
+        throw Exception('Session non trouvée pour ID: $sessionId');
+      }
+
+      final conducteurInfo = session.conducteursInfo[position];
+      if (conducteurInfo == null) {
+        throw Exception('Position $position non trouvée dans la session');
+      }
+
+      final updatedInfo = conducteurInfo.copyWith(
+        userId: userId,
+        hasJoined: true,
+        joinedAt: DateTime.now(),
+      );
+
+      final updatedConducteursInfo = Map<String, ConducteurSessionInfo>.from(session.conducteursInfo);
+      updatedConducteursInfo[position] = updatedInfo;
+
+      final updatedSession = session.copyWith(
+        conducteursInfo: updatedConducteursInfo,
+        updatedAt: DateTime.now(),
+      );
+
+      _sessions[sessionId] = updatedSession;
+      debugPrint('[SessionService] Conducteur marqué comme rejoint avec succès');
+    } catch (e) {
+      debugPrint('[SessionService] Erreur marquage conducteur: $e');
       rethrow;
     }
   }

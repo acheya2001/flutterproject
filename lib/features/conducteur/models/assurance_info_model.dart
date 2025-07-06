@@ -29,6 +29,9 @@ class AssuranceInfoModel {
     };
   }
 
+  /// Alias pour toJson() - compatibilité Firestore
+  Map<String, dynamic> toMap() => toJson();
+
   factory AssuranceInfoModel.fromJson(Map<String, dynamic> json) {
     return AssuranceInfoModel(
       id: json['id'] ?? '',
@@ -40,6 +43,10 @@ class AssuranceInfoModel {
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
     );
   }
+
+  /// Alias pour fromJson() - compatibilité Firestore
+  factory AssuranceInfoModel.fromMap(Map<String, dynamic> map) =>
+      AssuranceInfoModel.fromJson(map);
 
   AssuranceInfoModel copyWith({
     String? id,

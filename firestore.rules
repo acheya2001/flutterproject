@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========== RÈGLES TEMPORAIRES ULTRA-PERMISSIVES ==========
+    // ⚠️ POUR DÉVELOPPEMENT SEULEMENT - À SÉCURISER EN PRODUCTION ⚠️
+    
+    // Permettre l'accès complet à toutes les collections
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

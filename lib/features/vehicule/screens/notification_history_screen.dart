@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/widgets/custom_app_bar.dart';
@@ -8,14 +8,14 @@ import '../../../core/widgets/empty_state.dart';
 import '../providers/vehicule_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 
-class NotificationHistoryScreen extends StatefulWidget {
+class NotificationHistoryScreen extends ConsumerStatefulWidget {
   const NotificationHistoryScreen({Key? key}) : super(key: key);
 
   @override
-  State<NotificationHistoryScreen> createState() => _NotificationHistoryScreenState();
+  ConsumerState<NotificationHistoryScreen> createState() => _NotificationHistoryScreenState();
 }
 
-class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
+class _NotificationHistoryScreenState extends ConsumerState<NotificationHistoryScreen> {
   List<Map<String, dynamic>> _notifications = [];
   bool _isLoading = true;
 
@@ -27,14 +27,14 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
 
   Future<void> _loadNotificationHistory() async {
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final vehiculeProvider = Provider.of<VehiculeProvider>(context, listen: false);
-      
-      if (authProvider.currentUser != null) {
-        final notifications = await vehiculeProvider.getNotificationHistory(
-          authProvider.currentUser!.id,
+      final authProviderInstance = ref.read(authProvider);
+      final vehiculeProviderInstance = ref.read(vehiculeProvider);
+
+      if (authProviderInstance.currentUser != null) {
+        final notifications = await vehiculeProviderInstance.getNotificationHistory(
+          authProviderInstance.currentUser!.id,
         );
-        
+
         if (mounted) {
           setState(() {
             _notifications = notifications;
@@ -132,7 +132,7 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.1),
+                      color: iconColor.withOpacity(0.1), // Remplacé withValues par withOpacity
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -209,11 +209,11 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
 
   Future<void> _markAsRead(Map<String, dynamic> notification) async {
     if (notification['read'] == true) return;
-    
+
     try {
-      final vehiculeProvider = Provider.of<VehiculeProvider>(context, listen: false);
-      await vehiculeProvider.markNotificationAsRead(notification['id']);
-      
+      final vehiculeProviderInstance = ref.read(vehiculeProvider);
+      await vehiculeProviderInstance.markNotificationAsRead(notification['id']);
+
       // Mettre à jour localement
       setState(() {
         notification['read'] = true;

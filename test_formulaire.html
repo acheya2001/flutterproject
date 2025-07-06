@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulaire de Demande de Compte Professionnel - Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            margin-top: 20px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: white;
+            width: 25%;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .form-content {
+            padding: 30px;
+        }
+
+        .step-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .role-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .role-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .role-card:hover {
+            border-color: #4f46e5;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 70, 229, 0.15);
+        }
+
+        .role-card.selected {
+            border-color: #4f46e5;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+        }
+
+        .role-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .role-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .role-desc {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            transition: all 0.3s ease;
+        }
+
+        .step-dot.active {
+            background: #4f46e5;
+        }
+
+        .step-dot.completed {
+            background: #10b981;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Demande de Compte Professionnel</h1>
+            <p>Remplissez ce formulaire pour demander un accès professionnel</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div class="form-content">
+            <div class="step-indicator">
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+            </div>
+
+            <div id="step1" class="step-content">
+                <h2 class="step-title">Sélectionnez votre rôle</h2>
+                <div class="role-grid">
+                    <div class="role-card" onclick="selectRole(this, 'agent')">
+                        <div class="role-icon">👨‍💼</div>
+                        <div class="role-title">Agent d'Agence</div>
+                        <div class="role-desc">Représentant d'une agence d'assurance</div>
+                    </div>
+                    <div class="role-card" onclick="selectRole(this, 'expert')">
+                        <div class="role-icon">🔍</div>
+                        <div class="role-title">Expert Automobile</div>
+                        <div class="role-desc">Expert en évaluation de sinistres</div>
+                    </div>
+                    <div class="role-card" onclick="selectRole(this, 'admin_compagnie')">
+                        <div class="role-icon">🏢</div>
+                        <div class="role-title">Admin Compagnie</div>
+                        <div class="role-desc">Administrateur de compagnie d'assurance</div>
+                    </div>
+                    <div class="role-card" onclick="selectRole(this, 'admin_agence')">
+                        <div class="role-icon">🏪</div>
+                        <div class="role-title">Admin Agence</div>
+                        <div class="role-desc">Administrateur d'agence locale</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="step2" class="step-content" style="display: none;">
+                <h2 class="step-title">Informations personnelles</h2>
+                <div class="form-group">
+                    <label class="form-label">Nom complet *</label>
+                    <input type="text" class="form-input" placeholder="Votre nom complet">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email professionnel *</label>
+                    <input type="email" class="form-input" placeholder="votre.email@entreprise.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Téléphone *</label>
+                    <input type="tel" class="form-input" placeholder="+216 XX XXX XXX">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">CIN *</label>
+                    <input type="text" class="form-input" placeholder="Numéro de carte d'identité">
+                </div>
+            </div>
+
+            <div class="btn-container">
+                <button class="btn btn-secondary" onclick="previousStep()" id="prevBtn" style="display: none;">
+                    Précédent
+                </button>
+                <button class="btn btn-primary" onclick="nextStep()" id="nextBtn">
+                    Suivant
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let selectedRole = null;
+
+        function selectRole(element, role) {
+            // Désélectionner tous les rôles
+            document.querySelectorAll('.role-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Sélectionner le rôle cliqué
+            element.classList.add('selected');
+            selectedRole = role;
+        }
+
+        function nextStep() {
+            if (currentStep === 1 && !selectedRole) {
+                alert('Veuillez sélectionner un rôle');
+                return;
+            }
+
+            if (currentStep < 4) {
+                // Cacher l'étape actuelle
+                document.getElementById(`step${currentStep}`).style.display = 'none';
+                
+                // Afficher l'étape suivante
+                currentStep++;
+                document.getElementById(`step${currentStep}`).style.display = 'block';
+                
+                // Mettre à jour les indicateurs
+                updateStepIndicators();
+                updateButtons();
+                updateProgress();
+            }
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                // Cacher l'étape actuelle
+                document.getElementById(`step${currentStep}`).style.display = 'none';
+                
+                // Afficher l'étape précédente
+                currentStep--;
+                document.getElementById(`step${currentStep}`).style.display = 'block';
+                
+                // Mettre à jour les indicateurs
+                updateStepIndicators();
+                updateButtons();
+                updateProgress();
+            }
+        }
+
+        function updateStepIndicators() {
+            const dots = document.querySelectorAll('.step-dot');
+            dots.forEach((dot, index) => {
+                dot.classList.remove('active', 'completed');
+                if (index + 1 === currentStep) {
+                    dot.classList.add('active');
+                } else if (index + 1 < currentStep) {
+                    dot.classList.add('completed');
+                }
+            });
+        }
+
+        function updateButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            if (currentStep === 1) {
+                prevBtn.style.display = 'none';
+            } else {
+                prevBtn.style.display = 'block';
+            }
+            
+            if (currentStep === 4) {
+                nextBtn.textContent = 'Soumettre';
+            } else {
+                nextBtn.textContent = 'Suivant';
+            }
+        }
+
+        function updateProgress() {
+            const progressFill = document.getElementById('progressFill');
+            const progress = (currentStep / 4) * 100;
+            progressFill.style.width = progress + '%';
+        }
+    </script>
+</body>
+</html>

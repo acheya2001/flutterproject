@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gmail OAuth2 Token Generator - Mobile App</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px 0; }
+        textarea { width: 100%; margin: 10px 0; }
+        .step { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 Gmail OAuth2 Token Generator</h1>
+        <p><strong>Pour application mobile Flutter</strong></p>
+        
+        <div class="step">
+            <h3>📱 Étape 1: Configuration</h3>
+            <p><strong>Client ID:</strong> 324863789443-p91qv6l61mitdti5evhu7pu446fn95un.apps.googleusercontent.com</p>
+            <p><strong>Project:</strong> constattunisiemail-462921</p>
+        </div>
+
+        <div class="step">
+            <h3>🚀 Étape 2: Autorisation</h3>
+            <button onclick="authorize()">🔐 Autoriser Gmail</button>
+            <p><em>Cliquez pour vous connecter avec votre compte Gmail</em></p>
+        </div>
+
+        <div class="step">
+            <h3>🎫 Étape 3: Résultat</h3>
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const CLIENT_ID = '324863789443-p91qv6l61mitdti5evhu7pu446fn95un.apps.googleusercontent.com';
+        const REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob';
+        const SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+
+        function authorize() {
+            const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+                `client_id=${CLIENT_ID}&` +
+                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                `scope=${encodeURIComponent(SCOPE)}&` +
+                `response_type=code&` +
+                `access_type=offline&` +
+                `prompt=consent`;
+            
+            console.log('🔗 URL d\'autorisation:', authUrl);
+            window.location.href = authUrl;
+        }
+
+        // Récupérer le code depuis l'URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        
+        if (code) {
+            console.log('✅ Code reçu:', code);
+            exchangeCodeForToken(code);
+        }
+
+        async function exchangeCodeForToken(code) {
+            document.getElementById('result').innerHTML = '<p>⏳ Échange du code en cours...</p>';
+            
+            try {
+                // Pour mobile, nous utilisons PKCE (sans client_secret)
+                const response = await fetch('https://oauth2.googleapis.com/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        client_id: CLIENT_ID,
+                        code: code,
+                        grant_type: 'authorization_code',
+                        redirect_uri: REDIRECT_URI,
+                    }),
+                });
+
+                const data = await response.json();
+                console.log('📊 Réponse:', data);
+                
+                if (data.refresh_token) {
+                    document.getElementById('result').innerHTML = `
+                        <h3>🎉 Succès !</h3>
+                        <p><strong>🔑 Refresh Token:</strong></p>
+                        <textarea rows="3" cols="80" readonly onclick="this.select()">${data.refresh_token}</textarea>
+                        <p><strong>🎫 Access Token:</strong></p>
+                        <textarea rows="3" cols="80" readonly onclick="this.select()">${data.access_token}</textarea>
+                        <p><strong>⏰ Expires in:</strong> ${data.expires_in} secondes</p>
+                        <p style="color: green;"><strong>✅ Copiez le refresh_token pour votre configuration Cloud Functions !</strong></p>
+                    `;
+                } else if (data.access_token) {
+                    document.getElementById('result').innerHTML = `
+                        <h3>⚠️ Token reçu mais pas de refresh_token</h3>
+                        <p><strong>🎫 Access Token:</strong></p>
+                        <textarea rows="3" cols="80" readonly onclick="this.select()">${data.access_token}</textarea>
+                        <p style="color: orange;">Essayez de révoquer l'autorisation et recommencez avec prompt=consent</p>
+                        <p><a href="https://myaccount.google.com/permissions" target="_blank">🔗 Gérer les autorisations Google</a></p>
+                    `;
+                } else {
+                    document.getElementById('result').innerHTML = `
+                        <h3>❌ Erreur</h3>
+                        <pre style="background: #ffe6e6; padding: 10px;">${JSON.stringify(data, null, 2)}</pre>
+                        <p>Vérifiez que l'URI de redirection est configurée dans Google Cloud Console</p>
+                    `;
+                }
+            } catch (error) {
+                console.error('❌ Erreur:', error);
+                document.getElementById('result').innerHTML = `
+                    <h3>❌ Erreur de réseau</h3>
+                    <p style="color: red;">${error.message}</p>
+                    <p>Vérifiez votre connexion internet et les CORS</p>
+                `;
+            }
+        }
+
+        // Afficher les instructions au chargement
+        if (!code) {
+            document.getElementById('result').innerHTML = `
+                <p>📋 <strong>Instructions:</strong></p>
+                <ol>
+                    <li>Cliquez sur "Autoriser Gmail"</li>
+                    <li>Connectez-vous avec votre compte Gmail</li>
+                    <li>Acceptez les permissions</li>
+                    <li>Copiez le refresh_token généré</li>
+                </ol>
+                <p><em>Assurez-vous que http://localhost:8080 est configuré comme URI de redirection dans Google Cloud Console</em></p>
+            `;
+        }
+    </script>
+</body>
+</html>

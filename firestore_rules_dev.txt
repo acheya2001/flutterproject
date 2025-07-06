@@ -1,0 +1,88 @@
+// 🔧 RÈGLES FIRESTORE POUR LE DÉVELOPPEMENT
+// ⚠️ À utiliser UNIQUEMENT en développement !
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 🧪 Règles permissives pour le développement
+    // Permet la lecture et l'écriture pour tous les utilisateurs authentifiés
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // 📝 Alternative : Règles complètement ouvertes (TRÈS DANGEREUX)
+    // Décommentez SEULEMENT si l'authentification ne fonctionne pas
+    /*
+    match /{document=**} {
+      allow read, write: if true;
+    }
+    */
+  }
+}
+
+// 📋 INSTRUCTIONS D'UTILISATION :
+// 
+// 1. Allez sur : https://console.firebase.google.com/project/constattunisiemail-462921/firestore/rules
+// 2. Copiez-collez les règles ci-dessus
+// 3. Cliquez sur "Publier"
+// 4. Testez votre application
+// 
+// ⚠️ IMPORTANT : 
+// - Ces règles sont UNIQUEMENT pour le développement
+// - En production, utilisez des règles sécurisées
+// - N'oubliez pas de remettre les vraies règles après les tests
+
+// 🔒 RÈGLES DE PRODUCTION (à remettre après les tests) :
+/*
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Fonction d'authentification
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Fonction pour vérifier le rôle
+    function hasRole(role) {
+      return isAuthenticated() && 
+             resource.data.role == role && 
+             request.auth.uid == resource.id;
+    }
+    
+    // Collection des utilisateurs
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+    
+    // Collection des véhicules
+    match /vehicules/{vehiculeId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Collection des constats
+    match /constats/{constatId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Collections d'assurance
+    match /assureurs_compagnies/{companyId} {
+      allow read: if isAuthenticated();
+      allow write: if hasRole('assureur');
+    }
+    
+    match /vehicules_assures/{vehiculeId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    match /clients_assurance/{clientId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    match /analytics/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if hasRole('assureur') || hasRole('expert');
+    }
+  }
+}
+*/

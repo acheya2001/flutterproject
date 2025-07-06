@@ -22,7 +22,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
   }
 
   void _continue() {
-    Navigator.pushReplacementNamed(context, AppRoutes.login);
+    Navigator.pushReplacementNamed(context, AppRoutes.userTypeSelection);
   }
 
   @override

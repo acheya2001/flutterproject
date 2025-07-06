@@ -7,50 +7,6 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:324863789443:android:681d5840c4fa8b1578ceb6",
-        "android_client_info": {
-          "package_name": "com.example.assurance_accident_app"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "324863789443-3h0bro6npj9egucma049d2c4m6d65t93.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.assurance_accident_app",
-            "certificate_hash": "34605c6d81139db92aa20777355120c17796584c"
-          }
-        },
-        {
-          "client_id": "324863789443-p91qv6l61mitdti5evhu7pu446fn95un.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDWW5CCR27i58JP5rGsJ7xceV2LHQya0_A"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "324863789443-p91qv6l61mitdti5evhu7pu446fn95un.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "324863789443-hmth7oj0pvqjad8u27l6gbcgh1tm6bm8.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.assuranceAccidentApp"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
         "mobilesdk_app_id": "1:324863789443:android:e4422e0659add27578ceb6",
         "android_client_info": {
           "package_name": "com.example.constat_tunisie"
@@ -58,15 +14,15 @@
       },
       "oauth_client": [
         {
-          "client_id": "324863789443-h9rl1g2uvp2g0vmu43lnfiudvscddtsi.apps.googleusercontent.com",
+          "client_id": "324863789443-3h0bro6npj9egucma049d2c4m6d65t93.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.constat_tunisie",
-            "certificate_hash": "34605c6d81139db92aa20777355120c17796584c"
+            "certificate_hash": "sha1_placeholder"
           }
         },
         {
-          "client_id": "324863789443-p91qv6l61mitdti5evhu7pu446fn95un.apps.googleusercontent.com",
+          "client_id": "324863789443-fff4ojjqgvcld5rhbdrb5pfi9u4cmf18.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
@@ -79,59 +35,8 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "324863789443-p91qv6l61mitdti5evhu7pu446fn95un.apps.googleusercontent.com",
+              "client_id": "324863789443-fff4ojjqgvcld5rhbdrb5pfi9u4cmf18.apps.googleusercontent.com",
               "client_type": 3
-            },
-            {
-              "client_id": "324863789443-hmth7oj0pvqjad8u27l6gbcgh1tm6bm8.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.assuranceAccidentApp"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:324863789443:android:2348c310cb3d7e7678ceb6",
-        "android_client_info": {
-          "package_name": "com.example.constat_tunisier"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "324863789443-i1qfh0akcr6u3lcb5ani7gu4i863j9hp.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.constat_tunisier",
-            "certificate_hash": "34605c6d81139db92aa20777355120c17796584c"
-          }
-        },
-        {
-          "client_id": "324863789443-p91qv6l61mitdti5evhu7pu446fn95un.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDWW5CCR27i58JP5rGsJ7xceV2LHQya0_A"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "324863789443-p91qv6l61mitdti5evhu7pu446fn95un.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "324863789443-hmth7oj0pvqjad8u27l6gbcgh1tm6bm8.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.assuranceAccidentApp"
-              }
             }
           ]
         }

@@ -1,0 +1,365 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===== FONCTIONS UTILITAIRES =====
+    
+    // Vérifier si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Vérifier si l'utilisateur est admin
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == 'admin';
+    }
+    
+    // Vérifier si l'utilisateur est propriétaire du document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Vérifier le type d'utilisateur
+    function hasUserType(userType) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == userType;
+    }
+    
+    // Vérifier si l'utilisateur a une permission spécifique
+    function hasPermission(permission) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             permission in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', []);
+    }
+    
+    // Vérifier si le compte est actif
+    function isAccountActive() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'active') == 'active';
+    }
+    
+    // ===== RÈGLES POUR LES COLLECTIONS =====
+    
+    // Collection users - Mise à jour avec nouveaux champs
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        isOwner(userId) || 
+        isAdmin() || 
+        hasPermission('view_all_data')
+      );
+      
+      allow create: if isAuthenticated() && isOwner(userId);
+      
+      allow update: if isAuthenticated() && (
+        isOwner(userId) || 
+        isAdmin() || 
+        hasPermission('manage_users')
+      );
+      
+      allow delete: if isAdmin() || hasPermission('manage_users');
+    }
+    
+    // Collection notifications - Nouvelle collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        hasPermission('manage_notifications') ||
+        request.resource.data.recipientId == request.auth.uid
+      );
+      
+      allow update: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      allow delete: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    
+    // Collection professional_account_requests - Nouvelle collection
+    match /professional_account_requests/{requestId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        hasPermission('validate_agents')
+      );
+      
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      allow update: if isAdmin() || hasPermission('validate_agents');
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Collection conducteurs - Existante, mise à jour
+    match /conducteurs/{conducteurId} {
+      allow read: if isAuthenticated() && (
+        isOwner(conducteurId) || 
+        isAdmin() || 
+        hasUserType('assureur') || 
+        hasUserType('expert')
+      );
+      
+      allow create: if isAuthenticated() && isOwner(conducteurId);
+      
+      allow update: if isAuthenticated() && (
+        isOwner(conducteurId) || 
+        isAdmin() || 
+        hasPermission('manage_clients')
+      );
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Collection assureurs - Existante, mise à jour
+    match /assureurs/{assureurId} {
+      allow read: if isAuthenticated() && (
+        isOwner(assureurId) || 
+        isAdmin() || 
+        hasPermission('view_all_data')
+      );
+      
+      allow create: if isAuthenticated() && (
+        isOwner(assureurId) || 
+        isAdmin()
+      );
+      
+      allow update: if isAuthenticated() && (
+        isOwner(assureurId) || 
+        isAdmin() || 
+        hasPermission('manage_users')
+      );
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Collection experts - Existante, mise à jour
+    match /experts/{expertId} {
+      allow read: if isAuthenticated() && (
+        isOwner(expertId) || 
+        isAdmin() || 
+        hasPermission('view_all_data')
+      );
+      
+      allow create: if isAuthenticated() && (
+        isOwner(expertId) || 
+        isAdmin()
+      );
+      
+      allow update: if isAuthenticated() && (
+        isOwner(expertId) || 
+        isAdmin() || 
+        hasPermission('manage_users')
+      );
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Collection admins - Existante, mise à jour
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Collection vehicules - Existante, avec permissions
+    match /vehicules/{vehiculeId} {
+      allow read: if isAuthenticated() && (
+        resource.data.conducteurId == request.auth.uid ||
+        isAdmin() ||
+        hasUserType('assureur') ||
+        hasUserType('expert') ||
+        hasPermission('view_contracts')
+      );
+      
+      allow create: if isAuthenticated() && isAccountActive() && (
+        request.resource.data.conducteurId == request.auth.uid ||
+        hasPermission('create_contracts')
+      );
+      
+      allow update: if isAuthenticated() && isAccountActive() && (
+        resource.data.conducteurId == request.auth.uid ||
+        hasPermission('edit_contracts') ||
+        isAdmin()
+      );
+      
+      allow delete: if isAuthenticated() && (
+        resource.data.conducteurId == request.auth.uid ||
+        hasPermission('delete_contracts') ||
+        isAdmin()
+      );
+    }
+    
+    // Collection constats - Existante, avec permissions
+    match /constats/{constatId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid in resource.data.get('participantIds', []) ||
+        isAdmin() ||
+        hasUserType('assureur') ||
+        hasUserType('expert') ||
+        hasPermission('view_claims')
+      );
+      
+      allow create: if isAuthenticated() && isAccountActive();
+      
+      allow update: if isAuthenticated() && isAccountActive() && (
+        request.auth.uid in resource.data.get('participantIds', []) ||
+        hasPermission('process_claims') ||
+        isAdmin()
+      );
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Collection accidents - Existante, avec permissions
+    match /accidents/{accidentId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid in resource.data.get('participantIds', []) ||
+        isAdmin() ||
+        hasUserType('assureur') ||
+        hasUserType('expert')
+      );
+      
+      allow create: if isAuthenticated() && isAccountActive();
+      
+      allow update: if isAuthenticated() && isAccountActive() && (
+        request.auth.uid in resource.data.get('participantIds', []) ||
+        hasPermission('process_claims') ||
+        isAdmin()
+      );
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Collection expertises - Existante, avec permissions
+    match /expertises/{expertiseId} {
+      allow read: if isAuthenticated() && (
+        resource.data.expertId == request.auth.uid ||
+        isAdmin() ||
+        hasUserType('assureur') ||
+        hasPermission('view_expertises')
+      );
+      
+      allow create: if isAuthenticated() && isAccountActive() && (
+        hasUserType('expert') ||
+        hasPermission('create_expertises')
+      );
+      
+      allow update: if isAuthenticated() && isAccountActive() && (
+        resource.data.expertId == request.auth.uid ||
+        hasPermission('edit_expertises') ||
+        isAdmin()
+      );
+      
+      allow delete: if isAdmin();
+    }
+    
+    // Collection invitations - Existante, avec permissions
+    match /invitations/{invitationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.recipientEmail == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated() && isAccountActive() && 
+                       request.resource.data.senderId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.recipientEmail == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email ||
+        isAdmin()
+      );
+      
+      allow delete: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    
+    // Collection messages - Existante, avec permissions
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated() && isAccountActive() && 
+                       request.resource.data.senderId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid
+      );
+      
+      allow delete: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+    
+    // Collection compagnies_assurance - Hiérarchie administrative
+    match /compagnies_assurance/{compagnieId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Collection agences_assurance - Hiérarchie administrative
+    match /agences_assurance/{agenceId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Collection agents_assurance - Hiérarchie administrative
+    match /agents_assurance/{agentId} {
+      allow read: if isAuthenticated() && (
+        isOwner(agentId) ||
+        isAdmin() ||
+        hasPermission('view_all_data')
+      );
+      
+      allow create: if isAdmin();
+      allow update: if isAdmin() || hasPermission('manage_users');
+      allow delete: if isAdmin();
+    }
+    
+    // Collection contrats_assurance - Contrats d'assurance
+    match /contrats_assurance/{contratId} {
+      allow read: if isAuthenticated() && (
+        resource.data.conducteurId == request.auth.uid ||
+        hasPermission('view_contracts') ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated() && isAccountActive() && (
+        hasPermission('create_contracts') ||
+        isAdmin()
+      );
+      
+      allow update: if isAuthenticated() && isAccountActive() && (
+        hasPermission('edit_contracts') ||
+        isAdmin()
+      );
+      
+      allow delete: if hasPermission('delete_contracts') || isAdmin();
+    }
+  }
+}

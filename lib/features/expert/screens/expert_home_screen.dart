@@ -1,18 +1,18 @@
 // lib/features/expert/screens/expert_home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_routes.dart';
 import '../../../core/widgets/custom_app_bar.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 
-class ExpertHomeScreen extends StatelessWidget {
+class ExpertHomeScreen extends ConsumerWidget {
   const ExpertHomeScreen({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final user = authProvider.currentUser;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authProviderInstance = ref.watch(authProvider);
+    final user = authProviderInstance.currentUser;
     
     return Scaffold(
       appBar: CustomAppBar(
@@ -21,7 +21,7 @@ class ExpertHomeScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await authProvider.signOut();
+              await authProviderInstance.signOut();
               if (context.mounted) {
                 Navigator.pushReplacementNamed(context, AppRoutes.login);
               }

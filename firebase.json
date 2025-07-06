@@ -1,1 +1,45 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"assuranceaccident-2c2fa","appId":"1:324863789443:android:e4422e0659add27578ceb6","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"assuranceaccident-2c2fa","configurations":{"android":"1:324863789443:android:e4422e0659add27578ceb6","ios":"1:324863789443:ios:4434955323e641ff78ceb6","macos":"1:324863789443:ios:4434955323e641ff78ceb6","web":"1:324863789443:web:52bec42558c4193e78ceb6","windows":"1:324863789443:web:1b5c480de3e94cca78ceb6"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "assuranceaccident-2c2fa",
+          "appId": "1:324863789443:android:e4422e0659add27578ceb6",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "assuranceaccident-2c2fa",
+          "configurations": {
+            "android": "1:324863789443:android:e4422e0659add27578ceb6",
+            "ios": "1:324863789443:ios:4434955323e641ff78ceb6",
+            "macos": "1:324863789443:ios:4434955323e641ff78ceb6",
+            "web": "1:324863789443:web:52bec42558c4193e78ceb6",
+            "windows": "1:324863789443:web:1b5c480de3e94cca78ceb6"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs20",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ],
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

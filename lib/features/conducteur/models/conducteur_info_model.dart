@@ -35,6 +35,9 @@ class ConducteurInfoModel {
     };
   }
 
+  /// Alias pour toJson() - compatibilité Firestore
+  Map<String, dynamic> toMap() => toJson();
+
   factory ConducteurInfoModel.fromJson(Map<String, dynamic> json) {
     return ConducteurInfoModel(
       id: json['id'] ?? '',
@@ -48,6 +51,10 @@ class ConducteurInfoModel {
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
     );
   }
+
+  /// Alias pour fromJson() - compatibilité Firestore
+  factory ConducteurInfoModel.fromMap(Map<String, dynamic> map) =>
+      ConducteurInfoModel.fromJson(map);
 
   ConducteurInfoModel copyWith({
     String? id,

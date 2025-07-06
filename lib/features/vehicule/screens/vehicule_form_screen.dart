@@ -1,33 +1,33 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/widgets/custom_app_bar.dart';
-import '../../../core/widgets/custom_button.dart';
-import '../../../core/widgets/custom_text_field.dart';
+
 import '../../../utils/connectivity_utils.dart';
 import '../models/vehicule_model.dart';
 import '../providers/vehicule_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 
-class VehiculeFormScreen extends StatefulWidget {
+
+class VehiculeFormScreen extends ConsumerStatefulWidget {
   final VehiculeModel? vehicule;
 
   const VehiculeFormScreen({Key? key, this.vehicule}) : super(key: key);
 
   @override
-  State<VehiculeFormScreen> createState() => _VehiculeFormScreenState();
+  ConsumerState<VehiculeFormScreen> createState() => _VehiculeFormScreenState();
 }
 
-class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProviderStateMixin {
+class _VehiculeFormScreenState extends ConsumerState<VehiculeFormScreen> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _immatriculationController = TextEditingController();
   final _marqueController = TextEditingController();
   final _modeleController = TextEditingController();
   final _compagnieAssuranceController = TextEditingController();
   final _numeroContratController = TextEditingController();
+  final _quittanceController = TextEditingController();
   final _agenceController = TextEditingController();
 
   DateTime? _dateDebutValidite;
@@ -49,7 +49,7 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
   static const Color _secondaryPastel = Color(0xFF9B59B6);
   static const Color _accentPastel = Color(0xFF3498DB);
   static const Color _successPastel = Color(0xFF2ECC71);
-  static const Color _warningPastel = Color(0xFFF39C12);
+
   static const Color _backgroundPastel = Color(0xFFF8F9FA);
   static const Color _cardPastel = Color(0xFFFFFFFF);
 
@@ -86,6 +86,7 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
       _modeleController.text = widget.vehicule!.modele;
       _compagnieAssuranceController.text = widget.vehicule!.compagnieAssurance;
       _numeroContratController.text = widget.vehicule!.numeroContrat;
+      _quittanceController.text = widget.vehicule!.quittance;
       _agenceController.text = widget.vehicule!.agence;
       _dateDebutValidite = widget.vehicule!.dateDebutValidite;
       _dateFinValidite = widget.vehicule!.dateFinValidite;
@@ -100,6 +101,7 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
     _modeleController.dispose();
     _compagnieAssuranceController.dispose();
     _numeroContratController.dispose();
+    _quittanceController.dispose();
     _agenceController.dispose();
     super.dispose();
   }
@@ -296,12 +298,16 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    
+
     if (_dateDebutValidite == null || _dateFinValidite == null) {
       _showSnackBar('Veuillez sélectionner les dates de validité', isError: true);
       return;
     }
-    
+
+    // Réinitialiser l'état du provider avant de commencer
+    final vehiculeProviderInstance = ref.read(vehiculeProvider);
+    vehiculeProviderInstance.resetForNewOperation();
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -314,22 +320,23 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
         throw Exception('Pas de connexion internet. Veuillez vérifier votre connexion et réessayer.');
       }
       
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final authProviderInstance = ref.read(authProvider);
       if (!mounted) return;
-      
-      if (authProvider.currentUser == null) {
+
+      if (authProviderInstance.currentUser == null) {
         throw Exception('Utilisateur non authentifié');
       }
 
-      final vehiculeProvider = Provider.of<VehiculeProvider>(context, listen: false);
+      final vehiculeProviderInstance = ref.read(vehiculeProvider);
       
       final vehicule = VehiculeModel(
-        proprietaireId: authProvider.currentUser!.id,
+        proprietaireId: authProviderInstance.currentUser!.id,
         immatriculation: _immatriculationController.text.trim(),
         marque: _marqueController.text.trim(),
         modele: _modeleController.text.trim(),
         compagnieAssurance: _compagnieAssuranceController.text.trim(),
         numeroContrat: _numeroContratController.text.trim(),
+        quittance: _quittanceController.text.trim(),
         agence: _agenceController.text.trim(),
         dateDebutValidite: _dateDebutValidite,
         dateFinValidite: _dateFinValidite,
@@ -338,13 +345,13 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
       );
       
       if (widget.vehicule == null) {
-        await vehiculeProvider.addVehicule(
+        await vehiculeProviderInstance.addVehicule(
           vehicule: vehicule,
           photoRecto: _photoRectoFile,
           photoVerso: _photoVersoFile,
         );
       } else {
-        await vehiculeProvider.updateVehicule(
+        await vehiculeProviderInstance.updateVehicule(
           vehicule: vehicule.copyWith(id: widget.vehicule!.id),
           photoRecto: _photoRectoChanged ? _photoRectoFile : null,
           photoVerso: _photoVersoChanged ? _photoVersoFile : null,
@@ -363,7 +370,20 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
           _isLoading = false;
           _errorMessage = e.toString();
         });
-        _showSnackBar(_errorMessage ?? 'Une erreur est survenue', isError: true);
+
+        // Personnaliser le message d'erreur selon le type d'erreur
+        String userFriendlyMessage;
+        if (e.toString().contains('TimeoutException') || e.toString().contains('timeout')) {
+          userFriendlyMessage = 'Le téléchargement prend trop de temps.\n\nConseils :\n• Vérifiez votre connexion internet\n• Utilisez des images plus petites\n• Réessayez dans quelques instants';
+        } else if (e.toString().contains('network') || e.toString().contains('connection')) {
+          userFriendlyMessage = 'Problème de connexion internet.\nVeuillez vérifier votre connexion et réessayer.';
+        } else if (e.toString().contains('permission') || e.toString().contains('denied')) {
+          userFriendlyMessage = 'Vous n\'avez pas les autorisations nécessaires.\nVeuillez contacter l\'administrateur.';
+        } else {
+          userFriendlyMessage = 'Une erreur est survenue.\nVeuillez réessayer.';
+        }
+
+        _showSnackBar(userFriendlyMessage, isError: true);
       }
     }
   }
@@ -389,157 +409,192 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
           ),
         ),
       ),
-      body: _isLoading
-          ? _buildLoadingState()
-          : FadeTransition(
-              opacity: _fadeAnimation,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionCard(
-                        title: 'Informations du véhicule',
-                        icon: Icons.directions_car,
-                        children: [
-                          _buildModernTextField(
-                            controller: _immatriculationController,
-                            label: 'Immatriculation',
-                            hint: 'Ex: 123 TUN 9815',
-                            icon: Icons.confirmation_number,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Veuillez entrer l\'immatriculation';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                          _buildAutocompleteField(
-                            controller: _marqueController,
-                            label: 'Marque',
-                            hint: 'Ex: Renault, Peugeot, BMW...',
-                            icon: Icons.branding_watermark,
-                            suggestions: _marquesExemples,
-                          ),
-                          const SizedBox(height: 20),
-                          _buildModernTextField(
-                            controller: _modeleController,
-                            label: 'Modèle',
-                            hint: 'Ex: 208, Clio, Golf...',
-                            icon: Icons.model_training,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Veuillez entrer le modèle';
-                              }
-                              return null;
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      _buildSectionCard(
-                        title: 'Photos de la carte grise',
-                        icon: Icons.photo_camera,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildPhotoCard(
-                                  title: 'Recto',
-                                  photoFile: _photoRectoFile,
-                                  networkUrl: widget.vehicule?.photoCarteGriseRecto,
-                                  onTap: () => _showImageSourceDialog(true),
-                                ),
+      body: Consumer(
+        builder: (context, ref, child) {
+          final vehiculeProviderInstance = ref.watch(vehiculeProvider);
+
+          if (_isLoading || vehiculeProviderInstance.isLoading) {
+            return _buildLoadingState(vehiculeProviderInstance);
+          }
+
+          return FadeTransition(
+            opacity: _fadeAnimation,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionCard(
+                      title: 'Informations du véhicule',
+                      icon: Icons.directions_car,
+                      children: [
+                        _buildModernTextField(
+                          controller: _immatriculationController,
+                          label: 'Immatriculation',
+                          hint: 'Ex: 123 TUN 9815',
+                          icon: Icons.confirmation_number,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Veuillez entrer l\'immatriculation';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        _buildAutocompleteField(
+                          controller: _marqueController,
+                          label: 'Marque',
+                          hint: 'Ex: Renault, Peugeot, BMW...',
+                          icon: Icons.branding_watermark,
+                          suggestions: _marquesExemples,
+                        ),
+                        const SizedBox(height: 20),
+                        _buildModernTextField(
+                          controller: _modeleController,
+                          label: 'Modèle',
+                          hint: 'Ex: 208, Clio, Golf...',
+                          icon: Icons.model_training,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Veuillez entrer le modèle';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    _buildSectionCard(
+                      title: 'Photos de la carte grise',
+                      icon: Icons.photo_camera,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildPhotoCard(
+                                title: 'Recto',
+                                photoFile: _photoRectoFile,
+                                networkUrl: widget.vehicule?.photoCarteGriseRecto,
+                                onTap: () => _showImageSourceDialog(true),
                               ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildPhotoCard(
-                                  title: 'Verso',
-                                  photoFile: _photoVersoFile,
-                                  networkUrl: widget.vehicule?.photoCarteGriseVerso,
-                                  onTap: () => _showImageSourceDialog(false),
-                                ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildPhotoCard(
+                                title: 'Verso',
+                                photoFile: _photoVersoFile,
+                                networkUrl: widget.vehicule?.photoCarteGriseVerso,
+                                onTap: () => _showImageSourceDialog(false),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      _buildSectionCard(
-                        title: 'Informations d\'assurance',
-                        icon: Icons.security,
-                        children: [
-                          _buildAutocompleteField(
-                            controller: _compagnieAssuranceController,
-                            label: 'Compagnie d\'assurance',
-                            hint: 'Ex: STAR, GAT, COMAR...',
-                            icon: Icons.business,
-                            suggestions: _assurancesExemples,
-                          ),
-                          const SizedBox(height: 20),
-                          _buildModernTextField(
-                            controller: _numeroContratController,
-                            label: 'Numéro de contrat',
-                            hint: 'Ex: CT123456789',
-                            icon: Icons.numbers,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Veuillez entrer le numéro de contrat';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                          _buildModernTextField(
-                            controller: _agenceController,
-                            label: 'Agence',
-                            hint: 'Ex: Tunis Centre, Sfax...',
-                            icon: Icons.location_city,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Veuillez entrer l\'agence';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildDateField(
-                                  label: 'Début de validité',
-                                  date: _dateDebutValidite,
-                                  onTap: () => _selectDate(context, true),
-                                  dateFormat: dateFormat,
-                                ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    _buildSectionCard(
+                      title: 'Informations d\'assurance',
+                      icon: Icons.security,
+                      children: [
+                        _buildAutocompleteField(
+                          controller: _compagnieAssuranceController,
+                          label: 'Compagnie d\'assurance',
+                          hint: 'Ex: STAR, GAT, COMAR...',
+                          icon: Icons.business,
+                          suggestions: _assurancesExemples,
+                        ),
+                        const SizedBox(height: 20),
+                        _buildModernTextField(
+                          controller: _numeroContratController,
+                          label: 'Numéro de contrat',
+                          hint: 'Ex: CT123456789',
+                          icon: Icons.numbers,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Veuillez entrer le numéro de contrat';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        _buildModernTextField(
+                          controller: _quittanceController,
+                          label: 'Quittance',
+                          hint: 'Ex: QP2024N000042230',
+                          icon: Icons.receipt,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Veuillez entrer la quittance';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        _buildModernTextField(
+                          controller: _agenceController,
+                          label: 'Agence',
+                          hint: 'Ex: Tunis Centre, Sfax...',
+                          icon: Icons.location_city,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Veuillez entrer l\'agence';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildDateField(
+                                label: 'Début de validité',
+                                date: _dateDebutValidite,
+                                onTap: () => _selectDate(context, true),
+                                dateFormat: dateFormat,
                               ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildDateField(
-                                  label: 'Fin de validité',
-                                  date: _dateFinValidite,
-                                  onTap: () => _selectDate(context, false),
-                                  dateFormat: dateFormat,
-                                ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildDateField(
+                                label: 'Fin de validité',
+                                date: _dateFinValidite,
+                                onTap: () => _selectDate(context, false),
+                                dateFormat: dateFormat,
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      _buildSubmitButton(isEditing),
-                    ],
-                  ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    _buildSubmitButton(isEditing),
+                  ],
                 ),
               ),
             ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildLoadingState() {
+  Widget _buildLoadingState(VehiculeProvider vehiculeProvider) {
+    final progress = vehiculeProvider.uploadProgress;
+    final progressPercentage = (progress * 100).toInt();
+
+    String statusMessage;
+    if (progress < 0.2) {
+      statusMessage = 'Compression des images...';
+    } else if (progress < 0.8) {
+      statusMessage = 'Téléchargement des photos...';
+    } else if (progress < 0.9) {
+      statusMessage = 'Enregistrement du véhicule...';
+    } else {
+      statusMessage = 'Finalisation...';
+    }
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -548,29 +603,134 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
           end: Alignment.bottomCenter,
         ),
       ),
-      child: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: _primaryPastel),
-            SizedBox(height: 24),
-            Text(
-              'Traitement en cours...',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Indicateur de progression circulaire
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: CircularProgressIndicator(
+                      value: progress,
+                      strokeWidth: 8,
+                      backgroundColor: _primaryPastel.withValues(alpha: 0.2),
+                      valueColor: const AlwaysStoppedAnimation<Color>(_primaryPastel),
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.cloud_upload,
+                        size: 32,
+                        color: _primaryPastel,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$progressPercentage%',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _primaryPastel,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Veuillez patienter',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.black54,
+              const SizedBox(height: 32),
+              Text(
+                statusMessage,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              const Text(
+                'Veuillez patienter, cela peut prendre quelques instants...',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              // Conseils pour l'utilisateur
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _primaryPastel.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _primaryPastel.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: const Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: _primaryPastel,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Conseils',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _primaryPastel,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '• Gardez une connexion internet stable\n• Ne fermez pas l\'application\n• Le téléchargement peut prendre du temps selon la taille des images',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.black87,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Bouton d'annulation si le processus prend trop de temps
+              if (progress > 0.1) // Afficher seulement après avoir commencé
+                ElevatedButton(
+                  onPressed: () {
+                    vehiculeProvider.cancelVehiculeOperation();
+                    vehiculeProvider.resetForNewOperation();
+                    setState(() {
+                      _isLoading = false;
+                      _errorMessage = null;
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Annuler et réessayer'),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -862,22 +1022,23 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
             const SizedBox(height: 8),
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.calendar_today,
                   color: _primaryPastel,
-                  size: 20,
+                  size: 18,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     date != null
                         ? dateFormat.format(date)
                         : 'Sélectionner une date',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       color: date != null ? Colors.black87 : Colors.grey.shade500,
                       fontWeight: FontWeight.w500,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -924,19 +1085,23 @@ class _VehiculeFormScreenState extends State<VehiculeFormScreen> with TickerProv
                   )
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         isEditing ? Icons.update : Icons.add,
                         color: Colors.white,
-                        size: 24,
+                        size: 20,
                       ),
-                      const SizedBox(width: 12),
-                      Text(
-                        isEditing ? 'Mettre à jour' : 'Ajouter le véhicule',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          isEditing ? 'Mettre à jour' : 'Ajouter le véhicule',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],

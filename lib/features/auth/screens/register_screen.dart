@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_routes.dart';
 import '../../../utils/user_type.dart';
 import '../providers/auth_provider.dart';
 
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -35,6 +33,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
   
   UserType _selectedUserType = UserType.conducteur;
 
+  // Nouveaux contrôleurs pour les champs hiérarchiques
+  final _adresseController = TextEditingController();
+  String? _selectedCompagnie;
+  String? _selectedAgence;
+  String? _selectedGouvernorat;
+  String? _selectedPoste;
+
+  // Listes pour les dropdowns
+  List<Map<String, dynamic>> _compagnies = [];
+  List<Map<String, dynamic>> _agences = [];
+  List<String> _gouvernorats = [
+    'Tunis', 'Ariana', 'Ben Arous', 'Manouba', 'Nabeul', 'Zaghouan',
+    'Bizerte', 'Béja', 'Jendouba', 'Kef', 'Siliana', 'Sousse',
+    'Monastir', 'Mahdia', 'Sfax', 'Kairouan', 'Kasserine', 'Sidi Bouzid',
+    'Gabès', 'Médenine', 'Tataouine', 'Gafsa', 'Tozeur', 'Kébili'
+  ];
+  List<String> _postes = [
+    'Agent Commercial',
+    'Conseiller Clientèle',
+    'Responsable Agence',
+    'Superviseur',
+    'Chargé de Sinistres'
+  ];
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -46,6 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _cinController.dispose();
     _compagnieController.dispose();
     _matriculeController.dispose();
+    _adresseController.dispose();
     super.dispose();
   }
 
@@ -57,6 +80,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_acceptTerms) {
       setState(() {
         _errorMessage = "Veuillez accepter les conditions d'utilisation";
+      });
+      return;
+    }
+
+    // Vérifier que seuls les conducteurs peuvent s'inscrire
+    if (_selectedUserType != UserType.conducteur) {
+      setState(() {
+        _errorMessage = "Seuls les conducteurs peuvent s'inscrire directement. Les professionnels doivent contacter leur responsable.";
       });
       return;
     }
@@ -75,8 +106,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       debugPrint('Type: $_selectedUserType');
       
       // Utiliser le AuthProvider pour l'inscription
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final user = await authProvider.registerUser(
+      final authProviderInstance = ref.read(authProvider);
+      final user = await authProviderInstance.registerUser(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         nom: _nomController.text.trim(),
@@ -107,11 +138,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           case UserType.expert:
             Navigator.pushReplacementNamed(context, AppRoutes.expertHome);
             break;
+          case UserType.admin:
+            Navigator.pushReplacementNamed(context, AppRoutes.adminHome);
+            break;
         }
       } else {
         setState(() {
           _isLoading = false;
-          _errorMessage = authProvider.error ?? "Erreur lors de l'inscription";
+          _errorMessage = authProviderInstance.error ?? "Erreur lors de l'inscription";
         });
       }
     } on FirebaseAuthException catch (e) {
@@ -217,18 +251,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 10),
               
               // Sélection du type d'utilisateur
-              Row(
+              Column(
                 children: [
-                  Expanded(
-                    child: _buildUserTypeOption(UserType.conducteur, 'Conducteur', Icons.drive_eta),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _buildUserTypeOption(UserType.assureur, 'Assureur', Icons.business),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _buildUserTypeOption(UserType.expert, 'Expert', Icons.engineering),
+                  // Option Conducteur
+                  _buildUserTypeOption(UserType.conducteur, 'Conducteur', Icons.drive_eta),
+
+                  const SizedBox(height: 15),
+
+                  // Lien vers inscription professionnelle
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue[200]!),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.business_center,
+                          size: 32,
+                          color: Colors.blue[600],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Vous êtes un professionnel ?',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[800],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Agent d\'assurance ou Expert',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.blue[600],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/professional-info');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue[600],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          ),
+                          child: const Text('En savoir plus'),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

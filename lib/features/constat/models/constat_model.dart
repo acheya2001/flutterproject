@@ -1,17 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 
-import '../../../core/utils/constants.dart';
-import '../../vehicule/models/vehicule_model.dart';
-
-enum ConstatStatus {
-  draft,        // Brouillon
-  pending,      // En attente de validation par les autres parties
-  validated,    // Validé par toutes les parties
-  submitted,    // Soumis à l'assurance
-  processing,   // En cours de traitement
-  completed,    // Traité
-  rejected,     // Rejeté
+enum ConstatStatus { 
+  draft, 
+  pending_validation, 
+  en_cours_de_validation, 
+  valide, 
+  validated, // Added as per constat_service.dart
+  submitted, // Added as per constat_service.dart
+  refuse, 
+  completed, 
+  archived 
 }
 
 class ConstatModel {
@@ -23,11 +21,7 @@ class ConstatModel {
   final List<String> vehiculeIds;
   final List<String> conducteurIds;
   final List<String> temoinsIds;
-  final List<String> photosUrls;
-  final String? croquis;
-  final String? videoReconstruction;
-  final String? descriptionVocale;
-  final String? transcriptionDescription;
+  List<String> photosUrls;
   final Map<String, bool> validationStatus;
   final ConstatStatus status;
   final DateTime createdAt;
@@ -36,6 +30,10 @@ class ConstatModel {
   final Map<String, dynamic>? circonstances;
   final Map<String, dynamic>? dommages;
   final Map<String, dynamic>? observations;
+  final String? descriptionVocale;
+  final String? transcriptionDescription;
+  final String? videoReconstruction;
+  final String? croquis;
 
   ConstatModel({
     required this.id,
@@ -43,15 +41,11 @@ class ConstatModel {
     required this.lieuAccident,
     this.coordonnees,
     this.adresseAccident,
-    required this.vehiculeIds,
-    required this.conducteurIds,
+    this.vehiculeIds = const [],
+    this.conducteurIds = const [],
     this.temoinsIds = const [],
     this.photosUrls = const [],
-    this.croquis,
-    this.videoReconstruction,
-    this.descriptionVocale,
-    this.transcriptionDescription,
-    required this.validationStatus,
+    this.validationStatus = const {},
     required this.status,
     required this.createdAt,
     required this.updatedAt,
@@ -59,12 +53,16 @@ class ConstatModel {
     this.circonstances,
     this.dommages,
     this.observations,
+    this.descriptionVocale,
+    this.transcriptionDescription,
+    this.videoReconstruction,
+    this.croquis,
   });
 
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'dateAccident': dateAccident,
+      'dateAccident': Timestamp.fromDate(dateAccident),
       'lieuAccident': lieuAccident,
       'coordonnees': coordonnees,
       'adresseAccident': adresseAccident,
@@ -72,64 +70,52 @@ class ConstatModel {
       'conducteurIds': conducteurIds,
       'temoinsIds': temoinsIds,
       'photosUrls': photosUrls,
-      'croquis': croquis,
-      'videoReconstruction': videoReconstruction,
-      'descriptionVocale': descriptionVocale,
-      'transcriptionDescription': transcriptionDescription,
       'validationStatus': validationStatus,
       'status': status.toString().split('.').last,
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
       'createdBy': createdBy,
       'circonstances': circonstances,
       'dommages': dommages,
       'observations': observations,
+      'descriptionVocale': descriptionVocale,
+      'transcriptionDescription': transcriptionDescription,
+      'videoReconstruction': videoReconstruction,
+      'croquis': croquis,
     };
   }
 
-  static ConstatModel fromMap(Map<String, dynamic> map) {
-    try {
-      return ConstatModel(
-        id: map['id'] as String? ?? '',
-        dateAccident: (map['dateAccident'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        lieuAccident: map['lieuAccident'] as String? ?? '',
-        coordonnees: map['coordonnees'] as GeoPoint?,
-        adresseAccident: map['adresseAccident'] as String?,
-        vehiculeIds: List<String>.from(map['vehiculeIds'] ?? []),
-        conducteurIds: List<String>.from(map['conducteurIds'] ?? []),
-        temoinsIds: List<String>.from(map['temoinsIds'] ?? []),
-        photosUrls: List<String>.from(map['photosUrls'] ?? []),
-        croquis: map['croquis'] as String?,
-        videoReconstruction: map['videoReconstruction'] as String?,
-        descriptionVocale: map['descriptionVocale'] as String?,
-        transcriptionDescription: map['transcriptionDescription'] as String?,
-        validationStatus: Map<String, bool>.from(map['validationStatus'] ?? {}),
-        status: ConstatStatus.values.firstWhere(
-          (e) => e.toString().split('.').last == (map['status'] as String? ?? 'draft'),
-          orElse: () => ConstatStatus.draft,
-        ),
-        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        updatedAt: (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        createdBy: map['createdBy'] as String? ?? '',
-        circonstances: map['circonstances'] as Map<String, dynamic>?,
-        dommages: map['dommages'] as Map<String, dynamic>?,
-        observations: map['observations'] as Map<String, dynamic>?,
-      );
-    } catch (e) {
-      debugPrint('Erreur lors de la conversion de ConstatModel: $e');
-      return ConstatModel(
-        id: '',
-        dateAccident: DateTime.now(),
-        lieuAccident: '',
-        vehiculeIds: [],
-        conducteurIds: [],
-        validationStatus: {},
-        status: ConstatStatus.draft,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        createdBy: '',
-      );
-    }
+  factory ConstatModel.fromJson(Map<String, dynamic> json) {
+    return ConstatModel(
+      id: json['id'] ?? '',
+      dateAccident: (json['dateAccident'] as Timestamp).toDate(),
+      lieuAccident: json['lieuAccident'] ?? '',
+      coordonnees: json['coordonnees'] as GeoPoint?,
+      adresseAccident: json['adresseAccident'] as String?,
+      vehiculeIds: List<String>.from(json['vehiculeIds'] ?? []),
+      conducteurIds: List<String>.from(json['conducteurIds'] ?? []),
+      temoinsIds: List<String>.from(json['temoinsIds'] ?? []),
+      photosUrls: List<String>.from(json['photosUrls'] ?? []),
+      validationStatus: Map<String, bool>.from(json['validationStatus'] ?? {}),
+      status: ConstatStatus.values.firstWhere(
+            (e) => e.toString().split('.').last == json['status'],
+        orElse: () => ConstatStatus.draft,
+      ),
+      createdAt: (json['createdAt'] as Timestamp).toDate(),
+      updatedAt: (json['updatedAt'] as Timestamp).toDate(),
+      createdBy: json['createdBy'] ?? '',
+      circonstances: json['circonstances'] as Map<String, dynamic>?,
+      dommages: json['dommages'] as Map<String, dynamic>?,
+      observations: json['observations'] as Map<String, dynamic>?,
+      descriptionVocale: json['descriptionVocale'] as String?,
+      transcriptionDescription: json['transcriptionDescription'] as String?,
+      videoReconstruction: json['videoReconstruction'] as String?,
+      croquis: json['croquis'] as String?,
+    );
+  }
+  
+  factory ConstatModel.fromMap(Map<String, dynamic> map) {
+    return ConstatModel.fromJson(map); 
   }
 
   ConstatModel copyWith({
@@ -142,10 +128,6 @@ class ConstatModel {
     List<String>? conducteurIds,
     List<String>? temoinsIds,
     List<String>? photosUrls,
-    String? croquis,
-    String? videoReconstruction,
-    String? descriptionVocale,
-    String? transcriptionDescription,
     Map<String, bool>? validationStatus,
     ConstatStatus? status,
     DateTime? createdAt,
@@ -154,6 +136,10 @@ class ConstatModel {
     Map<String, dynamic>? circonstances,
     Map<String, dynamic>? dommages,
     Map<String, dynamic>? observations,
+    String? descriptionVocale,
+    String? transcriptionDescription,
+    String? videoReconstruction,
+    String? croquis,
   }) {
     return ConstatModel(
       id: id ?? this.id,
@@ -165,10 +151,6 @@ class ConstatModel {
       conducteurIds: conducteurIds ?? this.conducteurIds,
       temoinsIds: temoinsIds ?? this.temoinsIds,
       photosUrls: photosUrls ?? this.photosUrls,
-      croquis: croquis ?? this.croquis,
-      videoReconstruction: videoReconstruction ?? this.videoReconstruction,
-      descriptionVocale: descriptionVocale ?? this.descriptionVocale,
-      transcriptionDescription: transcriptionDescription ?? this.transcriptionDescription,
       validationStatus: validationStatus ?? this.validationStatus,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
@@ -177,11 +159,10 @@ class ConstatModel {
       circonstances: circonstances ?? this.circonstances,
       dommages: dommages ?? this.dommages,
       observations: observations ?? this.observations,
+      descriptionVocale: descriptionVocale ?? this.descriptionVocale,
+      transcriptionDescription: transcriptionDescription ?? this.transcriptionDescription,
+      videoReconstruction: videoReconstruction ?? this.videoReconstruction,
+      croquis: croquis ?? this.croquis,
     );
-  }
-
-  @override
-  String toString() {
-    return 'ConstatModel{id: $id, dateAccident: $dateAccident, lieuAccident: $lieuAccident, status: $status}';
   }
 }

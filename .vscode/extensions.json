@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "grayhat.v0"
+        "grayhat.v0",
+        "augment.vscode-augment"
     ]
 }

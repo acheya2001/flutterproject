@@ -9,6 +9,7 @@ import 'package:path/path.dart' as path;
 import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 
+
 import '../models/vehicule_model.dart';
 import '../../../utils/connectivity_utils.dart';
 
@@ -17,22 +18,17 @@ class VehiculeService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final ConnectivityUtils _connectivityUtils = ConnectivityUtils();
+  final int maxImageSizeBytes = 1 * 1024 * 1024; // 1 MB
+ final Duration uploadTimeout = const Duration(seconds: 60); // Augmenté à 60 secondes
+
   
-  // Constantes pour les timeouts et la qualité d'image - RÉDUITES DAVANTAGE
-  static const Duration uploadTimeout = Duration(seconds: 45); // Réduit à 45 secondes
-  static const Duration compressionTimeout = Duration(seconds: 15); // Réduit à 15 secondes
-  static const int imageQuality = 20; // Qualité d'image réduite à 20%
-  static const int maxImageWidth = 500; // Largeur maximale réduite à 500
-  static const int maxImageHeight = 500; // Hauteur maximale réduite à 500
-  static const int maxImageSizeBytes = 512 * 1024; // 512 KB maximum
-  
-  // Variable pour suivre si une opération a été annulée
+  // Variable pour suivre l'annulation des opérations
   bool _isCancelled = false;
   
   // Méthode pour annuler les opérations en cours
   void cancelOperations() {
     _isCancelled = true;
-    debugPrint('[VehiculeService] Opérations annulées par l\'utilisateur');
+    debugPrint('[VehiculeService] Annulation des opérations en cours');
   }
   
   // Réinitialiser l'état d'annulation
@@ -81,12 +77,64 @@ class VehiculeService {
       }
     }
   }
+  
+  // Récupérer un véhicule par son ID
+  Future<VehiculeModel?> getVehiculeById(String vehiculeId) async {
+    try {
+      // Essayer d'abord de récupérer depuis le cache
+      final cachedVehicule = await _getVehiculeFromCache(vehiculeId);
+      if (cachedVehicule != null) {
+        debugPrint('[VehiculeService] Véhicule récupéré du cache: $vehiculeId');
+        return cachedVehicule;
+      }
+
+      // Sinon, récupérer depuis Firestore
+      final doc = await _firestore.collection('vehicules').doc(vehiculeId).get();
+      
+      if (!doc.exists) {
+        debugPrint('[VehiculeService] Véhicule non trouvé: $vehiculeId');
+        return null;
+      }
+      
+      final vehicule = VehiculeModel.fromFirestore(doc);
+      
+      // Mettre en cache pour les prochaines requêtes
+      await _cacheVehicule(vehicule);
+      
+      debugPrint('[VehiculeService] Véhicule récupéré: $vehiculeId');
+      return vehicule;
+    } catch (e) {
+      debugPrint('[VehiculeService] Erreur lors de la récupération du véhicule: $e');
+      return null;
+    }
+  }
 
   // Mettre en cache les véhicules
   Future<void> _cacheVehicules(String proprietaireId, List<VehiculeModel> vehicules) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final vehiculesJson = vehicules.map((v) => v.toMap()).toList();
+      
+      // Convertir les véhicules en JSON
+      final List<Map<String, dynamic>> vehiculesJson = vehicules.map((v) {
+        final map = v.toMap();
+        
+        // Convertir les DateTime en chaînes ISO8601
+        if (map['createdAt'] is DateTime) {
+          map['createdAt'] = (map['createdAt'] as DateTime).toIso8601String();
+        }
+        if (map['updatedAt'] is DateTime) {
+          map['updatedAt'] = (map['updatedAt'] as DateTime).toIso8601String();
+        }
+        if (map['dateDebutValidite'] is DateTime) {
+          map['dateDebutValidite'] = (map['dateDebutValidite'] as DateTime).toIso8601String();
+        }
+        if (map['dateFinValidite'] is DateTime) {
+          map['dateFinValidite'] = (map['dateFinValidite'] as DateTime).toIso8601String();
+        }
+        
+        return map;
+      }).toList();
+      
       await prefs.setString('vehicules_$proprietaireId', jsonEncode(vehiculesJson));
       debugPrint('[VehiculeService] Véhicules mis en cache pour: $proprietaireId');
     } catch (e) {
@@ -109,6 +157,21 @@ class VehiculeService {
       final vehicules = decodedJson.map((json) {
         // Créer un VehiculeModel à partir des données
         final Map<String, dynamic> data = Map<String, dynamic>.from(json);
+        
+        // Convertir les chaînes ISO8601 en DateTime
+        if (data['createdAt'] is String) {
+          data['createdAt'] = DateTime.parse(data['createdAt']);
+        }
+        if (data['updatedAt'] is String) {
+          data['updatedAt'] = DateTime.parse(data['updatedAt']);
+        }
+        if (data['dateDebutValidite'] is String) {
+          data['dateDebutValidite'] = DateTime.parse(data['dateDebutValidite']);
+        }
+        if (data['dateFinValidite'] is String) {
+          data['dateFinValidite'] = DateTime.parse(data['dateFinValidite']);
+        }
+        
         return VehiculeModel.fromMap(data);
       }).toList();
       
@@ -120,56 +183,34 @@ class VehiculeService {
     }
   }
 
-  // Récupérer un véhicule par son ID
-  Future<VehiculeModel?> getVehiculeById(String vehiculeId) async {
-    try {
-      // Vérifier la connexion Internet
-      final hasInternet = await _connectivityUtils.checkConnection();
-      if (!hasInternet) {
-        // Essayer de récupérer les données en cache
-        return await _getVehiculeFromCache(vehiculeId);
-      }
-      
-      debugPrint('[VehiculeService] Récupération du véhicule: $vehiculeId');
-      
-      final doc = await _firestore
-          .collection('vehicules')
-          .doc(vehiculeId)
-          .get()
-          .timeout(const Duration(seconds: 10), onTimeout: () {
-            throw TimeoutException('La récupération du véhicule a pris trop de temps. Veuillez vérifier votre connexion internet.');
-          });
-      
-      if (!doc.exists) {
-        debugPrint('[VehiculeService] Véhicule non trouvé');
-        return null;
-      }
-      
-      final vehicule = VehiculeModel.fromFirestore(doc);
-      
-      // Mettre en cache le véhicule
-      await _cacheVehicule(vehicule);
-      
-      debugPrint('[VehiculeService] Véhicule récupéré: ${vehicule.immatriculation}');
-      return vehicule;
-    } catch (e) {
-      debugPrint('[VehiculeService] Erreur lors de la récupération du véhicule: $e');
-      
-      // En cas d'erreur, essayer de récupérer les données en cache
-      try {
-        return await _getVehiculeFromCache(vehiculeId);
-      } catch (cacheError) {
-        debugPrint('[VehiculeService] Erreur lors de la récupération du cache: $cacheError');
-        rethrow;
-      }
-    }
-  }
-
   // Mettre en cache un véhicule
   Future<void> _cacheVehicule(VehiculeModel vehicule) async {
     try {
+      if (vehicule.id == null) {
+        debugPrint('[VehiculeService] Impossible de mettre en cache un véhicule sans ID');
+        return;
+      }
+      
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('vehicule_${vehicule.id}', jsonEncode(vehicule.toMap()));
+      
+      // Convertir le véhicule en JSON
+      final vehiculeMap = vehicule.toMap();
+      
+      // Convertir les DateTime en chaînes ISO8601
+      if (vehiculeMap['createdAt'] is DateTime) {
+        vehiculeMap['createdAt'] = (vehiculeMap['createdAt'] as DateTime).toIso8601String();
+      }
+      if (vehiculeMap['updatedAt'] is DateTime) {
+        vehiculeMap['updatedAt'] = (vehiculeMap['updatedAt'] as DateTime).toIso8601String();
+      }
+      if (vehiculeMap['dateDebutValidite'] is DateTime) {
+        vehiculeMap['dateDebutValidite'] = (vehiculeMap['dateDebutValidite'] as DateTime).toIso8601String();
+      }
+      if (vehiculeMap['dateFinValidite'] is DateTime) {
+        vehiculeMap['dateFinValidite'] = (vehiculeMap['dateFinValidite'] as DateTime).toIso8601String();
+      }
+      
+      await prefs.setString('vehicule_${vehicule.id}', jsonEncode(vehiculeMap));
       debugPrint('[VehiculeService] Véhicule mis en cache: ${vehicule.id}');
     } catch (e) {
       debugPrint('[VehiculeService] Erreur lors de la mise en cache du véhicule: $e');
@@ -188,6 +229,21 @@ class VehiculeService {
     
     try {
       final Map<String, dynamic> decodedJson = jsonDecode(vehiculeJson);
+      
+      // Convertir les chaînes ISO8601 en DateTime
+      if (decodedJson['createdAt'] is String) {
+        decodedJson['createdAt'] = DateTime.parse(decodedJson['createdAt']);
+      }
+      if (decodedJson['updatedAt'] is String) {
+        decodedJson['updatedAt'] = DateTime.parse(decodedJson['updatedAt']);
+      }
+      if (decodedJson['dateDebutValidite'] is String) {
+        decodedJson['dateDebutValidite'] = DateTime.parse(decodedJson['dateDebutValidite']);
+      }
+      if (decodedJson['dateFinValidite'] is String) {
+        decodedJson['dateFinValidite'] = DateTime.parse(decodedJson['dateFinValidite']);
+      }
+      
       final vehicule = VehiculeModel.fromMap(decodedJson);
       
       debugPrint('[VehiculeService] Véhicule récupéré du cache: $vehiculeId');
@@ -198,16 +254,14 @@ class VehiculeService {
     }
   }
 
-  // Compresser une image avant de la télécharger - OPTIMISÉ DAVANTAGE
+  // Compresser une image
   Future<File?> _compressImage(File imageFile) async {
     try {
       debugPrint('[VehiculeService] Compression de l\'image: ${imageFile.path}');
       
-      // Vérifier si le fichier existe
-      if (!await imageFile.exists()) {
-        debugPrint('[VehiculeService] Le fichier image n\'existe pas: ${imageFile.path}');
-        throw Exception('Le fichier image n\'existe pas ou est inaccessible');
-      }
+      // Limites de taille pour les images
+      const int maxImageWidth = 1200;
+      const int maxImageHeight = 1200;
       
       // Vérifier la taille de l'image avant compression
       final fileSize = await imageFile.length();
@@ -224,26 +278,9 @@ class VehiculeService {
         debugPrint('[VehiculeService] Image volumineuse, compression très agressive appliquée');
       }
       
-      // Utiliser un timeout pour la compression
-      final bytes = await imageFile.readAsBytes()
-          .timeout(compressionTimeout, onTimeout: () {
-        debugPrint('[VehiculeService] Timeout lors de la lecture de l\'image');
-        throw TimeoutException('La lecture de l\'image a pris trop de temps.');
-      });
-      
-      if (_isCancelled) {
-        debugPrint('[VehiculeService] Opération annulée pendant la compression');
-        return null;
-      }
-      
-      // Décodage de l'image avec gestion d'erreur améliorée
-      img.Image? image;
-      try {
-        image = img.decodeImage(bytes);
-      } catch (e) {
-        debugPrint('[VehiculeService] Erreur lors du décodage de l\'image: $e');
-        throw Exception('Format d\'image non supporté ou image corrompue');
-      }
+      // Lire l'image
+      final bytes = await imageFile.readAsBytes();
+      final image = img.decodeImage(bytes);
       
       if (image == null) {
         debugPrint('[VehiculeService] Impossible de décoder l\'image');
@@ -263,17 +300,13 @@ class VehiculeService {
         targetWidth = (image.width * targetHeight / image.height).round();
       }
       
-      debugPrint('[VehiculeService] Redimensionnement de l\'image à ${targetWidth}x${targetHeight}');
+      // Redimensionner l'image
       resizedImage = img.copyResize(
         image,
         width: targetWidth,
         height: targetHeight,
+        interpolation: img.Interpolation.average,
       );
-      
-      if (_isCancelled) {
-        debugPrint('[VehiculeService] Opération annulée pendant le redimensionnement');
-        return null;
-      }
       
       // Compresser l'image avec une qualité plus basse pour accélérer le téléchargement
       final compressedBytes = img.encodeJpg(resizedImage, quality: qualityLevel);
@@ -287,51 +320,9 @@ class VehiculeService {
       debugPrint('[VehiculeService] Image compressée: ${tempFile.path}');
       debugPrint('[VehiculeService] Taille originale: ${fileSize ~/ 1024} KB, taille compressée: ${compressedSize ~/ 1024} KB');
       
-      // Vérifier si l'image est encore trop volumineuse après compression
-      if (compressedSize > maxImageSizeBytes) {
-        debugPrint('[VehiculeService] Image encore trop volumineuse après compression: ${compressedSize ~/ 1024} KB');
-        
-        // Essayer une compression encore plus agressive et un redimensionnement plus petit
-        final smallerImage = img.copyResize(
-          resizedImage,
-          width: targetWidth ~/ 1.5,
-          height: targetHeight ~/ 1.5,
-        );
-        
-        final moreCompressedBytes = img.encodeJpg(smallerImage, quality: 10);
-        await tempFile.writeAsBytes(moreCompressedBytes);
-        
-        final finalSize = await tempFile.length();
-        debugPrint('[VehiculeService] Compression supplémentaire appliquée: ${finalSize ~/ 1024} KB');
-        
-        if (finalSize > maxImageSizeBytes) {
-          debugPrint('[VehiculeService] Image toujours trop volumineuse après compression maximale');
-          
-          // Dernière tentative avec une compression extrême
-          final tinyImage = img.copyResize(
-            resizedImage,
-            width: 300,
-            height: 300,
-          );
-          
-          final extremeCompressedBytes = img.encodeJpg(tinyImage, quality: 5);
-          await tempFile.writeAsBytes(extremeCompressedBytes);
-          
-          final extremeSize = await tempFile.length();
-          debugPrint('[VehiculeService] Compression extrême appliquée: ${extremeSize ~/ 1024} KB');
-          
-          if (extremeSize > maxImageSizeBytes) {
-            throw Exception('L\'image est trop volumineuse même après compression maximale. Veuillez utiliser une image plus petite.');
-          }
-        }
-      }
-      
       return tempFile;
     } catch (e) {
       debugPrint('[VehiculeService] Erreur lors de la compression de l\'image: $e');
-      if (e is TimeoutException) {
-        rethrow;
-      }
       
       // En cas d'erreur de compression, essayer une approche plus simple
       try {
@@ -358,128 +349,220 @@ class VehiculeService {
           
           return tempFile;
         }
-      } catch (_) {
-        debugPrint('[VehiculeService] Échec de la compression simple');
+      } catch (innerError) {
+        debugPrint('[VehiculeService] Erreur lors de la compression simple: $innerError');
       }
       
-      // Si tout échoue, retourner null
+      // Si toutes les tentatives échouent, retourner null
       return null;
     }
   }
 
-  // Télécharger une image par morceaux
-  Future<String> _uploadImageInChunks(
-    File imageFile, 
+  // Télécharger une image directement sans compression complexe
+  Future<String?> _uploadImageDirect(
+    File imageFile,
     String storagePath, {
     Function(double)? onProgress,
   }) async {
     try {
-      final fileName = path.basename(imageFile.path);
-      final ref = _storage.ref().child('$storagePath/$fileName');
-      
-      debugPrint('[VehiculeService] Téléchargement par morceaux de l\'image: $fileName');
-      
-      // Lire le fichier en mémoire
-      final bytes = await imageFile.readAsBytes();
-      final fileSize = bytes.length;
-      
-      // Taille de chaque morceau (256 KB)
-      const int chunkSize = 256 * 1024;
-      final int totalChunks = (fileSize / chunkSize).ceil();
-      
-      debugPrint('[VehiculeService] Taille totale: ${fileSize ~/ 1024} KB, nombre de morceaux: $totalChunks');
-      
-      // Si le fichier est petit, utiliser la méthode standard
-      if (totalChunks <= 1 || fileSize < 512 * 1024) {
-        debugPrint('[VehiculeService] Fichier petit, utilisation de la méthode standard');
-        final uploadTask = ref.putFile(imageFile);
-        
-        // Suivre la progression du téléchargement
-        uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+      debugPrint('[VehiculeService] 🚀 DÉBUT téléchargement direct: ${imageFile.path}');
+      debugPrint('[VehiculeService] 📂 Chemin de stockage: $storagePath');
+
+      // Vérifier que le fichier existe
+      if (!await imageFile.exists()) {
+        debugPrint('[VehiculeService] ❌ Le fichier n\'existe pas: ${imageFile.path}');
+        throw Exception('Le fichier image n\'existe pas');
+      }
+      debugPrint('[VehiculeService] ✅ Fichier existe');
+
+      // Vérifier l'état de Firebase et réinitialiser si nécessaire
+      debugPrint('[VehiculeService] 🔄 Vérification Firebase Storage...');
+
+      try {
+        // Test rapide de Firebase Storage
+        final storage = FirebaseStorage.instance;
+        final testRef = storage.ref().child('test_connection');
+        await testRef.getDownloadURL().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => throw TimeoutException('Test connexion timeout')
+        );
+      } catch (e) {
+        debugPrint('[VehiculeService] ⚠️ Test connexion Firebase: $e');
+        // Continuer quand même, l'erreur sera gérée plus tard
+      }
+
+      final storage = FirebaseStorage.instance;
+
+      // Créer une référence au fichier dans Firebase Storage
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(imageFile.path)}';
+      final fullPath = '$storagePath/$fileName';
+      final ref = storage.ref().child(fullPath);
+
+      debugPrint('[VehiculeService] 📁 Chemin complet Firebase: $fullPath');
+
+      // Vérifier la taille du fichier
+      final fileSize = await imageFile.length();
+      debugPrint('[VehiculeService] 📊 Taille du fichier: ${fileSize ~/ 1024} KB');
+
+      // Compression simple si le fichier est très volumineux
+      File finalFile = imageFile;
+      if (fileSize > 5 * 1024 * 1024) { // Plus de 5 MB
+        debugPrint('[VehiculeService] Fichier très volumineux, compression simple');
+        try {
+          final bytes = await imageFile.readAsBytes();
+          final image = img.decodeImage(bytes);
+
+          if (image != null) {
+            // Redimensionner simplement
+            final resizedImage = img.copyResize(image, width: 800);
+            final compressedBytes = img.encodeJpg(resizedImage, quality: 70);
+
+            // Créer un fichier temporaire
+            final tempDir = await Directory.systemTemp.createTemp();
+            final tempFile = File('${tempDir.path}/resized_${path.basename(imageFile.path)}');
+            await tempFile.writeAsBytes(compressedBytes);
+
+            finalFile = tempFile;
+            debugPrint('[VehiculeService] Image redimensionnée: ${compressedBytes.length ~/ 1024} KB');
+          }
+        } catch (e) {
+          debugPrint('[VehiculeService] Erreur compression simple: $e, utilisation fichier original');
+        }
+      }
+
+      // Téléchargement direct avec bytes pour éviter les erreurs de canal
+      debugPrint('[VehiculeService] 📤 DÉBUT téléchargement vers Firebase Storage');
+      debugPrint('[VehiculeService] 📁 Fichier à télécharger: ${finalFile.path}');
+
+      // Lire les bytes du fichier
+      final bytes = await finalFile.readAsBytes();
+      debugPrint('[VehiculeService] 📊 Bytes lus: ${bytes.length}');
+
+      // Utiliser putData au lieu de putFile pour éviter les erreurs de canal
+      final uploadTask = ref.putData(bytes);
+
+      // Suivre la progression
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        if (snapshot.totalBytes > 0) {
           final progress = snapshot.bytesTransferred / snapshot.totalBytes;
           if (onProgress != null) onProgress(progress);
-          
-          // Vérifier si l'opération a été annulée
-          if (_isCancelled) {
-            uploadTask.cancel();
-          }
-        });
-        
-        await uploadTask.whenComplete(() => null);
-        final downloadUrl = await ref.getDownloadURL();
-        return downloadUrl;
-      }
-      
-      // Créer une liste pour stocker les tâches de téléchargement
-      List<String> uploadedChunks = [];
-      
-      // Télécharger chaque morceau
-      for (int i = 0; i < totalChunks; i++) {
+          debugPrint('[VehiculeService] 📊 Progression: ${(progress * 100).toStringAsFixed(1)}% (${snapshot.bytesTransferred}/${snapshot.totalBytes} bytes)');
+        } else {
+          debugPrint('[VehiculeService] ⚠️ Taille totale inconnue');
+        }
+
+        // Vérifier l'annulation
         if (_isCancelled) {
-          debugPrint('[VehiculeService] Opération annulée pendant le téléchargement des morceaux');
-          throw Exception('Opération annulée par l\'utilisateur');
+          debugPrint('[VehiculeService] ❌ Annulation du téléchargement demandée');
+          uploadTask.cancel();
         }
-        
-        // Calculer les indices de début et de fin du morceau
-        final int start = i * chunkSize;
-        final int end = (i + 1) * chunkSize > fileSize ? fileSize : (i + 1) * chunkSize;
-        
-        // Extraire le morceau
-        final List<int> chunk = bytes.sublist(start, end);
-        
-        // Créer un nom de fichier temporaire pour le morceau
-        final String chunkFileName = '${fileName}_chunk_$i';
-        final chunkRef = _storage.ref().child('$storagePath/chunks/$chunkFileName');
-        
-        // Télécharger le morceau
-        debugPrint('[VehiculeService] Téléchargement du morceau $i/$totalChunks');
-        await chunkRef.putData(Uint8List.fromList(chunk));
-        final chunkUrl = await chunkRef.getDownloadURL();
-        uploadedChunks.add(chunkUrl);
-        
-        // Mettre à jour la progression
-        if (onProgress != null) {
-          final double overallProgress = (i + 1) / totalChunks;
-          onProgress(overallProgress);
+      });
+
+      // Attendre la fin avec timeout
+      await uploadTask.timeout(
+        const Duration(minutes: 2), // Timeout de 2 minutes
+        onTimeout: () {
+          debugPrint('[VehiculeService] Timeout du téléchargement atteint');
+          uploadTask.cancel();
+          throw TimeoutException('Le téléchargement a pris trop de temps. Vérifiez votre connexion internet.');
         }
-        
-        // Pause courte entre les morceaux pour éviter de surcharger la connexion
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-      
-      // Tous les morceaux sont téléchargés, maintenant les combiner
-      debugPrint('[VehiculeService] Tous les morceaux téléchargés, finalisation...');
-      
-      // Dans une implémentation réelle, vous utiliseriez une fonction Cloud pour combiner les morceaux
-      // Pour simplifier, nous allons télécharger le fichier complet
-      await ref.putFile(imageFile);
-      
+      );
+
       // Obtenir l'URL de téléchargement
       final downloadUrl = await ref.getDownloadURL();
-      
-      // Nettoyer les morceaux (en arrière-plan)
-      _cleanupChunks(storagePath, fileName, totalChunks);
-      
-      debugPrint('[VehiculeService] Téléchargement par morceaux terminé: $downloadUrl');
+      debugPrint('[VehiculeService] ✅ Téléchargement réussi: $downloadUrl');
+
       return downloadUrl;
     } catch (e) {
-      debugPrint('[VehiculeService] Erreur lors du téléchargement par morceaux: $e');
+      debugPrint('[VehiculeService] ❌ Erreur téléchargement: $e');
+
+      // Si c'est une erreur de canal, essayer une méthode alternative
+      if (e.toString().contains('channel-error') || e.toString().contains('Unable to establish connection')) {
+        debugPrint('[VehiculeService] 🔄 Erreur de canal détectée, tentative avec méthode alternative...');
+        return await _uploadImageAlternative(imageFile, storagePath, onProgress: onProgress);
+      }
+
+      if (e.toString().contains('permission') || e.toString().contains('denied')) {
+        throw Exception('Erreur d\'autorisation Firebase Storage. Vérifiez les règles de sécurité.');
+      }
+
+      if (e is TimeoutException) {
+        throw TimeoutException('Le téléchargement a pris trop de temps. Vérifiez votre connexion internet.');
+      }
+
       rethrow;
     }
   }
-  
-  // Nettoyer les morceaux après téléchargement
-  Future<void> _cleanupChunks(String storagePath, String fileName, int totalChunks) async {
+
+  // Méthode alternative de téléchargement pour contourner les erreurs de canal
+  Future<String?> _uploadImageAlternative(
+    File imageFile,
+    String storagePath, {
+    Function(double)? onProgress,
+  }) async {
     try {
-      for (int i = 0; i < totalChunks; i++) {
-        final String chunkFileName = '${fileName}_chunk_$i';
-        final chunkRef = _storage.ref().child('$storagePath/chunks/$chunkFileName');
-        await chunkRef.delete();
-      }
-      debugPrint('[VehiculeService] Nettoyage des morceaux terminé');
+      debugPrint('[VehiculeService] 🔄 MÉTHODE ALTERNATIVE de téléchargement');
+
+      // Attendre un peu pour laisser le canal se réinitialiser
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Réinitialiser complètement Firebase Storage
+      final storage = FirebaseStorage.instance;
+
+      // Créer un nom de fichier unique
+      final fileName = 'alt_${DateTime.now().millisecondsSinceEpoch}_${path.basename(imageFile.path)}';
+      final fullPath = '$storagePath/$fileName';
+
+      debugPrint('[VehiculeService] 📁 Chemin alternatif: $fullPath');
+
+      // Lire le fichier en bytes
+      final bytes = await imageFile.readAsBytes();
+      debugPrint('[VehiculeService] 📊 Taille bytes: ${bytes.length}');
+
+      // Créer la référence
+      final ref = storage.ref().child(fullPath);
+
+      // Téléchargement avec putData et métadonnées
+      final metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+        customMetadata: {
+          'uploadedBy': 'constat_tunisie_app',
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+
+      debugPrint('[VehiculeService] 📤 Début téléchargement alternatif...');
+
+      // Utiliser putData avec métadonnées
+      final uploadTask = ref.putData(bytes, metadata);
+
+      // Suivre la progression
+      uploadTask.snapshotEvents.listen((snapshot) {
+        if (snapshot.totalBytes > 0) {
+          final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+          if (onProgress != null) onProgress(progress);
+          debugPrint('[VehiculeService] 📊 Progression alternative: ${(progress * 100).toStringAsFixed(1)}%');
+        }
+      });
+
+      // Attendre la fin
+      await uploadTask.timeout(
+        const Duration(minutes: 3),
+        onTimeout: () {
+          uploadTask.cancel();
+          throw TimeoutException('Timeout méthode alternative');
+        }
+      );
+
+      // Obtenir l'URL
+      final downloadUrl = await ref.getDownloadURL();
+      debugPrint('[VehiculeService] ✅ Téléchargement alternatif réussi: $downloadUrl');
+
+      return downloadUrl;
+
     } catch (e) {
-      debugPrint('[VehiculeService] Erreur lors du nettoyage des morceaux: $e');
-      // Ignorer les erreurs de nettoyage
+      debugPrint('[VehiculeService] ❌ Erreur méthode alternative: $e');
+      throw Exception('Impossible de télécharger l\'image. Vérifiez votre connexion internet et réessayez.');
     }
   }
 
@@ -525,92 +608,7 @@ class VehiculeService {
     }
   }
 
-  // Télécharger une image vers Firebase Storage - OPTIMISÉ
-  Future<String> _uploadImage(
-    File imageFile, 
-    String storagePath, {
-    Function(double)? onProgress,
-  }) async {
-    try {
-      final fileName = path.basename(imageFile.path);
-      final ref = _storage.ref().child('$storagePath/$fileName');
-      
-      debugPrint('[VehiculeService] Téléchargement de l\'image: $fileName vers $storagePath');
-      
-      // Vérifier la taille du fichier
-      final fileSize = await imageFile.length();
-      debugPrint('[VehiculeService] Taille du fichier à télécharger: ${fileSize ~/ 1024} KB');
-      
-      // Si le fichier est trop grand, essayer de le compresser davantage
-      if (fileSize > maxImageSizeBytes) {
-        debugPrint('[VehiculeService] Fichier trop grand, compression d\'urgence');
-        
-        try {
-          final bytes = await imageFile.readAsBytes();
-          final image = img.decodeImage(bytes);
-          
-          if (image != null) {
-            // Redimensionner à une taille très petite
-            final tinyImage = img.copyResize(
-              image,
-              width: 300,
-            );
-            
-            // Compression extrême
-            final compressedBytes = img.encodeJpg(tinyImage, quality: 5);
-            
-            // Créer un fichier temporaire
-            final tempDir = await Directory.systemTemp.createTemp();
-            final tempFile = File('${tempDir.path}/emergency_compressed_${path.basename(imageFile.path)}');
-            await tempFile.writeAsBytes(compressedBytes);
-            
-            // Utiliser le fichier compressé
-            imageFile = tempFile;
-          }
-        } catch (e) {
-          debugPrint('[VehiculeService] Erreur lors de la compression d\'urgence: $e');
-          // Continuer avec le fichier original
-        }
-      }
-      
-      // Utiliser putData au lieu de putFile pour un meilleur contrôle
-      final bytes = await imageFile.readAsBytes();
-      final metadata = SettableMetadata(
-        contentType: 'image/jpeg',
-        customMetadata: {'compressed': 'true'},
-      );
-      
-      final uploadTask = ref.putData(bytes, metadata);
-      
-      // Suivre la progression du téléchargement
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
-        debugPrint('[VehiculeService] Progression du téléchargement: ${(progress * 100).toStringAsFixed(1)}%');
-        if (onProgress != null) onProgress(progress);
-        
-        // Vérifier si l'opération a été annulée
-        if (_isCancelled) {
-          uploadTask.cancel();
-        }
-      });
-      
-      final snapshot = await uploadTask.whenComplete(() => null)
-          .timeout(uploadTimeout, onTimeout: () {
-            throw TimeoutException('Le téléchargement de l\'image a pris trop de temps. Veuillez vérifier votre connexion internet ou utiliser une image plus petite.');
-          });
-      
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-      debugPrint('[VehiculeService] Image téléchargée avec succès: $downloadUrl');
-      
-      return downloadUrl;
-    } catch (e) {
-      debugPrint('[VehiculeService] Erreur lors du téléchargement de l\'image: $e');
-      if (e is TimeoutException) {
-        rethrow;
-      }
-      throw Exception('Erreur lors du téléchargement de l\'image: $e');
-    }
-  }
+ 
 
   // Ajouter un nouveau véhicule - OPTIMISÉ
   Future<String?> addVehicule(
@@ -644,34 +642,25 @@ class VehiculeService {
         String? photoRectoUrl;
         String? photoVersoUrl;
         
-        // Compresser et télécharger la photo recto
+        // Télécharger la photo recto directement
         if (photoRecto != null) {
-          debugPrint('[VehiculeService] Compression et téléchargement de la photo recto');
+          debugPrint('[VehiculeService] Téléchargement direct de la photo recto');
           try {
-            if (onProgress != null) onProgress(0.1); // 10% pour le début de la compression
-            
-            final compressedRecto = await _compressImage(photoRecto);
-            
-            if (_isCancelled || compressedRecto == null) {
-              debugPrint('[VehiculeService] Opération annulée après compression de la photo recto');
-              return null;
-            }
-            
-            if (onProgress != null) onProgress(0.2); // 20% après la compression
-            
-            photoRectoUrl = await _uploadImage(
-              compressedRecto, 
+            if (onProgress != null) onProgress(0.1); // 10% pour le début
+
+            photoRectoUrl = await _uploadImageDirect(
+              photoRecto,
               'vehicules/$vehiculeId/recto',
               onProgress: (progress) {
-                if (onProgress != null) onProgress(0.2 + progress * 0.3); // 20-50% pour la photo recto
+                if (onProgress != null) onProgress(0.1 + progress * 0.4); // 10-50% pour la photo recto
               }
             );
-            
+
             if (_isCancelled) {
               debugPrint('[VehiculeService] Opération annulée après téléchargement de la photo recto');
               return null;
             }
-            
+
             debugPrint('[VehiculeService] Photo recto téléchargée: $photoRectoUrl');
           } catch (e) {
             debugPrint('[VehiculeService] Erreur lors du téléchargement de la photo recto: $e');
@@ -685,30 +674,23 @@ class VehiculeService {
           onProgress(0.5); // Passer directement à 50% si pas de photo recto
         }
         
-        // Compresser et télécharger la photo verso
+        // Télécharger la photo verso directement
         if (photoVerso != null && !_isCancelled) {
-          debugPrint('[VehiculeService] Compression et téléchargement de la photo verso');
+          debugPrint('[VehiculeService] Téléchargement direct de la photo verso');
           try {
-            final compressedVerso = await _compressImage(photoVerso);
-            
-            if (_isCancelled || compressedVerso == null) {
-              debugPrint('[VehiculeService] Opération annulée après compression de la photo verso');
-              return null;
-            }
-            
-            photoVersoUrl = await _uploadImage(
-              compressedVerso, 
+            photoVersoUrl = await _uploadImageDirect(
+              photoVerso,
               'vehicules/$vehiculeId/verso',
               onProgress: (progress) {
                 if (onProgress != null) onProgress(0.5 + progress * 0.3); // 50-80% pour la photo verso
               }
             );
-            
+
             if (_isCancelled) {
               debugPrint('[VehiculeService] Opération annulée après téléchargement de la photo verso');
               return null;
             }
-            
+
             debugPrint('[VehiculeService] Photo verso téléchargée: $photoVersoUrl');
           } catch (e) {
             debugPrint('[VehiculeService] Erreur lors du téléchargement de la photo verso: $e');
@@ -763,7 +745,7 @@ class VehiculeService {
         if (onProgress != null) onProgress(1.0); // 100% une fois terminé
         
         return vehiculeId;
-      }).timeout(const Duration(seconds: 90));
+      }).timeout(const Duration(minutes: 3)); // Timeout augmenté à 3 minutes
     } catch (e) {
       if (e is TimeoutException) {
         debugPrint('[VehiculeService] Timeout global atteint');
@@ -984,7 +966,7 @@ class VehiculeService {
       
       debugPrint('[VehiculeService] Mise à jour du véhicule: ${vehicule.id}');
       
-      // Timeout global plus court (90 secondes)
+      // Timeout global augmenté (3 minutes)
       return await Future.delayed(Duration.zero, () async {
         // Vérifier la connexion à Firebase de manière sécurisée
         final isConnected = await testFirestoreConnection();
@@ -999,34 +981,25 @@ class VehiculeService {
         String? photoRectoUrl;
         String? photoVersoUrl;
         
-        // Compresser et télécharger la photo recto
+        // Télécharger la nouvelle photo recto directement
         if (photoRecto != null) {
-          debugPrint('[VehiculeService] Compression et téléchargement de la nouvelle photo recto');
+          debugPrint('[VehiculeService] Téléchargement direct de la nouvelle photo recto');
           try {
-            if (onProgress != null) onProgress(0.1); // 10% pour le début de la compression
-            
-            final compressedRecto = await _compressImage(photoRecto);
-            
-            if (_isCancelled || compressedRecto == null) {
-              debugPrint('[VehiculeService] Opération annulée après compression de la photo recto');
-              return false;
-            }
-            
-            if (onProgress != null) onProgress(0.2); // 20% après la compression
-            
-            photoRectoUrl = await _uploadImage(
-              compressedRecto, 
+            if (onProgress != null) onProgress(0.1); // 10% pour le début
+
+            photoRectoUrl = await _uploadImageDirect(
+              photoRecto,
               'vehicules/${vehicule.id}/recto',
               onProgress: (progress) {
-                if (onProgress != null) onProgress(0.2 + progress * 0.3); // 20-50% pour la photo recto
+                if (onProgress != null) onProgress(0.1 + progress * 0.4); // 10-50% pour la photo recto
               }
             );
-            
+
             if (_isCancelled) {
               debugPrint('[VehiculeService] Opération annulée après téléchargement de la photo recto');
               return false;
             }
-            
+
             debugPrint('[VehiculeService] Nouvelle photo recto téléchargée: $photoRectoUrl');
           } catch (e) {
             debugPrint('[VehiculeService] Erreur lors du téléchargement de la photo recto: $e');
@@ -1040,30 +1013,23 @@ class VehiculeService {
           onProgress(0.5); // Passer directement à 50% si pas de photo recto
         }
         
-        // Compresser et télécharger la photo verso
+        // Télécharger la nouvelle photo verso directement
         if (photoVerso != null && !_isCancelled) {
-          debugPrint('[VehiculeService] Compression et téléchargement de la nouvelle photo verso');
+          debugPrint('[VehiculeService] Téléchargement direct de la nouvelle photo verso');
           try {
-            final compressedVerso = await _compressImage(photoVerso);
-            
-            if (_isCancelled || compressedVerso == null) {
-              debugPrint('[VehiculeService] Opération annulée après compression de la photo verso');
-              return false;
-            }
-            
-            photoVersoUrl = await _uploadImage(
-              compressedVerso, 
+            photoVersoUrl = await _uploadImageDirect(
+              photoVerso,
               'vehicules/${vehicule.id}/verso',
               onProgress: (progress) {
                 if (onProgress != null) onProgress(0.5 + progress * 0.3); // 50-80% pour la photo verso
               }
             );
-            
+
             if (_isCancelled) {
               debugPrint('[VehiculeService] Opération annulée après téléchargement de la photo verso');
               return false;
             }
-            
+
             debugPrint('[VehiculeService] Nouvelle photo verso téléchargée: $photoVersoUrl');
           } catch (e) {
             debugPrint('[VehiculeService] Erreur lors du téléchargement de la photo verso: $e');
@@ -1112,7 +1078,7 @@ class VehiculeService {
         if (onProgress != null) onProgress(1.0); // 100% une fois terminé
         
         return true;
-      }).timeout(const Duration(seconds: 90));
+      }).timeout(const Duration(minutes: 3)); // Timeout augmenté à 3 minutes
     } catch (e) {
       if (e is TimeoutException) {
         debugPrint('[VehiculeService] Timeout global atteint');

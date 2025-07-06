@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Import Riverpod
 
 import '../../../core/config/app_routes.dart';
 import '../../../core/config/app_theme.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/utils/constants.dart';
-import '../../../utils/user_type.dart';
+import '../../../utils/user_type.dart'; // Ensure UserType enum is defined
 import '../../auth/providers/auth_provider.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -24,7 +24,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
     
-    // Configuration des animations
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -46,8 +45,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     
     _controller.forward();
     
-    // Initialiser l'authentification
-    _checkAuth();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _checkAuth();
+      }
+    });
   }
 
   @override
@@ -57,20 +59,22 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 
   Future<void> _checkAuth() async {
-    // Attendre un peu pour montrer l'animation
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(milliseconds: 500)); // Optional: ensure splash is seen
     
     if (!mounted) return;
     
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    await authProvider.initAuth();
-    
+    final authState = ref.watch(authProvider);
+
     if (!mounted) return;
     
-    if (authProvider.isAuthenticated) {
-      final userType = authProvider.currentUser!.type;
+    if (authState.isAuthenticated && authState.currentUser != null) {
+      final UserType? userType = authState.currentUser!.type; 
       
       if (!mounted) return;
+      if (userType == null) {
+        Navigator.pushReplacementNamed(context, AppRoutes.login);
+        return;
+      }
       
       switch (userType) {
         case UserType.conducteur:
@@ -82,16 +86,19 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         case UserType.expert:
           Navigator.pushReplacementNamed(context, AppRoutes.expertHome);
           break;
+        default: 
+          Navigator.pushReplacementNamed(context, AppRoutes.login);
+          break;
       }
     } else {
       if (!mounted) return;
       
-      final hasSeenOnboarding = StorageService.getBool(Constants.prefOnboardingCompleted);
+      final bool? hasSeenOnboarding = await StorageService.getBool(Constants.prefOnboardingCompleted);
       
       if (!mounted) return;
       
       if (hasSeenOnboarding ?? false) {
-        Navigator.pushReplacementNamed(context, AppRoutes.login);
+        Navigator.pushReplacementNamed(context, AppRoutes.userTypeSelection);
       } else {
         Navigator.pushReplacementNamed(context, AppRoutes.onboarding);
       }
@@ -113,7 +120,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo avec animation
                     Container(
                       width: 120,
                       height: 120,
@@ -122,7 +128,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryColor.withAlpha(60),
+                            color: AppTheme.primaryColor.withOpacity(0.23),
                             blurRadius: 20,
                             spreadRadius: 5,
                             offset: const Offset(0, 5),
@@ -136,8 +142,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       ),
                     ),
                     const SizedBox(height: 32),
-                    
-                    // Titre de l'application
                     Text(
                       'Constat Tunisie',
                       style: TextStyle(
@@ -148,8 +152,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       ),
                     ),
                     const SizedBox(height: 12),
-                    
-                    // Slogan
                     Text(
                       'Simplifiez vos déclarations d\'accidents',
                       style: TextStyle(
@@ -159,8 +161,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       ),
                     ),
                     const SizedBox(height: 48),
-                    
-                    // Indicateur de chargement
                     SizedBox(
                       width: 40,
                       height: 40,

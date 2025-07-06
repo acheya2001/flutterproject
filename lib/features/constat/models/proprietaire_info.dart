@@ -1,45 +1,42 @@
+
+
 class ProprietaireInfo {
-  final String nom;
-  final String prenom;
-  final String adresse;
-  final String telephone;
-
+  final String? nom;
+  final String? prenom;
+  final String? adresse;
+  final String? telephone;
+  final String? email;
+  
   ProprietaireInfo({
-    required this.nom,
-    required this.prenom,
-    required this.adresse,
-    required this.telephone,
+    this.nom,
+    this.prenom,
+    this.adresse,
+    this.telephone,
+    this.email,
   });
-
-  Map<String, dynamic> toJson() {
+  
+  Map<String, dynamic> toMap() {
     return {
       'nom': nom,
       'prenom': prenom,
       'adresse': adresse,
       'telephone': telephone,
+      'email': email,
     };
   }
-
-  factory ProprietaireInfo.fromJson(Map<String, dynamic> json) {
+  
+  factory ProprietaireInfo.fromMap(Map<String, dynamic> map) {
     return ProprietaireInfo(
-      nom: json['nom'] ?? '',
-      prenom: json['prenom'] ?? '',
-      adresse: json['adresse'] ?? '',
-      telephone: json['telephone'] ?? '',
+      nom: map['nom'],
+      prenom: map['prenom'],
+      adresse: map['adresse'],
+      telephone: map['telephone'],
+      email: map['email'],
     );
   }
-
-  ProprietaireInfo copyWith({
-    String? nom,
-    String? prenom,
-    String? adresse,
-    String? telephone,
-  }) {
-    return ProprietaireInfo(
-      nom: nom ?? this.nom,
-      prenom: prenom ?? this.prenom,
-      adresse: adresse ?? this.adresse,
-      telephone: telephone ?? this.telephone,
-    );
-  }
+  
+  // Ajout des méthodes toJson et fromJson pour compatibilité
+  Map<String, dynamic> toJson() => toMap();
+  
+  factory ProprietaireInfo.fromJson(Map<String, dynamic> json) => ProprietaireInfo.fromMap(json);
 }

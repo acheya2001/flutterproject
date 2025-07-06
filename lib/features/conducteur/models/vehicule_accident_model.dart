@@ -38,6 +38,9 @@ class VehiculeAccidentModel {
     };
   }
 
+  /// Alias pour toJson() - compatibilité Firestore
+  Map<String, dynamic> toMap() => toJson();
+
   factory VehiculeAccidentModel.fromJson(Map<String, dynamic> json) {
     return VehiculeAccidentModel(
       id: json['id'] ?? '',
@@ -52,6 +55,10 @@ class VehiculeAccidentModel {
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
     );
   }
+
+  /// Alias pour fromJson() - compatibilité Firestore
+  factory VehiculeAccidentModel.fromMap(Map<String, dynamic> map) =>
+      VehiculeAccidentModel.fromJson(map);
 
   VehiculeAccidentModel copyWith({
     String? id,

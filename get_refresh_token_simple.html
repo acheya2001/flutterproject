@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔑 Générateur Refresh Token - Constat Tunisie</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .method {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .step {
+            background: #e3f2fd;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .code {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 Générateur Refresh Token Gmail</h1>
+        
+        <div class="warning">
+            <h3>⚠️ Problème détecté</h3>
+            <p>L'URI de redirection n'est pas configuré correctement. Utilisons une méthode alternative plus fiable.</p>
+        </div>
+
+        <div class="method">
+            <h2>🎯 Méthode Recommandée : Google OAuth 2.0 Playground</h2>
+            
+            <div class="step">
+                <h3>📋 Informations de votre projet :</h3>
+                <p><strong>Client ID:</strong> <span class="code">1059917372502-qb8ivqvhhh2h3iqbh357h0hekb5qdtrg.apps.googleusercontent.com</span></p>
+                <p><strong>Project ID:</strong> constattunisiemail-462921</p>
+            </div>
+
+            <div class="step">
+                <h3>🚀 Étape 1: Ouvrir OAuth Playground</h3>
+                <a href="https://developers.google.com/oauth/playground/" target="_blank" class="btn">
+                    🔗 Ouvrir OAuth 2.0 Playground
+                </a>
+                <p><em>Cliquez pour ouvrir dans un nouvel onglet</em></p>
+            </div>
+
+            <div class="step">
+                <h3>⚙️ Étape 2: Configuration</h3>
+                <ol>
+                    <li>Dans la page OAuth Playground, cliquez sur l'icône ⚙️ (Settings) en haut à droite</li>
+                    <li>Cochez "Use your own OAuth credentials"</li>
+                    <li>Entrez votre <strong>OAuth Client ID:</strong><br>
+                        <span class="code">324863789443-p91qv6l61mitdti5evhu7pu446fn95un.apps.googleusercontent.com</span>
+                    </li>
+                    <li>Laissez le <strong>OAuth Client secret</strong> vide (pour les apps mobiles)</li>
+                    <li>Cliquez "Close"</li>
+                </ol>
+            </div>
+
+            <div class="step">
+                <h3>📧 Étape 3: Sélectionner Gmail API</h3>
+                <ol>
+                    <li>Dans la liste de gauche, trouvez "Gmail API v1"</li>
+                    <li>Cochez: <strong>https://www.googleapis.com/auth/gmail.send</strong></li>
+                    <li>Cliquez "Authorize APIs"</li>
+                </ol>
+            </div>
+
+            <div class="step">
+                <h3>🔐 Étape 4: Autorisation</h3>
+                <ol>
+                    <li>Connectez-vous avec <strong>constat.tunisie.app@gmail.com</strong></li>
+                    <li>Acceptez toutes les permissions</li>
+                    <li>Vous serez redirigé vers OAuth Playground</li>
+                </ol>
+            </div>
+
+            <div class="step">
+                <h3>🎫 Étape 5: Obtenir le Refresh Token</h3>
+                <ol>
+                    <li>Cliquez "Exchange authorization code for tokens"</li>
+                    <li>Copiez le <strong>Refresh token</strong> qui apparaît</li>
+                    <li>Gardez-le précieusement pour la configuration Cloud Functions !</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="success">
+            <h3>✅ Une fois le Refresh Token obtenu</h3>
+            <p>Revenez ici et dites-moi que vous avez le refresh token. Nous l'intégrerons ensuite dans votre Cloud Function pour l'envoi d'emails !</p>
+        </div>
+
+        <div class="method">
+            <h2>🔄 Méthode Alternative : Configuration manuelle</h2>
+            <p>Si OAuth Playground ne fonctionne pas, nous pouvons configurer l'URI de redirection dans Google Cloud Console :</p>
+            <ol>
+                <li>Aller sur <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console - Credentials</a></li>
+                <li>Sélectionner le projet "constattunisiemail-462921"</li>
+                <li>Cliquer sur le Client ID Web</li>
+                <li>Ajouter "http://localhost:8080" dans les URIs de redirection autorisés</li>
+                <li>Sauvegarder et réessayer cette page</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>
