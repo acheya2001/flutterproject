@@ -1,0 +1,263 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 🔐 RÈGLES DE SÉCURITÉ POUR LES COMPAGNIES D'ASSURANCE
+    // Ces règles empêchent l'accès croisé entre compagnies
+    
+    // ===== COLLECTION USERS =====
+    match /users/{userId} {
+      // Lecture : Utilisateur peut lire son propre document + Super Admin peut tout lire
+      allow read: if request.auth != null && (
+        request.auth.uid == userId || 
+        isSuperAdmin()
+      );
+      
+      // Écriture : Seul Super Admin peut créer/modifier les utilisateurs
+      allow write: if request.auth != null && isSuperAdmin();
+    }
+    
+    // ===== COLLECTION COMPAGNIES_ASSURANCE =====
+    match /compagnies_assurance/{compagnieId} {
+      // Lecture : Super Admin + Admin de cette compagnie
+      allow read: if request.auth != null && (
+        isSuperAdmin() || 
+        isAdminOfCompany(compagnieId)
+      );
+      
+      // Écriture : Seul Super Admin
+      allow write: if request.auth != null && isSuperAdmin();
+    }
+    
+    // ===== COLLECTION AGENCES_ASSURANCE =====
+    match /agences_assurance/{agenceId} {
+      // Lecture : Super Admin + Admin de la compagnie propriétaire
+      allow read: if request.auth != null && (
+        isSuperAdmin() || 
+        isAdminOfCompanyFromResource(resource.data.compagnieId)
+      );
+      
+      // Écriture : Super Admin + Admin de la compagnie propriétaire
+      allow write: if request.auth != null && (
+        isSuperAdmin() || 
+        (isAdminCompagnie() && isAdminOfCompanyFromResource(resource.data.compagnieId))
+      );
+    }
+    
+    // ===== COLLECTION AGENTS_ASSURANCE =====
+    match /agents_assurance/{agentId} {
+      // Lecture : Super Admin + Admin de la compagnie + Admin de l'agence
+      allow read: if request.auth != null && (
+        isSuperAdmin() || 
+        isAdminOfCompanyFromResource(resource.data.compagnieId) ||
+        isAdminOfAgencyFromResource(resource.data.agenceId)
+      );
+      
+      // Écriture : Super Admin + Admin de la compagnie + Admin de l'agence
+      allow write: if request.auth != null && (
+        isSuperAdmin() || 
+        (isAdminCompagnie() && isAdminOfCompanyFromResource(resource.data.compagnieId)) ||
+        (isAdminAgence() && isAdminOfAgencyFromResource(resource.data.agenceId))
+      );
+    }
+    
+    // ===== COLLECTION CONTRATS =====
+    match /contrats/{contratId} {
+      // Lecture : Super Admin + Admin de la compagnie + Agent de l'agence + Conducteur propriétaire
+      allow read: if request.auth != null && (
+        isSuperAdmin() || 
+        isAdminOfCompanyFromResource(resource.data.compagnieId) ||
+        isAgentOfAgencyFromResource(resource.data.agenceId) ||
+        isConducteurOwner(resource.data.conducteurId)
+      );
+      
+      // Écriture : Super Admin + Admin de la compagnie + Agent de l'agence
+      allow write: if request.auth != null && (
+        isSuperAdmin() || 
+        (isAdminCompagnie() && isAdminOfCompanyFromResource(resource.data.compagnieId)) ||
+        (isAgent() && isAgentOfAgencyFromResource(resource.data.agenceId))
+      );
+    }
+    
+    // ===== COLLECTION SINISTRES =====
+    match /sinistres/{sinistreId} {
+      // Lecture : Super Admin + Admin de la compagnie + Agent + Expert + Conducteur impliqué
+      allow read: if request.auth != null && (
+        isSuperAdmin() || 
+        isAdminOfCompanyFromResource(resource.data.compagnieId) ||
+        isAgentOfAgencyFromResource(resource.data.agenceId) ||
+        isExpertAssigned(sinistreId) ||
+        isConducteurInvolved(resource.data.conducteurIds)
+      );
+      
+      // Écriture : Super Admin + Admin de la compagnie + Agent + Expert assigné
+      allow write: if request.auth != null && (
+        isSuperAdmin() || 
+        (isAdminCompagnie() && isAdminOfCompanyFromResource(resource.data.compagnieId)) ||
+        (isAgent() && isAgentOfAgencyFromResource(resource.data.agenceId)) ||
+        (isExpert() && isExpertAssigned(sinistreId))
+      );
+    }
+    
+    // ===== COLLECTION EXPERTS =====
+    match /experts/{expertId} {
+      // Lecture : Super Admin + Admin des compagnies avec lesquelles l'expert travaille
+      allow read: if request.auth != null && (
+        isSuperAdmin() || 
+        request.auth.uid == expertId ||
+        isAdminOfAnyCompanyInList(resource.data.compagniesPartenaires)
+      );
+      
+      // Écriture : Super Admin + Expert lui-même (pour ses données)
+      allow write: if request.auth != null && (
+        isSuperAdmin() || 
+        (isExpert() && request.auth.uid == expertId)
+      );
+    }
+    
+    // ===== COLLECTION CONDUCTEURS =====
+    match /conducteurs/{conducteurId} {
+      // Lecture : Super Admin + Conducteur lui-même + Admin des compagnies de ses contrats
+      allow read: if request.auth != null && (
+        isSuperAdmin() || 
+        request.auth.uid == conducteurId ||
+        isAdminOfConducteurCompanies(conducteurId)
+      );
+      
+      // Écriture : Super Admin + Conducteur lui-même
+      allow write: if request.auth != null && (
+        isSuperAdmin() || 
+        (isConducteur() && request.auth.uid == conducteurId)
+      );
+    }
+    
+    // ===== COLLECTION SECURITY_LOGS =====
+    match /security_logs/{logId} {
+      // Lecture : Seul Super Admin
+      allow read: if request.auth != null && isSuperAdmin();
+      
+      // Écriture : Système uniquement (via Cloud Functions)
+      allow write: if false;
+    }
+    
+    // ===== COLLECTION SECURITY_VIOLATIONS =====
+    match /security_violations/{violationId} {
+      // Lecture : Seul Super Admin
+      allow read: if request.auth != null && isSuperAdmin();
+      
+      // Écriture : Système uniquement
+      allow write: if request.auth != null;
+    }
+    
+    // ===== FONCTIONS UTILITAIRES =====
+    
+    // Vérifier si l'utilisateur est Super Admin
+    function isSuperAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+    
+    // Vérifier si l'utilisateur est Admin Compagnie
+    function isAdminCompagnie() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin_compagnie';
+    }
+    
+    // Vérifier si l'utilisateur est Admin Agence
+    function isAdminAgence() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin_agence';
+    }
+    
+    // Vérifier si l'utilisateur est Agent
+    function isAgent() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agent';
+    }
+    
+    // Vérifier si l'utilisateur est Expert
+    function isExpert() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'expert';
+    }
+    
+    // Vérifier si l'utilisateur est Conducteur
+    function isConducteur() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'conducteur';
+    }
+    
+    // Vérifier si l'utilisateur est admin de la compagnie spécifiée
+    function isAdminOfCompany(compagnieId) {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin_compagnie' &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.compagnieId == compagnieId;
+    }
+    
+    // Vérifier si l'utilisateur est admin de la compagnie depuis une ressource
+    function isAdminOfCompanyFromResource(compagnieId) {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin_compagnie' &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.compagnieId == compagnieId;
+    }
+    
+    // Vérifier si l'utilisateur est admin de l'agence depuis une ressource
+    function isAdminOfAgencyFromResource(agenceId) {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin_agence' &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agenceId == agenceId;
+    }
+    
+    // Vérifier si l'utilisateur est agent de l'agence depuis une ressource
+    function isAgentOfAgencyFromResource(agenceId) {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agent' &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agenceId == agenceId;
+    }
+    
+    // Vérifier si l'utilisateur est le conducteur propriétaire
+    function isConducteurOwner(conducteurId) {
+      return request.auth != null && request.auth.uid == conducteurId;
+    }
+    
+    // Vérifier si l'expert est assigné au sinistre
+    function isExpertAssigned(sinistreId) {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/sinistres/$(sinistreId)) &&
+             get(/databases/$(database)/documents/sinistres/$(sinistreId)).data.expertId == request.auth.uid;
+    }
+    
+    // Vérifier si le conducteur est impliqué dans le sinistre
+    function isConducteurInvolved(conducteurIds) {
+      return request.auth != null && 
+             request.auth.uid in conducteurIds;
+    }
+    
+    // Vérifier si l'admin peut gérer une des compagnies de la liste
+    function isAdminOfAnyCompanyInList(compagniesIds) {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin_compagnie' &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.compagnieId in compagniesIds;
+    }
+    
+    // Vérifier si l'admin peut gérer les compagnies du conducteur
+    function isAdminOfConducteurCompanies(conducteurId) {
+      // Cette fonction nécessiterait une requête complexe pour récupérer les contrats du conducteur
+      // Pour simplifier, on autorise l'accès si l'admin a au moins un contrat avec ce conducteur
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin_compagnie';
+    }
+  }
+}

@@ -1,0 +1,101 @@
+// 🇹🇳 Règles de sécurité Firestore pour la hiérarchie tunisienne
+// Structure: companies/{companyId}/agencies/{agencyId}
+// À copier dans Firebase Console > Firestore Database > Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 🏢 COMPAGNIES - Accès selon le rôle
+    match /companies/{companyId} {
+      // Super Admin: accès total
+      allow read, write: if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "super_admin";
+      
+      // Admin Compagnie: accès à sa propre compagnie uniquement
+      allow read, write: if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin_compagnie" &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.compagnieId == companyId;
+      
+      // 🏪 AGENCES - Sous-collection des compagnies
+      match /agencies/{agencyId} {
+        // Super Admin: accès total
+        allow read, write: if request.auth != null &&
+                          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "super_admin";
+        
+        // Admin Compagnie: accès aux agences de sa compagnie
+        allow read, write: if request.auth != null &&
+                          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin_compagnie" &&
+                          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.compagnieId == companyId;
+        
+        // Admin Agence: accès à sa propre agence uniquement
+        allow read, write: if request.auth != null &&
+                          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin_agence" &&
+                          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agenceId == agencyId &&
+                          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.compagnieId == companyId;
+        
+        // Agent: lecture de sa propre agence
+        allow read: if request.auth != null &&
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "agent" &&
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agenceId == agencyId;
+      }
+    }
+    
+    // 👥 UTILISATEURS - Gestion des accès
+    match /users/{userId} {
+      // Super Admin: accès total
+      allow read, write: if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "super_admin";
+      
+      // Admin Compagnie: accès aux utilisateurs de sa compagnie
+      allow read, write: if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin_compagnie" &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.compagnieId == resource.data.compagnieId;
+      
+      // Admin Agence: accès aux utilisateurs de son agence
+      allow read, write: if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin_agence" &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agenceId == resource.data.agenceId;
+      
+      // Utilisateur: accès à son propre profil
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // 📋 SINISTRES - Accès selon la hiérarchie
+    match /sinistres/{sinistreId} {
+      // Super Admin: accès total
+      allow read, write: if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "super_admin";
+      
+      // Admin Compagnie: sinistres de sa compagnie
+      allow read, write: if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin_compagnie" &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.compagnieId == resource.data.compagnieId;
+      
+      // Admin Agence: sinistres de son agence
+      allow read, write: if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin_agence" &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agenceId == resource.data.agenceId;
+      
+      // Expert: sinistres qui lui sont assignés
+      allow read, write: if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "expert" &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.uid == resource.data.expertId;
+    }
+    
+    // 👨‍🔧 EXPERTS - Accès multi-compagnies
+    match /experts/{expertId} {
+      // Super Admin: accès total
+      allow read, write: if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "super_admin";
+      
+      // Admin Compagnie et Admin Agence: lecture pour assignation
+      allow read: if request.auth != null &&
+                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ["admin_compagnie", "admin_agence"];
+      
+      // Expert: accès à son propre profil
+      allow read, write: if request.auth != null &&
+                        request.auth.uid == expertId;
+    }
+  }
+}

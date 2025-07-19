@@ -1,33 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lottie/lottie.dart';
 import 'dart:async';
 
+import '../../../onboarding/presentation/screens/onboarding_screen.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/config/app_router.dart';
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/widgets/animated_logo.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../providers/splash_provider.dart';
 
-/// 🚀 Écran de démarrage avec animation
-class SplashScreen extends ConsumerStatefulWidget {
+/// 🌟 Écran de démarrage avec animation
+class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
 
   @override
-  ConsumerState<SplashScreen> createState() => _SplashScreenState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen>
+class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   late AnimationController _logoController;
   late AnimationController _textController;
-  late AnimationController _progressController;
-  
-  late Animation<double> _logoScale;
-  late Animation<double> _logoOpacity;
-  late Animation<double> _textOpacity;
-  late Animation<Offset> _textSlide;
-  late Animation<double> _progressValue;
+  late Animation<double> _logoAnimation;
+  late Animation<double> _textAnimation;
+  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
@@ -36,7 +28,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _startSplashSequence();
   }
 
-  /// 🎬 Initialisation des animations
   void _initializeAnimations() {
     // Animation du logo
     _logoController = AnimationController(
@@ -44,113 +35,59 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       vsync: this,
     );
 
-    _logoScale = Tween<double>(
-      begin: 0.5,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _logoController,
-      curve: Curves.elasticOut,
-    ));
-
-    _logoOpacity = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _logoController,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
-    ));
-
     // Animation du texte
     _textController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
 
-    _textOpacity = Tween<double>(
+    _logoAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _logoController,
+      curve: Curves.elasticOut,
+    ));
+
+    _textAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _textController,
-      curve: Curves.easeIn,
+      curve: Curves.easeInOut,
     ));
 
-    _textSlide = Tween<Offset>(
+    _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.5),
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _textController,
       curve: Curves.easeOutCubic,
     ));
-
-    // Animation de la barre de progression
-    _progressController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    );
-
-    _progressValue = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _progressController,
-      curve: Curves.easeInOut,
-    ));
   }
 
-  /// 🎭 Séquence d'animation du splash
   void _startSplashSequence() async {
     // Démarrer l'animation du logo
     await _logoController.forward();
-    
-    // Attendre un peu puis démarrer le texte
+
+    // Attendre un peu puis démarrer l'animation du texte
     await Future.delayed(const Duration(milliseconds: 300));
-    _textController.forward();
-    
-    // Démarrer la barre de progression
-    await Future.delayed(const Duration(milliseconds: 500));
-    _progressController.forward();
+    await _textController.forward();
 
-    // Initialiser l'application en arrière-plan
-    _initializeApp();
-  }
-
-  /// 🔧 Initialisation de l'application
-  void _initializeApp() async {
-    try {
-      // Simuler le chargement des données
-      await ref.read(splashProvider.notifier).initializeApp();
-      
-      // Attendre que les animations se terminent
-      await _progressController.forward();
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // Naviguer vers l'écran suivant
-      _navigateToNextScreen();
-    } catch (e) {
-      debugPrint('[SPLASH] Erreur d\'initialisation: $e');
-      // En cas d'erreur, naviguer quand même
-      await Future.delayed(const Duration(seconds: 1));
-      _navigateToNextScreen();
-    }
-  }
-
-  /// 🧭 Navigation vers l'écran suivant
-  void _navigateToNextScreen() {
-    final splashState = ref.read(splashProvider);
-    final authState = ref.read(authProvider);
+    // Attendre la fin des animations puis naviguer
+    await Future.delayed(const Duration(milliseconds: 1500));
 
     if (mounted) {
-      if (authState.isAuthenticated && authState.currentUser != null) {
-        // Utilisateur connecté - aller au dashboard
-        final route = AppRouter.getDashboardRoute(authState.currentUser!.role);
-        Navigator.pushReplacementNamed(context, route);
-      } else if (splashState.isFirstLaunch) {
-        // Premier lancement - aller à l'onboarding
-        Navigator.pushReplacementNamed(context, AppRouter.onboarding);
-      } else {
-        // Utilisateur existant - aller à la sélection du type
-        Navigator.pushReplacementNamed(context, AppRouter.userTypeSelection);
-      }
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const OnboardingScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 800),
+        ),
+      );
     }
   }
 
@@ -158,155 +95,242 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   void dispose() {
     _logoController.dispose();
     _textController.dispose();
-    _progressController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final splashState = ref.watch(splashProvider);
-    
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: AppTheme.primaryColor,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            children: [
-              const Spacer(flex: 2),
-              
-              // 🎯 Logo animé
-              _buildAnimatedLogo(),
-              
-              const SizedBox(height: 32),
-              
-              // 📝 Texte animé
-              _buildAnimatedText(),
-              
-              const Spacer(flex: 2),
-              
-              // 📊 Barre de progression
-              _buildProgressBar(),
-              
-              const SizedBox(height: 16),
-              
-              // 💬 Message de chargement
-              _buildLoadingMessage(splashState),
-              
-              const SizedBox(height: 32),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF1E3A8A), // Bleu profond
+              Color(0xFF3B82F6), // Bleu moderne
+              Color(0xFF60A5FA), // Bleu clair
             ],
+            stops: [0.0, 0.5, 1.0],
           ),
         ),
-      ),
-    );
-  }
-
-  /// 🎯 Logo animé
-  Widget _buildAnimatedLogo() {
-    return AnimatedBuilder(
-      animation: _logoController,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _logoScale.value,
-          child: Opacity(
-            opacity: _logoOpacity.value,
-            child: AnimatedLogo(
-              size: 120,
-              backgroundColor: Colors.white,
-              iconColor: AppTheme.primaryColor,
-              autoStart: false,
-              onAnimationComplete: () {
-                // Animation du logo terminée
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 📝 Texte animé
-  Widget _buildAnimatedText() {
-    return AnimatedBuilder(
-      animation: _textController,
-      builder: (context, child) {
-        return SlideTransition(
-          position: _textSlide,
-          child: Opacity(
-            opacity: _textOpacity.value,
-            child: Column(
-              children: [
-                Text(
-                  AppConstants.appName,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Déclaration d\'accidents simplifiée',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 📊 Barre de progression
-  Widget _buildProgressBar() {
-    return AnimatedBuilder(
-      animation: _progressController,
-      builder: (context, child) {
-        return Column(
+        child: Stack(
           children: [
-            Container(
-              width: double.infinity,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
+            // Motifs géométriques en arrière-plan
+            Positioned(
+              top: -100,
+              right: -100,
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.05),
+                ),
               ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: _progressValue.value,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(2),
+            ),
+            Positioned(
+              bottom: -150,
+              left: -150,
+              child: Container(
+                width: 400,
+                height: 400,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.03),
+                ),
+              ),
+            ),
+
+            // Contenu principal
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Logo moderne avec animation
+                  AnimatedBuilder(
+                    animation: _logoAnimation,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _logoAnimation.value,
+                        child: Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(35),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 30,
+                                offset: const Offset(0, 15),
+                                spreadRadius: 5,
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Icône principale
+                              Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Color(0xFF3B82F6),
+                                      Color(0xFF1E40AF),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Icon(
+                                  Icons.shield_outlined,
+                                  size: 45,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
+
+                  const SizedBox(height: 50),
+
+                  // Titre avec animation
+                  SlideTransition(
+                    position: _slideAnimation,
+                    child: FadeTransition(
+                      opacity: _textAnimation,
+                      child: Column(
+                        children: [
+                          // Titre principal
+                          const Text(
+                            'Constat Tunisie',
+                            style: TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 1.5,
+                              height: 1.2,
+                            ),
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Sous-titre
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(25),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                                width: 1,
+                              ),
+                            ),
+                            child: const Text(
+                              'Assistant Intelligent pour Constats',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Description
+                          Text(
+                            'Simplifiez vos déclarations d\'accidents\navec notre technologie avancée',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.white.withOpacity(0.85),
+                              fontWeight: FontWeight.w400,
+                              height: 1.4,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 80),
+
+                  // Indicateur de chargement moderne
+                  FadeTransition(
+                    opacity: _textAnimation,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          child: const SizedBox(
+                            width: 30,
+                            height: 30,
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              strokeWidth: 2.5,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Text(
+                          'Chargement...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white.withOpacity(0.7),
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Version en bas
+            Positioned(
+              bottom: 30,
+              left: 0,
+              right: 0,
+              child: FadeTransition(
+                opacity: _textAnimation,
+                child: Text(
+                  'Version 2.0 • Tunisie',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.6),
+                    fontWeight: FontWeight.w400,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
           ],
-        );
-      },
-    );
-  }
-
-  /// 💬 Message de chargement
-  Widget _buildLoadingMessage(SplashState splashState) {
-    return AnimatedBuilder(
-      animation: _textController,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _textOpacity.value,
-          child: Text(
-            splashState.loadingMessage,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.8),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

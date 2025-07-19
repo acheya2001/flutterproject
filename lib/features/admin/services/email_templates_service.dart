@@ -1,0 +1,10 @@
+/// 🎨 Service de templates HTML pour les emails
+class EmailTemplatesService {
+  
+  /// 🎨 Template de base avec style moderne
+  static String _getBaseTemplate({
+    required String title,
+    required String content,
+    required String companyName,
+  }) {
+    return ';    <title>';            font-family: ';            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%';            font-family: ';        @media (max-width: 600px';            <div class="company">';            <p>Plateforme de gestion des constats d';    ';  }';    final content = ';            • Choisissez un mot de passe fort (8+ caracteres';            Si vous n'avez pas demande cette reinitialisation, contactez immediatement notre support a <strong>';    ';      title: ';    ').replaceAll(';  }';    final agencyInfo = agencyName != null ? '<br>• <strong>Agence :</strong> 'agencyName' : ';    final content = ';            <a href="';            Si vous avez des questions, n'hesitez pas a contacter notre equipe support a <strong>';    ';      title: ';    ').replaceAll(';  }';    final content = ';            <a href="';            • Gestion des constats d';            Merci de votre patience et bienvenue dans l'equipe ! Si vous avez des questions, contactez-nous a <strong>';    ';      title: ';    ').replaceAll(';  }';    final content = ';            ';            Pour debloquer votre compte ou obtenir plus d'informations, contactez notre support a <strong>';    ';      title: ';    ').replaceAll(';  }';    final content = ';            <a href="';            • Respectez les conditions d';            Merci de votre comprehension. Si vous avez des questions, contactez-nous a <strong>';    ';      title: ';    ').replaceAll(';  }';    final content = ';            ';            • Contactez le support pour plus d';            Si vous pensez qu'il s'agit d'une erreur ou si vous souhaitez faire appel de cette decision, contactez immediatement notre equipe support a <strong>';    ';      title: ';    ').replaceAll(';

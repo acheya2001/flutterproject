@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🔥 CRÉATION ADMINS DIRECTE</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        .btn { padding: 15px 30px; margin: 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        .btn-create { background: #4CAF50; color: white; }
+        .btn-verify { background: #2196F3; color: white; }
+        .btn-clear { background: #f44336; color: white; }
+        .log { background: #f9f9f9; padding: 10px; margin: 10px 0; border-left: 4px solid #2196F3; font-family: monospace; }
+        .success { border-left-color: #4CAF50; }
+        .error { border-left-color: #f44336; }
+        .loading { text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 CRÉATION ADMINS - MÉTHODE DIRECTE</h1>
+        <p><strong>Cette méthode va FORCER la création des admins dans Firestore !</strong></p>
+        
+        <div>
+            <button class="btn btn-create" onclick="createAdmins()">🚀 CRÉER LES ADMINS</button>
+            <button class="btn btn-verify" onclick="verifyAdmins()">🔍 VÉRIFIER</button>
+            <button class="btn btn-clear" onclick="clearLogs()">🧹 EFFACER LOGS</button>
+        </div>
+        
+        <div id="status"></div>
+        <div id="logs"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        // Configuration Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyDGpAHia_wEmrhnmYNrZFoYU7n3ooUoAgs",
+            authDomain: "assuranceaccident-2024.firebaseapp.com",
+            projectId: "assuranceaccident-2024",
+            storageBucket: "assuranceaccident-2024.appspot.com",
+            messagingSenderId: "1059917372502",
+            appId: "1:1059917372502:web:c727b5b5f5b5b5b5b5b5b5"
+        };
+
+        // Initialiser Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.innerHTML = `${new Date().toLocaleTimeString()} - ${message}`;
+            logs.appendChild(logDiv);
+            logs.scrollTop = logs.scrollHeight;
+            console.log(message);
+        }
+
+        function setStatus(message, loading = false) {
+            const status = document.getElementById('status');
+            if (loading) {
+                status.innerHTML = `<div class="loading">⏳ ${message}</div>`;
+            } else {
+                status.innerHTML = `<div class="log success">${message}</div>`;
+            }
+        }
+
+        async function createAdmins() {
+            log('🔥 DÉBUT CRÉATION FORCE DES ADMINS', 'info');
+            setStatus('Création en cours...', true);
+
+            const admins = [
+                {
+                    id: 'admin_star_http',
+                    email: 'admin.star@assurance.tn',
+                    compagnieId: 'star-assurance',
+                    compagnieNom: 'STAR Assurance',
+                    password: 'StarAdmin2024!'
+                },
+                {
+                    id: 'admin_comar_http',
+                    email: 'admin.comar@assurance.tn',
+                    compagnieId: 'comar-assurance',
+                    compagnieNom: 'COMAR Assurance',
+                    password: 'ComarAdmin2024!'
+                },
+                {
+                    id: 'admin_gat_http',
+                    email: 'admin.gat@assurance.tn',
+                    compagnieId: 'gat-assurance',
+                    compagnieNom: 'GAT Assurance',
+                    password: 'GatAdmin2024!'
+                },
+                {
+                    id: 'admin_maghrebia_http',
+                    email: 'admin.maghrebia@assurance.tn',
+                    compagnieId: 'maghrebia-assurance',
+                    compagnieNom: 'Maghrebia Assurance',
+                    password: 'MaghrebiaAdmin2024!'
+                }
+            ];
+
+            let created = 0;
+            let failed = 0;
+
+            for (const admin of admins) {
+                try {
+                    log(`🔄 Création ${admin.email}...`, 'info');
+
+                    const adminData = {
+                        uid: admin.id,
+                        email: admin.email,
+                        nom: 'Admin',
+                        prenom: admin.compagnieNom,
+                        role: 'admin_compagnie',
+                        status: 'actif',
+                        compagnieId: admin.compagnieId,
+                        compagnieNom: admin.compagnieNom,
+                        password: admin.password,
+                        isLegitimate: true,
+                        isActive: true,
+                        created_by: 'http_direct',
+                        created_at: firebase.firestore.FieldValue.serverTimestamp(),
+                        source: 'http_creation',
+                        permissions: ['read_company_data', 'manage_agents']
+                    };
+
+                    // FORCE la création
+                    await db.collection('users').doc(admin.id).set(adminData, { merge: true });
+
+                    log(`✅ ${admin.email} CRÉÉ AVEC SUCCÈS !`, 'success');
+                    created++;
+
+                    // Vérification immédiate
+                    const doc = await db.collection('users').doc(admin.id).get();
+                    if (doc.exists) {
+                        log(`✅ VÉRIFIÉ: ${admin.email} existe dans Firestore`, 'success');
+                    } else {
+                        log(`⚠️ PROBLÈME: ${admin.email} non trouvé après création`, 'error');
+                    }
+
+                    // Pause entre créations
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                } catch (error) {
+                    log(`❌ ERREUR ${admin.email}: ${error.message}`, 'error');
+                    failed++;
+
+                    // Tentative de récupération
+                    try {
+                        log(`🔧 TENTATIVE RÉCUPÉRATION ${admin.email}...`, 'info');
+                        
+                        await db.runTransaction(async (transaction) => {
+                            const docRef = db.collection('users').doc(admin.id);
+                            transaction.set(docRef, {
+                                uid: admin.id,
+                                email: admin.email,
+                                nom: 'Admin',
+                                prenom: admin.compagnieNom,
+                                role: 'admin_compagnie',
+                                status: 'actif',
+                                compagnieId: admin.compagnieId,
+                                compagnieNom: admin.compagnieNom,
+                                password: admin.password,
+                                isLegitimate: true,
+                                isActive: true,
+                                created_by: 'http_recovery',
+                                source: 'transaction_recovery'
+                            });
+                        });
+
+                        log(`🔧 ${admin.email} RÉCUPÉRÉ via transaction`, 'success');
+                        created++;
+                        failed--;
+
+                    } catch (error2) {
+                        log(`💥 ÉCHEC TOTAL ${admin.email}: ${error2.message}`, 'error');
+                    }
+                }
+            }
+
+            log(`📊 RÉSULTAT FINAL: ${created}/${admins.length} admins créés, ${failed} échecs`, 'info');
+            
+            if (created > 0) {
+                setStatus(`🎉 ${created} ADMIN(S) CRÉÉ(S) AVEC SUCCÈS !`);
+                log('🎉 MISSION ACCOMPLIE !', 'success');
+                
+                // Vérification automatique
+                setTimeout(() => verifyAdmins(), 1000);
+            } else {
+                setStatus('❌ Aucun admin créé');
+                log('💥 ÉCHEC TOTAL - Aucun admin créé', 'error');
+            }
+        }
+
+        async function verifyAdmins() {
+            log('🔍 VÉRIFICATION DES ADMINS...', 'info');
+            setStatus('Vérification en cours...', true);
+
+            try {
+                const snapshot = await db.collection('users')
+                    .where('role', '==', 'admin_compagnie')
+                    .get();
+
+                log(`📊 TOTAL ADMINS TROUVÉS: ${snapshot.size}`, 'info');
+
+                if (snapshot.empty) {
+                    log('💥 AUCUN ADMIN TROUVÉ !', 'error');
+                    setStatus('❌ Aucun admin trouvé');
+                } else {
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        log(`✅ ADMIN: ${data.email} - ${data.compagnieNom} - ${data.status}`, 'success');
+                    });
+                    setStatus(`✅ ${snapshot.size} admin(s) trouvé(s)`);
+                }
+
+            } catch (error) {
+                log(`❌ Erreur vérification: ${error.message}`, 'error');
+                setStatus('❌ Erreur lors de la vérification');
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            document.getElementById('status').innerHTML = '';
+            log('🧹 Logs effacés', 'info');
+        }
+
+        // Auto-vérification au chargement
+        window.onload = function() {
+            log('🚀 PAGE CHARGÉE - Prêt à créer les admins !', 'info');
+            setTimeout(() => verifyAdmins(), 1000);
+        };
+    </script>
+</body>
+</html>

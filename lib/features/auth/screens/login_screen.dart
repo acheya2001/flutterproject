@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/services/navigation_service.dart';
 
-import '../../../core/config/app_routes.dart';
-import '../../../utils/user_type.dart';
-import '../providers/auth_provider.dart';
-import '../models/user_model.dart';
+/// 🔐 Écran de connexion pour tous les types d'utilisateurs
+class LoginScreen extends StatefulWidget {
+  final String userType;
 
-class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({
+    Key? key,
+    required this.userType,
+  }) : super(key: key);
 
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
+  bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -26,283 +29,377 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _login() async {
-    FocusScope.of(context).unfocus(); // Hide keyboard
-
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    final authState = ref.read(authProvider);
-    final authNotifier = ref.read(authProvider.notifier);
-    final UserModel? loggedInUser = await authNotifier.signIn(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-    );
-
-    if (!mounted) return;
-
-    if (loggedInUser != null) {
-      // AuthProvider's error state should be null on success.
-      // Navigation logic based on user type
-      debugPrint("[LoginScreen] Login successful. User type: ${loggedInUser.type}");
-      switch (loggedInUser.type) {
-          case UserType.conducteur:
-            Navigator.pushReplacementNamed(context, AppRoutes.conducteurHome);
-            break;
-          case UserType.assureur:
-            Navigator.pushReplacementNamed(context, AppRoutes.assureurHome);
-            break;
-          case UserType.expert:
-            Navigator.pushReplacementNamed(context, AppRoutes.expertHome);
-            break;
-          case UserType.admin:
-            Navigator.pushReplacementNamed(context, AppRoutes.adminHome);
-            break;
-        }
-    } else {
-      // Login failed. AuthProvider should have set its 'error' state.
-      // The ref.listen in the build method will display the error.
-      debugPrint("[LoginScreen] Login failed. Error should be in authState.error from AuthProvider.");
-    }
-  }
-
-  void _fillTestCredentials(String userType) {
-    switch (userType) {
-      case 'conducteur':
-        _emailController.text = 'conducteur@test.com';
-        _passwordController.text = 'password123';
-        break;
-      case 'assureur':
-        _emailController.text = 'assureur@test.com';
-        _passwordController.text = 'password123';
-        break;
+  String get _userTypeTitle {
+    switch (widget.userType) {
+      case 'driver':
+        return 'Conducteur';
+      case 'agent':
+        return 'Agent d\'Assurance';
       case 'expert':
-        _emailController.text = 'expert@test.com';
-        _passwordController.text = 'password123';
-        break;
+        return 'Expert Automobile';
+      case 'admin':
+        return 'Administrateur';
+      default:
+        return 'Utilisateur';
     }
-    // Clear password field focus to avoid keyboard issues after filling
-    FocusScope.of(context).unfocus();
   }
 
-  Widget _buildTestButton(String userType, Color color) {
-    return ElevatedButton(
-      onPressed: () => _fillTestCredentials(userType),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-      child: Text(
-        userType.substring(0, 1).toUpperCase() + userType.substring(1),
-        style: const TextStyle(color: Colors.white, fontSize: 12),
-      ),
-    );
+  IconData get _userTypeIcon {
+    switch (widget.userType) {
+      case 'driver':
+        return Icons.person;
+      case 'agent':
+        return Icons.business_center;
+      case 'expert':
+        return Icons.engineering;
+      case 'admin':
+        return Icons.admin_panel_settings;
+      default:
+        return Icons.person;
+    }
+  }
+
+  Color get _userTypeColor {
+    switch (widget.userType) {
+      case 'driver':
+        return AppTheme.primaryColor;
+      case 'agent':
+        return AppTheme.secondaryColor;
+      case 'expert':
+        return AppTheme.accentColor;
+      case 'admin':
+        return Colors.red.shade600;
+      default:
+        return AppTheme.primaryColor;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Watch AuthProvider state for isLoading and error
-    final authState = ref.watch(authProvider);
-
-    // Listen for error changes in AuthProvider to show a SnackBar
-    ref.listen(authProvider, (previous, next) {
-      if (next.error != null && next.error != previous?.error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(next.error!),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        // Optionally clear the error in the provider after showing it
-        // ref.read(authProvider.notifier).clearError();
-      }
-    });
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Connexion'),
-        elevation: 0, // Flat app bar
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Form(
-            key: _formKey,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              _userTypeColor.withOpacity(0.1),
+              Colors.white,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(
-                  Icons.car_crash_outlined, // Using outlined version
-                  size: 80,
-                  color: Colors.blueAccent, // Adjusted color
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Constat Tunisie',
-                  style: TextStyle(
-                    fontSize: 28, // Slightly larger
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueAccent,
+                const SizedBox(height: 40),
+
+                // Icône du type d'utilisateur
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: _userTypeColor,
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _userTypeColor.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-                  textAlign: TextAlign.center,
+                  child: Icon(
+                    _userTypeIcon,
+                    size: 50,
+                    color: Colors.white,
+                  ),
                 ),
+
                 const SizedBox(height: 32),
 
-                // Error message display (now driven by AuthProvider's error state via SnackBar)
-                // If you still want an inline error message, you can use authState.error here:
-                // if (authState.error != null && !authState.isLoading) ...[
-                //   // Your error display widget
-                // ],
-
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8)),
-                    ),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Veuillez entrer votre email';
-                    }
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                      return 'Veuillez entrer un email valide';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'Mot de passe',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                    border: const OutlineInputBorder(
-                       borderRadius: BorderRadius.all(Radius.circular(8)),
-                    ),
-                  ),
-                  obscureText: _obscurePassword,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Veuillez entrer votre mot de passe';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 10),
-
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, AppRoutes.forgotPassword);
-                    },
-                    child: const Text('Mot de passe oublié?'),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                ElevatedButton(
-                  onPressed: authState.isLoading ? null : _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    textStyle: const TextStyle(fontSize: 16, color: Colors.white)
-                  ),
-                  child: authState.isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Se connecter',
-                           style: TextStyle(color: Colors.white),
-                        ),
-                ),
-                const SizedBox(height: 20),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text("Vous n'avez pas de compte?"),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, AppRoutes.register);
-                      },
-                      child: const Text('S\'inscrire'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Bouton pour demande de compte professionnel
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pushNamed(context, AppRoutes.professionalRequest);
-                    },
-                    icon: const Icon(Icons.business_center),
-                    label: const Text('Demande de compte professionnel'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(color: Colors.blueAccent),
-                      foregroundColor: Colors.blueAccent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
+                // Titre
+                Text(
+                  'Connexion $_userTypeTitle',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: _userTypeColor,
                   ),
                 ),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
 
-                const SizedBox(height: 30),
-
-                const Text(
-                  'Comptes de test',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                Text(
+                  'Connectez-vous à votre espace personnel',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                  ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildTestButton('conducteur', Colors.blue.shade700),
-                    _buildTestButton('assureur', Colors.green.shade700),
-                    _buildTestButton('expert', Colors.orange.shade700),
-                  ],
+
+                const SizedBox(height: 48),
+
+                // Formulaire de connexion
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      // Email
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: _userTypeColor),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Veuillez saisir votre email';
+                          }
+                          if (!value.contains('@')) {
+                            return 'Email invalide';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Mot de passe
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: !_isPasswordVisible,
+                        decoration: InputDecoration(
+                          labelText: 'Mot de passe',
+                          prefixIcon: const Icon(Icons.lock_outlined),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isPasswordVisible
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _isPasswordVisible = !_isPasswordVisible;
+                              });
+                            },
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: _userTypeColor),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Veuillez saisir votre mot de passe';
+                          }
+                          if (value.length < 6) {
+                            return 'Le mot de passe doit contenir au moins 6 caractères';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Bouton de connexion
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _handleLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _userTypeColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                )
+                              : const Text(
+                                  'Se connecter',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Mot de passe oublié
+                      TextButton(
+                        onPressed: _handleForgotPassword,
+                        child: Text(
+                          'Mot de passe oublié ?',
+                          style: TextStyle(
+                            color: _userTypeColor,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+
+                const SizedBox(height: 32),
+
+                // Retour
+                TextButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Retour'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey.shade600,
+                  ),
+                ),
+
+                // Icône cadenas pour super admin (en bas)
+                if (widget.userType == 'admin') ...[
+                  const SizedBox(height: 40),
+                  GestureDetector(
+                    onTap: _handleSuperAdminAccess,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(50),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Icon(
+                        Icons.lock,
+                        color: Colors.red.shade600,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Accès Super Admin',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.red.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Simulation de connexion
+      await Future.delayed(const Duration(seconds: 2));
+
+      // TODO: Implémenter la logique de connexion réelle avec Firebase Auth
+
+      // Afficher le message de succès
+      NavigationService.showLoginSuccess(widget.userType);
+
+      // Attendre un peu pour que l'utilisateur voie le message
+      await Future.delayed(const Duration(milliseconds: 1500));
+
+      // Rediriger vers le dashboard approprié
+      NavigationService.redirectToDashboard(widget.userType);
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erreur de connexion'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _handleForgotPassword() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mot de passe oublié'),
+        content: const Text(
+          'Contactez votre administrateur pour réinitialiser votre mot de passe.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleSuperAdminAccess() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.security, color: Colors.red.shade600),
+            const SizedBox(width: 8),
+            const Text('Accès Super Admin'),
+          ],
+        ),
+        content: const Text(
+          'Accès réservé aux super administrateurs uniquement.\n\n'
+          'Cet accès permet de gérer l\'ensemble du système.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // TODO: Navigation vers super admin
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Accès Super Admin - En développement'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Accéder'),
+          ),
+        ],
       ),
     );
   }

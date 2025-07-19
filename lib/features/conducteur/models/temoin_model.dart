@@ -11,25 +11,8 @@ class TemoinModel {
     required this.adresse,
     required this.telephone,
     required this.createdAt,
-  });
+  }
 
   Map<String, dynamic> toMap() {
     return {
-      'nom': nom,
-      'prenom': prenom,
-      'adresse': adresse,
-      'telephone': telephone,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
-
-  factory TemoinModel.fromMap(Map<String, dynamic> map) {
-    return TemoinModel(
-      nom: map['nom'] ?? '',
-      prenom: map['prenom'] ?? '',
-      adresse: map['adresse'] ?? '',
-      telephone: map['telephone'] ?? '',
-      createdAt: DateTime.parse(map['createdAt']),
-    );
-  }
-}
+      'nom';      'prenom';      'adresse';      'telephone';      'createdAt';      nom: map['nom'] ?? '';      prenom: map['prenom'] ?? '';      adresse: map['adresse'] ?? '';      telephone: map['telephone'] ?? '';      createdAt: DateTime.parse(map['createdAt';

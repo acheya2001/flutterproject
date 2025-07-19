@@ -1,274 +1,311 @@
 import 'package:flutter/material.dart';
-
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/config/app_router.dart';
+import '../../screens/login_screen.dart';
+import 'professional_account_request_screen.dart';
 
-/// 👥 Écran de sélection du type d'utilisateur moderne
+/// 👥 Écran de sélection du type d'utilisateur
 class UserTypeSelectionScreen extends StatelessWidget {
   const UserTypeSelectionScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final safeAreaTop = MediaQuery.of(context).padding.top;
-    final safeAreaBottom = MediaQuery.of(context).padding.bottom;
-
     return Scaffold(
-      resizeToAvoidBottomInset: false,
       body: Container(
-        height: screenHeight,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
-              AppTheme.primaryColor,
-              Color(0xFF1565C0),
+              Color(0xFFF1F5F9), // Gris très clair
+              Color(0xFFFFFFFF), // Blanc pur
+              Color(0xFFF8FAFC), // Gris ultra-clair
             ],
+            stops: [0.0, 0.5, 1.0],
           ),
         ),
-        child: Column(
-          children: [
-            // SafeArea top
-            SizedBox(height: safeAreaTop),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              children: [
+                const SizedBox(height: 40),
 
-            // En-tête avec logo et titre - hauteur fixe
-            SizedBox(
-              height: 140,
-              child: _buildHeader(context),
-            ),
-
-            // Contenu principal - hauteur calculée
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.only(top: 16),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(32),
-                    topRight: Radius.circular(32),
+                // Logo moderne
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF2563EB), // Bleu moderne
+                        Color(0xFF1D4ED8), // Bleu foncé
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2563EB).withOpacity(0.25),
+                        blurRadius: 25,
+                        offset: const Offset(0, 12),
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.shield_rounded,
+                    size: 60,
+                    color: Colors.white,
                   ),
                 ),
-                child: Column(
-                  children: [
-                    // Titre de sélection - hauteur fixe
-                    SizedBox(
-                      height: 80,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                        child: _buildSelectionTitle(context),
-                      ),
-                    ),
 
-                    // Options de connexion - hauteur flexible
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: _buildUserTypeOptions(context),
-                      ),
-                    ),
+                const SizedBox(height: 32),
 
-                    // Footer - hauteur fixe
-                    SizedBox(
-                      height: 120,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                        child: _buildFooter(context),
-                      ),
-                    ),
-                  ],
+                // Titre de l'application
+                const Text(
+                  'Constat Tunisie',
+                  style: TextStyle(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E293B), // Gris foncé très lisible
+                    letterSpacing: 0.5,
+                  ),
                 ),
-              ),
-            ),
 
-            // SafeArea bottom
-            SizedBox(height: safeAreaBottom),
-          ],
-        ),
-      ),
-    );
-  }
+                const SizedBox(height: 12),
 
-  /// 📱 En-tête avec logo et titre
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          // Logo de l'application
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFF2563EB).withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Text(
+                    'Assistant Intelligent d\'Assurance',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF2563EB),
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // Section titre avec fond
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Choisissez votre profil',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E293B), // Très lisible
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Sélectionnez le type de compte qui correspond à votre profil',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: const Color(0xFF64748B), // Gris moyen très lisible
+                          fontWeight: FontWeight.w500,
+                          height: 1.4,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // Options de types d'utilisateurs
+                Expanded(
+                  child: ListView(
+                    children: [
+                      _buildModernUserTypeCard(
+                        context,
+                        icon: Icons.person_outline,
+                        title: 'Conducteur / Client',
+                        subtitle: 'Déclarer un sinistre, consulter mes contrats',
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                        ),
+                        onTap: () => _navigateToLogin(context, 'driver'),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Agent d'assurance
+                      _buildModernUserTypeCard(
+                        context,
+                        icon: Icons.business_center_outlined,
+                        title: 'Agent d\'Assurance',
+                        subtitle: 'Gérer les contrats et les clients',
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF059669), Color(0xFF047857)],
+                        ),
+                        onTap: () => _navigateToLogin(context, 'agent'),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Expert automobile
+                      _buildModernUserTypeCard(
+                        context,
+                        icon: Icons.engineering_outlined,
+                        title: 'Expert Automobile',
+                        subtitle: 'Évaluer les sinistres et rédiger des rapports',
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFDC2626), Color(0xFFB91C1C)],
+                        ),
+                        onTap: () => _navigateToLogin(context, 'expert'),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Administrateur
+                      _buildModernUserTypeCard(
+                        context,
+                        icon: Icons.admin_panel_settings_outlined,
+                        title: 'Administrateur',
+                        subtitle: 'Gérer le système et les utilisateurs',
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                        ),
+                        onTap: () => _navigateToLogin(context, 'admin'),
+                      ),
+
+                      // Espace final pour éviter l'overflow
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+
+                // Bouton demande de compte professionnel
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _navigateToProfessionalRequest(context),
+                    icon: const Icon(Icons.work_outline),
+                    label: const Text('Demander un Compte Professionnel'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.primaryColor,
+                      side: BorderSide(color: AppTheme.primaryColor),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Barre d'actions moderne
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildActionButton(
+                        icon: Icons.help_outline,
+                        label: 'Aide',
+                        onTap: () => _showHelpDialog(context),
+                      ),
+                      _buildActionButton(
+                        icon: Icons.description_outlined,
+                        label: 'Conditions',
+                        onTap: () => _showTermsDialog(context),
+                      ),
+                      _buildActionButton(
+                        icon: Icons.contact_support_outlined,
+                        label: 'Contact',
+                        onTap: () => _showContactDialog(context),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Accès admin discret (sans couleur rouge/orange)
+                GestureDetector(
+                  onTap: () => _handleSuperAdminAccess(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(
+                      Icons.admin_panel_settings_outlined,
+                      color: const Color(0xFF94A3B8), // Gris discret
+                      size: 20,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  'Accès Super Admin',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.red.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Version de l'application
+                Text(
+                  'Version ${AppConstants.appVersion}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                  ),
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.security,
-              size: 40,
-              color: AppTheme.primaryColor,
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Titre de l'application
-          Text(
-            AppConstants.appName,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          
-          const SizedBox(height: 8),
-          
-          // Sous-titre
-          Text(
-            'Application d\'assurance automobile digitalisée',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withOpacity(0.9),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 🎯 Titre de sélection
-  Widget _buildSelectionTitle(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Choisissez votre profil',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Sélectionnez le type de compte qui correspond à votre profil',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppTheme.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 👥 Options de types d'utilisateurs - Version optimisée
-  Widget _buildUserTypeOptions(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            children: [
-              // Conducteur/Client
-              _buildUserTypeCard(
-                context,
-                icon: Icons.directions_car,
-                title: 'Conducteur / Client',
-                subtitle: 'Déclarer un sinistre, consulter mes contrats',
-                color: AppTheme.driverColor,
-                onTap: () => Navigator.pushNamed(
-                  context,
-                  AppRouter.login,
-                  arguments: {'userType': 'driver'},
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Agent d'assurance
-              _buildUserTypeCard(
-                context,
-                icon: Icons.business_center,
-                title: 'Agent d\'Assurance',
-                subtitle: 'Gérer les contrats et les clients',
-                color: AppTheme.agentColor,
-                onTap: () => Navigator.pushNamed(
-                  context,
-                  AppRouter.login,
-                  arguments: {'userType': 'agent'},
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Expert automobile
-              _buildUserTypeCard(
-                context,
-                icon: Icons.engineering,
-                title: 'Expert Automobile',
-                subtitle: 'Évaluer les sinistres et rédiger des rapports',
-                color: AppTheme.expertColor,
-                onTap: () => Navigator.pushNamed(
-                  context,
-                  AppRouter.login,
-                  arguments: {'userType': 'expert'},
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Administrateur
-              _buildUserTypeCard(
-                context,
-                icon: Icons.admin_panel_settings,
-                title: 'Administrateur',
-                subtitle: 'Gérer le système et les utilisateurs',
-                color: AppTheme.adminColor,
-                onTap: () => Navigator.pushNamed(
-                  context,
-                  AppRouter.login,
-                  arguments: {'userType': 'admin'},
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // 📋 Bouton demande de compte professionnel
-              _buildProfessionalRequestButton(context),
-
-              // Espace final pour éviter l'overflow
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  /// 📋 Bouton pour demander un compte professionnel
-  Widget _buildProfessionalRequestButton(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: OutlinedButton.icon(
-        onPressed: () => Navigator.pushNamed(
-          context,
-          AppRouter.professionalAccountRequest,
-        ),
-        icon: const Icon(Icons.business_center_outlined),
-        label: const Text('Demander un Compte Professionnel'),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-          side: BorderSide(color: AppTheme.primaryColor, width: 2),
-          foregroundColor: AppTheme.primaryColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
@@ -296,13 +333,12 @@ class UserTypeSelectionScreen extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           child: Row(
             children: [
-              // Icône
               Container(
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(15),
                 ),
                 child: Icon(
                   icon,
@@ -310,37 +346,34 @@ class UserTypeSelectionScreen extends StatelessWidget {
                   color: color,
                 ),
               ),
-              
               const SizedBox(width: 16),
-              
-              // Texte
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSecondary,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
                       ),
                     ),
                   ],
                 ),
               ),
-              
-              // Flèche
               Icon(
                 Icons.arrow_forward_ios,
                 size: 16,
-                color: AppTheme.textSecondary,
+                color: Colors.grey.shade400,
               ),
             ],
           ),
@@ -349,95 +382,21 @@ class UserTypeSelectionScreen extends StatelessWidget {
     );
   }
 
-  /// 🦶 Footer avec informations
-  Widget _buildFooter(BuildContext context) {
-    return Column(
-      children: [
-        const Divider(),
-        const SizedBox(height: 16),
-        
-        // Boutons d'aide - Version responsive
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: TextButton.icon(
-                  onPressed: () {
-                    // Ouvrir l'aide
-                    _showHelpDialog(context);
-                  },
-                  icon: const Icon(Icons.help_outline, size: 18),
-                  label: const Text(
-                    'Aide',
-                    style: TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: TextButton.icon(
-                  onPressed: () {
-                    // Ouvrir les conditions
-                    _showTermsDialog(context);
-                  },
-                  icon: const Icon(Icons.description_outlined, size: 18),
-                  label: const Text(
-                    'Conditions',
-                    style: TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: TextButton.icon(
-                  onPressed: () {
-                    // Contacter le support
-                    _showContactDialog(context);
-                  },
-                  icon: const Icon(Icons.contact_support_outlined, size: 18),
-                  label: const Text(
-                    'Contact',
-                    style: TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // Version de l'application
-        Text(
-          'Version ${AppConstants.appVersion}',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppTheme.textHint,
-          ),
-        ),
+  void _navigateToLogin(BuildContext context, String userType) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LoginScreen(userType: userType),
+      ),
+    );
+  }
 
-        const SizedBox(height: 8),
-
-        // 🔐 Accès Super Admin (discret)
-        _buildSuperAdminAccess(context),
-      ],
+  void _navigateToProfessionalRequest(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ProfessionalAccountRequestScreen(),
+      ),
     );
   }
 
@@ -456,7 +415,7 @@ class UserTypeSelectionScreen extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Compris'),
           ),
         ],
@@ -464,7 +423,6 @@ class UserTypeSelectionScreen extends StatelessWidget {
     );
   }
 
-  /// 📄 Dialog des conditions
   void _showTermsDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -476,7 +434,7 @@ class UserTypeSelectionScreen extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Fermer'),
           ),
         ],
@@ -484,38 +442,25 @@ class UserTypeSelectionScreen extends StatelessWidget {
     );
   }
 
-  /// 📞 Dialog de contact
   void _showContactDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Nous contacter'),
-        content: Column(
+        content: const Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Pour toute question ou assistance :'),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Icon(Icons.email, size: 20),
-                const SizedBox(width: 8),
-                Text(AppConstants.supportEmail),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.web, size: 20),
-                const SizedBox(width: 8),
-                Text(AppConstants.helpUrl),
-              ],
-            ),
+            Text('Pour toute question ou assistance :'),
+            SizedBox(height: 16),
+            Text('📧 Email: support@constat-tunisie.tn'),
+            Text('📞 Téléphone: +216 XX XXX XXX'),
+            Text('🌐 Site web: www.constat-tunisie.tn'),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Fermer'),
           ),
         ],
@@ -523,47 +468,209 @@ class UserTypeSelectionScreen extends StatelessWidget {
     );
   }
 
-  /// 🔐 Accès Super Admin discret
-  Widget _buildSuperAdminAccess(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Accès Super Admin
-        GestureDetector(
-          onTap: () {
-            Navigator.pushNamed(context, '/super-admin-login');
-          },
+  /// 🔐 Gérer l'accès Super Admin
+  void _handleSuperAdminAccess(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.security, color: Colors.red.shade600),
+            const SizedBox(width: 8),
+            const Text('Accès Super Admin'),
+          ],
+        ),
+        content: const Text(
+          'Accès réservé aux super administrateurs uniquement.\n\n'
+          'Cet accès permet de gérer l\'ensemble du système.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginScreen(userType: 'super_admin'),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Accéder'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🎨 Carte moderne de type d'utilisateur
+  Widget _buildModernUserTypeCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Gradient gradient,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            child: Text(
-              '🔐',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textHint.withValues(alpha: 0.5),
-                fontSize: 12,
-              ),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: gradient,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                // Icône avec fond blanc
+                Container(
+                  width: 65,
+                  height: 65,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 32,
+                    color: const Color(0xFF1E293B), // Couleur foncée pour contraste
+                  ),
+                ),
+
+                const SizedBox(width: 20),
+
+                // Texte avec meilleur contraste
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                          shadows: [
+                            Shadow(
+                              offset: Offset(0, 1),
+                              blurRadius: 2,
+                              color: Colors.black26,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                          height: 1.3,
+                          shadows: [
+                            Shadow(
+                              offset: Offset(0, 1),
+                              blurRadius: 2,
+                              color: Colors.black26,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Flèche avec fond
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
 
-        const SizedBox(width: 16),
-
-        // Interface de nettoyage (développement uniquement)
-        GestureDetector(
-          onTap: () {
-            Navigator.pushNamed(context, '/clean-firestore');
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            child: Text(
-              '🧹',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textHint.withValues(alpha: 0.5),
-                fontSize: 12,
+  /// 🔘 Bouton d'action moderne
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: const Color(0xFF2563EB),
+                size: 20,
               ),
             ),
-          ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF1E293B), // Texte foncé très lisible
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

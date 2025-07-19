@@ -1,0 +1,226 @@
+// 🔒 Règles de sécurité Firestore pour le système d'assurance unifié
+// À copier dans la console Firebase > Firestore Database > Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==================== FONCTIONS UTILITAIRES ====================
+    
+    // Vérifier si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Vérifier le rôle de l'utilisateur
+    function hasRole(role) {
+      return isAuthenticated() && 
+             resource.data.role == role;
+    }
+    
+    // Vérifier si l'utilisateur est un super admin
+    function isSuperAdmin() {
+      return isAuthenticated() && 
+             request.auth.token.role == 'super_admin';
+    }
+    
+    // Vérifier si l'utilisateur est un admin de compagnie
+    function isCompanyAdmin(compagnieId) {
+      return isAuthenticated() && 
+             request.auth.token.role == 'admin_compagnie' &&
+             request.auth.token.compagnieId == compagnieId;
+    }
+    
+    // Vérifier si l'utilisateur est un admin d'agence
+    function isAgencyAdmin(agenceId) {
+      return isAuthenticated() && 
+             request.auth.token.role == 'admin_agence' &&
+             request.auth.token.agenceId == agenceId;
+    }
+    
+    // Vérifier si l'utilisateur est un agent
+    function isAgent(agenceId) {
+      return isAuthenticated() && 
+             request.auth.token.role == 'agent_agence' &&
+             request.auth.token.agenceId == agenceId;
+    }
+    
+    // Vérifier si l'utilisateur est un conducteur
+    function isConducteur() {
+      return isAuthenticated() && 
+             request.auth.token.role == 'conducteur';
+    }
+    
+    // Vérifier si l'utilisateur est un expert
+    function isExpert() {
+      return isAuthenticated() && 
+             request.auth.token.role == 'expert_auto';
+    }
+
+    // ==================== COMPAGNIES D'ASSURANCE ====================
+    
+    match /compagnies_assurance/{compagnieId} {
+      // Lecture: Super Admin, Admin Compagnie, Admin Agence, Agents
+      allow read: if isSuperAdmin() || 
+                     isCompanyAdmin(compagnieId) ||
+                     isAgencyAdmin(resource.data.agenceId) ||
+                     isAgent(resource.data.agenceId);
+      
+      // Écriture: Seulement Super Admin
+      allow write: if isSuperAdmin();
+    }
+
+    // ==================== AGENCES ====================
+    
+    match /agences_assurance/{agenceId} {
+      // Lecture: Super Admin, Admin Compagnie, Admin Agence, Agents de l'agence
+      allow read: if isSuperAdmin() || 
+                     isCompanyAdmin(resource.data.compagnieId) ||
+                     isAgencyAdmin(agenceId) ||
+                     isAgent(agenceId);
+      
+      // Écriture: Super Admin, Admin Compagnie
+      allow write: if isSuperAdmin() || 
+                      isCompanyAdmin(resource.data.compagnieId);
+    }
+
+    // ==================== AGENTS ====================
+    
+    match /agents_assurance/{agentId} {
+      // Lecture: Super Admin, Admin Compagnie, Admin Agence, l'agent lui-même
+      allow read: if isSuperAdmin() || 
+                     isCompanyAdmin(resource.data.compagnieId) ||
+                     isAgencyAdmin(resource.data.agenceId) ||
+                     (isAgent(resource.data.agenceId) && request.auth.uid == agentId);
+      
+      // Écriture: Super Admin, Admin Agence
+      allow write: if isSuperAdmin() || 
+                      isAgencyAdmin(resource.data.agenceId);
+    }
+
+    // ==================== CLIENTS/CONDUCTEURS ====================
+    
+    match /clients_conducteurs/{clientId} {
+      // Lecture: Super Admin, Agents, le conducteur lui-même
+      allow read: if isSuperAdmin() || 
+                     isAgent(resource.data.agenceId) ||
+                     (isConducteur() && request.auth.uid == clientId);
+      
+      // Écriture: Super Admin, Agents, le conducteur lui-même (données limitées)
+      allow write: if isSuperAdmin() || 
+                      isAgent(resource.data.agenceId) ||
+                      (isConducteur() && request.auth.uid == clientId);
+    }
+
+    // ==================== VÉHICULES ====================
+    
+    match /vehicules/{vehiculeId} {
+      // Lecture: Super Admin, Agents, le propriétaire
+      allow read: if isSuperAdmin() || 
+                     isAgent(resource.data.agenceId) ||
+                     (isConducteur() && request.auth.uid == resource.data.proprietaireId);
+      
+      // Écriture: Super Admin, Agents, le propriétaire (création seulement)
+      allow create: if isSuperAdmin() || 
+                       isAgent(resource.data.agenceId) ||
+                       (isConducteur() && request.auth.uid == resource.data.proprietaireId);
+      
+      allow update: if isSuperAdmin() || 
+                       isAgent(resource.data.agenceId);
+    }
+
+    // ==================== CONTRATS D'ASSURANCE ====================
+    
+    match /contrats_assurance/{contratId} {
+      // Lecture: Super Admin, Admin Compagnie, Agents, le client
+      allow read: if isSuperAdmin() || 
+                     isCompanyAdmin(resource.data.compagnieId) ||
+                     isAgent(resource.data.agenceId) ||
+                     (isConducteur() && request.auth.uid == resource.data.clientId);
+      
+      // Écriture: Super Admin, Agents de l'agence
+      allow write: if isSuperAdmin() || 
+                      isAgent(resource.data.agenceId);
+    }
+
+    // ==================== CONSTATS D'ACCIDENTS ====================
+    
+    match /constats_accidents/{constatId} {
+      // Lecture: Super Admin, Admin Compagnie, Agents, Experts, Conducteurs impliqués
+      allow read: if isSuperAdmin() || 
+                     isCompanyAdmin(resource.data.compagnieId) ||
+                     isAgent(resource.data.agenceId) ||
+                     isExpert() ||
+                     (isConducteur() && 
+                      (request.auth.uid in resource.data.conducteursImpliques));
+      
+      // Création: Conducteurs
+      allow create: if isConducteur();
+      
+      // Mise à jour: Super Admin, Agents, Experts assignés
+      allow update: if isSuperAdmin() || 
+                       isAgent(resource.data.agenceId) ||
+                       (isExpert() && request.auth.uid == resource.data.expertId);
+    }
+
+    // ==================== EXPERTS AUTOMOBILES ====================
+    
+    match /experts_automobile/{expertId} {
+      // Lecture: Super Admin, Admin Compagnie (si expert travaille avec), l'expert lui-même
+      allow read: if isSuperAdmin() || 
+                     (isCompanyAdmin(resource.data.compagnieId) && 
+                      resource.data.compagnieId in resource.data.compagnieIds) ||
+                     (isExpert() && request.auth.uid == expertId);
+      
+      // Écriture: Super Admin, l'expert lui-même (données limitées)
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin() || 
+                       (isExpert() && request.auth.uid == expertId);
+    }
+
+    // ==================== DEMANDES PROFESSIONNELLES ====================
+    
+    match /demandes_professionnels/{demandeId} {
+      // Lecture: Super Admin, le demandeur
+      allow read: if isSuperAdmin() || 
+                     request.auth.uid == resource.data.userId;
+      
+      // Création: Utilisateurs authentifiés
+      allow create: if isAuthenticated();
+      
+      // Mise à jour: Super Admin seulement
+      allow update: if isSuperAdmin();
+    }
+
+    // ==================== NOTIFICATIONS ====================
+    
+    match /notifications/{notificationId} {
+      // Lecture: Le destinataire de la notification
+      allow read: if isAuthenticated() && 
+                     request.auth.uid == resource.data.userId;
+      
+      // Écriture: Super Admin, système
+      allow write: if isSuperAdmin();
+    }
+
+    // ==================== SESSIONS COLLABORATIVES ====================
+    
+    match /collaborative_sessions/{sessionId} {
+      // Lecture: Participants de la session
+      allow read: if isAuthenticated() && 
+                     request.auth.uid in resource.data.participants;
+      
+      // Écriture: Créateur de la session, participants
+      allow write: if isAuthenticated() && 
+                      (request.auth.uid == resource.data.createdBy ||
+                       request.auth.uid in resource.data.participants);
+    }
+
+    // ==================== RÈGLES PAR DÉFAUT ====================
+    
+    // Interdire tout accès non spécifié
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

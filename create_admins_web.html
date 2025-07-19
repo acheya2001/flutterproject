@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Création Admins - Web Bypass</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            min-width: 200px;
+        }
+        .btn-primary { background: #4CAF50; color: white; }
+        .btn-secondary { background: #2196F3; color: white; }
+        .btn-warning { background: #FF9800; color: white; }
+        .btn-danger { background: #f44336; color: white; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        
+        .log-container {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .log-success { color: #4CAF50; }
+        .log-error { color: #f44336; }
+        .log-warning { color: #FF9800; }
+        .log-info { color: #2196F3; }
+        .log-normal { color: #ffffff; }
+        
+        .status {
+            text-align: center;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .status.success { background: rgba(76, 175, 80, 0.3); border: 2px solid #4CAF50; }
+        .status.error { background: rgba(244, 67, 54, 0.3); border: 2px solid #f44336; }
+        .status.warning { background: rgba(255, 152, 0, 0.3); border: 2px solid #FF9800; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Création Admins - Web Bypass</h1>
+        
+        <div id="status" class="status warning">
+            ⚠️ Prêt à créer les admins. Cliquez sur "Créer Admins" pour commencer.
+        </div>
+        
+        <div class="button-group">
+            <button class="btn-primary" onclick="createAdmins()">🚀 Créer Admins</button>
+            <button class="btn-secondary" onclick="testConnection()">🔍 Test Connexion</button>
+            <button class="btn-warning" onclick="importCSV()">📊 Import CSV</button>
+            <button class="btn-danger" onclick="clearLogs()">🗑️ Clear Logs</button>
+        </div>
+        
+        <div class="log-container" id="logContainer">
+            <div class="log-info">🔧 Script de création d'admins prêt...</div>
+            <div class="log-normal">📋 Ce script contourne les problèmes de connectivité mobile</div>
+            <div class="log-normal">🌐 Utilise la connexion web directe vers Firebase</div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, collection, addDoc, serverTimestamp, getDocs, query, limit } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Configuration Firebase (remplacez par votre config)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqJGIGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+            authDomain: "votre-projet.firebaseapp.com",
+            projectId: "votre-projet-id",
+            storageBucket: "votre-projet.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdefghijklmnop"
+        };
+
+        // Initialiser Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Fonction de log
+        function addLog(message, type = 'normal') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-${type}`;
+            logEntry.textContent = `${timestamp} - ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            console.log(message);
+        }
+
+        // Fonction de mise à jour du statut
+        function updateStatus(message, type = 'warning') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        // Test de connexion
+        window.testConnection = async function() {
+            addLog('🔍 Test de connexion Firebase...', 'info');
+            
+            try {
+                // Test Firestore
+                const testQuery = query(collection(db, 'health_check'), limit(1));
+                const snapshot = await getDocs(testQuery);
+                addLog('✅ Firestore: Connexion réussie', 'success');
+                
+                // Test Auth
+                const currentUser = auth.currentUser;
+                if (currentUser) {
+                    addLog(`✅ Auth: Connecté en tant que ${currentUser.email}`, 'success');
+                } else {
+                    addLog('⚠️ Auth: Non connecté', 'warning');
+                }
+                
+                updateStatus('✅ Connexion Firebase OK', 'success');
+                
+            } catch (error) {
+                addLog(`❌ Erreur connexion: ${error.message}`, 'error');
+                updateStatus('❌ Erreur de connexion', 'error');
+            }
+        };
+
+        // Création des admins
+        window.createAdmins = async function() {
+            addLog('🚀 === DÉBUT CRÉATION ADMINS ===', 'info');
+            updateStatus('🔄 Création en cours...', 'warning');
+            
+            const admins = [
+                {
+                    id: 'admin-star-001',
+                    email: 'admin.star@assurance.tn',
+                    password: 'StarAdmin2024!',
+                    compagnieId: 'STAR',
+                    compagnieNom: 'STAR Assurance'
+                },
+                {
+                    id: 'admin-comar-001',
+                    email: 'admin.comar@assurance.tn',
+                    password: 'ComarAdmin2024!',
+                    compagnieId: 'COMAR',
+                    compagnieNom: 'COMAR Assurance'
+                },
+                {
+                    id: 'admin-gat-001',
+                    email: 'admin.gat@assurance.tn',
+                    password: 'GatAdmin2024!',
+                    compagnieId: 'GAT',
+                    compagnieNom: 'GAT Assurance'
+                },
+                {
+                    id: 'admin-maghrebia-001',
+                    email: 'admin.maghrebia@assurance.tn',
+                    password: 'MaghrebiaAdmin2024!',
+                    compagnieId: 'MAGHREBIA',
+                    compagnieNom: 'Maghrebia Assurance'
+                }
+            ];
+
+            let created = 0;
+            let errors = 0;
+
+            for (const admin of admins) {
+                try {
+                    addLog(`🔄 Création ${admin.email}...`, 'info');
+
+                    const adminData = {
+                        uid: admin.id,
+                        email: admin.email,
+                        nom: 'Admin',
+                        prenom: admin.compagnieNom,
+                        role: 'admin_compagnie',
+                        status: 'actif',
+                        compagnieId: admin.compagnieId,
+                        compagnieNom: admin.compagnieNom,
+                        password: admin.password,
+                        isLegitimate: true,
+                        isActive: true,
+                        created_by: 'web_bypass_script',
+                        created_at: serverTimestamp(),
+                        source: 'web_creation',
+                        permissions: ['read_company_data', 'manage_agents']
+                    };
+
+                    await setDoc(doc(db, 'users', admin.id), adminData);
+                    addLog(`✅ ${admin.email} créé avec succès`, 'success');
+                    created++;
+
+                } catch (error) {
+                    addLog(`❌ Échec ${admin.email}: ${error.message}`, 'error');
+                    errors++;
+                }
+            }
+
+            addLog(`🎉 === CRÉATION TERMINÉE ===`, 'info');
+            addLog(`✅ Créés: ${created}`, 'success');
+            addLog(`❌ Erreurs: ${errors}`, errors > 0 ? 'error' : 'normal');
+
+            if (created > 0) {
+                updateStatus(`✅ ${created} admins créés avec succès !`, 'success');
+            } else {
+                updateStatus(`❌ Aucun admin créé (${errors} erreurs)`, 'error');
+            }
+        };
+
+        // Import CSV
+        window.importCSV = function() {
+            addLog('📊 Fonction d\'import CSV...', 'info');
+            
+            const csvData = prompt('Collez vos données CSV ici:');
+            if (csvData) {
+                addLog('📋 Données CSV reçues, traitement...', 'info');
+                processCSVData(csvData);
+            }
+        };
+
+        // Traitement des données CSV
+        async function processCSVData(csvData) {
+            try {
+                const lines = csvData.trim().split('\n');
+                const headers = lines[0].split(',').map(h => h.trim());
+                
+                addLog(`📊 Headers détectés: ${headers.join(', ')}`, 'info');
+                
+                // Détecter le type de données
+                let dataType = 'unknown';
+                if (headers.some(h => h.toLowerCase().includes('compagnie') || h.toLowerCase().includes('assurance'))) {
+                    dataType = 'compagnies';
+                }
+                
+                addLog(`🔍 Type détecté: ${dataType}`, 'info');
+                
+                if (dataType === 'compagnies') {
+                    await importCompagnies(headers, lines.slice(1));
+                } else {
+                    addLog('❌ Type de données non supporté', 'error');
+                }
+                
+            } catch (error) {
+                addLog(`❌ Erreur traitement CSV: ${error.message}`, 'error');
+            }
+        }
+
+        // Import des compagnies
+        async function importCompagnies(headers, dataRows) {
+            addLog('🏢 Import des compagnies...', 'info');
+            
+            let imported = 0;
+            
+            for (const row of dataRows) {
+                try {
+                    const values = row.split(',').map(v => v.trim());
+                    const compagnieData = {};
+                    
+                    headers.forEach((header, index) => {
+                        if (values[index]) {
+                            compagnieData[header.toLowerCase()] = values[index];
+                        }
+                    });
+                    
+                    if (compagnieData.nom) {
+                        const compagnieId = compagnieData.code || compagnieData.nom.toLowerCase().replace(/\s+/g, '-');
+                        
+                        const finalData = {
+                            id: compagnieId,
+                            nom: compagnieData.nom,
+                            code: compagnieData.code || compagnieId,
+                            adresse: compagnieData.adresse || '',
+                            telephone: compagnieData.telephone || '',
+                            email: compagnieData.email || '',
+                            ville: compagnieData.ville || '',
+                            pays: compagnieData.pays || 'Tunisie',
+                            status: 'actif',
+                            created_at: serverTimestamp(),
+                            imported_from: 'csv_web',
+                            import_date: new Date().toISOString()
+                        };
+                        
+                        await setDoc(doc(db, 'compagnies_assurance', compagnieId), finalData);
+                        addLog(`✅ Compagnie importée: ${compagnieData.nom}`, 'success');
+                        imported++;
+                    }
+                    
+                } catch (error) {
+                    addLog(`❌ Erreur ligne: ${error.message}`, 'error');
+                }
+            }
+            
+            addLog(`🎉 Import terminé: ${imported} compagnies`, 'success');
+            updateStatus(`✅ ${imported} compagnies importées`, 'success');
+        }
+
+        // Clear logs
+        window.clearLogs = function() {
+            document.getElementById('logContainer').innerHTML = '';
+            addLog('🔧 Logs effacés', 'info');
+        };
+
+        // Auto-test au chargement
+        window.addEventListener('load', () => {
+            setTimeout(testConnection, 1000);
+        });
+    </script>
+</body>
+</html>
