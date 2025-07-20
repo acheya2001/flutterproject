@@ -616,6 +616,13 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
     return colors[hash.abs() % colors.length];
   }
 
+  /// 🔄 Actualiser les données
+  void _refreshData() {
+    setState(() {
+      // Déclencher une reconstruction pour recharger les données
+    });
+  }
+
   Widget _buildInfoItem(IconData icon, String text, Color color) {
     return Row(
       children: [
@@ -851,24 +858,6 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
     }
   }
 
-  /// 🎨 Obtenir une couleur unique pour chaque compagnie
-  Color _getCompanyColor(String companyName) {
-    final colors = [
-      const Color(0xFF3B82F6), // Bleu
-      const Color(0xFF10B981), // Vert
-      const Color(0xFF8B5CF6), // Violet
-      const Color(0xFFF59E0B), // Orange
-      const Color(0xFFEF4444), // Rouge
-      const Color(0xFF06B6D4), // Cyan
-      const Color(0xFF84CC16), // Lime
-      const Color(0xFFEC4899), // Rose
-      const Color(0xFF6366F1), // Indigo
-      const Color(0xFF14B8A6), // Teal
-    ];
-
-    final hash = companyName.hashCode;
-    return colors[hash.abs() % colors.length];
-  }
 }
 
 extension StringExtension on String {
