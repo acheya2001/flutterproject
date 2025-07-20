@@ -114,6 +114,10 @@ class _CompanyFormScreenState extends State<CompanyFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = isEditing
+        ? _getCompanyColor(widget.company!.nom)
+        : const Color(0xFF3B82F6);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -122,11 +126,21 @@ class _CompanyFormScreenState extends State<CompanyFormScreen> {
           style: const TextStyle(
             fontWeight: FontWeight.w700,
             color: Colors.white,
+            fontSize: 20,
           ),
         ),
-        backgroundColor: const Color(0xFF3B82F6),
+        backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [primaryColor, primaryColor.withOpacity(0.8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
         actions: [
           if (_isLoading)
             const Center(
@@ -143,13 +157,21 @@ class _CompanyFormScreenState extends State<CompanyFormScreen> {
               ),
             )
           else
-            TextButton(
-              onPressed: _saveCompany,
-              child: const Text(
-                'Enregistrer',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextButton.icon(
+                onPressed: _saveCompany,
+                icon: const Icon(Icons.save_rounded, color: Colors.white, size: 18),
+                label: const Text(
+                  'Enregistrer',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -306,35 +328,68 @@ class _CompanyFormScreenState extends State<CompanyFormScreen> {
     required IconData icon,
     required List<Widget> children,
   }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    final primaryColor = isEditing
+        ? _getCompanyColor(widget.company!.nom)
+        : const Color(0xFF3B82F6);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: primaryColor.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(
-                  icon,
-                  color: const Color(0xFF3B82F6),
-                  size: 20,
+            // En-tête de section amélioré
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [primaryColor.withOpacity(0.1), primaryColor.withOpacity(0.05)],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [primaryColor, primaryColor.withOpacity(0.8)],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 16),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: primaryColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             ...children,
           ],
         ),
@@ -351,41 +406,62 @@ class _CompanyFormScreenState extends State<CompanyFormScreen> {
     int maxLines = 1,
     String? Function(String?)? validator,
   }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      validator: validator,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
-        color: Color(0xFF1E293B),
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon, color: const Color(0xFF64748B)),
-        labelStyle: const TextStyle(
-          color: Color(0xFF64748B),
-          fontWeight: FontWeight.w500,
+    final primaryColor = isEditing
+        ? _getCompanyColor(widget.company!.nom)
+        : const Color(0xFF3B82F6);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        validator: validator,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF1E293B),
         ),
-        hintStyle: const TextStyle(
-          color: Color(0xFF94A3B8),
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: primaryColor, size: 20),
+          ),
+          labelStyle: TextStyle(
+            color: primaryColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+          hintStyle: const TextStyle(
+            color: Color(0xFF94A3B8),
+            fontWeight: FontWeight.w500,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: primaryColor.withOpacity(0.2)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: primaryColor.withOpacity(0.2)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: primaryColor, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2),
+          ),
+          filled: true,
+          fillColor: primaryColor.withOpacity(0.03),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFDC2626), width: 2),
-        ),
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
       ),
     );
   }
@@ -397,36 +473,90 @@ class _CompanyFormScreenState extends State<CompanyFormScreen> {
     required ValueChanged<String?> onChanged,
     required IconData icon,
   }) {
-    return DropdownButtonFormField<String>(
-      value: value,
-      onChanged: onChanged,
-      items: items.map((item) => DropdownMenuItem(
-        value: item,
-        child: Text(item),
-      )).toList(),
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
-        color: Color(0xFF1E293B),
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: const Color(0xFF64748B)),
-        labelStyle: const TextStyle(
-          color: Color(0xFF64748B),
-          fontWeight: FontWeight.w500,
+    final primaryColor = isEditing
+        ? _getCompanyColor(widget.company!.nom)
+        : const Color(0xFF3B82F6);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        onChanged: onChanged,
+        items: items.map((item) => DropdownMenuItem(
+          value: item,
+          child: Row(
+            children: [
+              Icon(
+                item == 'Takaful' ? Icons.mosque_rounded : Icons.account_balance_rounded,
+                color: primaryColor,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                item,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        )).toList(),
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF1E293B),
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: primaryColor, size: 20),
+          ),
+          labelStyle: TextStyle(
+            color: primaryColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: primaryColor.withOpacity(0.2)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: primaryColor.withOpacity(0.2)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: primaryColor, width: 2),
+          ),
+          filled: true,
+          fillColor: primaryColor.withOpacity(0.03),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
-        ),
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
       ),
     );
+  }
+
+  /// 🎨 Obtenir une couleur unique pour chaque compagnie
+  Color _getCompanyColor(String companyName) {
+    final colors = [
+      const Color(0xFF3B82F6), // Bleu
+      const Color(0xFF10B981), // Vert
+      const Color(0xFF8B5CF6), // Violet
+      const Color(0xFFF59E0B), // Orange
+      const Color(0xFFEF4444), // Rouge
+      const Color(0xFF06B6D4), // Cyan
+      const Color(0xFF84CC16), // Lime
+      const Color(0xFFEC4899), // Rose
+      const Color(0xFF6366F1), // Indigo
+      const Color(0xFF14B8A6), // Teal
+    ];
+
+    final hash = companyName.hashCode;
+    return colors[hash.abs() % colors.length];
   }
 }

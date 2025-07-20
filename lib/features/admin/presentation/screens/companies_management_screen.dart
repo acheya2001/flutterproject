@@ -34,10 +34,37 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            onPressed: () => _showAddCompanyDialog(),
-            icon: const Icon(Icons.add),
-            tooltip: 'Ajouter une compagnie',
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'add_codes') {
+                _addCodesToExistingCompanies();
+              } else if (value == 'add_company') {
+                _showAddCompanyDialog();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'add_company',
+                child: Row(
+                  children: [
+                    Icon(Icons.add_business, size: 18, color: Color(0xFF3B82F6)),
+                    SizedBox(width: 8),
+                    Text('Ajouter une compagnie'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'add_codes',
+                child: Row(
+                  children: [
+                    Icon(Icons.qr_code, size: 18, color: Color(0xFFF59E0B)),
+                    SizedBox(width: 8),
+                    Text('Ajouter codes aux existantes'),
+                  ],
+                ),
+              ),
+            ],
+            icon: const Icon(Icons.more_vert),
           ),
         ],
       ),
@@ -250,230 +277,369 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
 
   Widget _buildCompanyCard(InsuranceCompany company) {
     final isActive = company.status == 'active';
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+
+    // Couleurs dynamiques selon le type et statut
+    final Color primaryColor = _getCompanyColor(company.nom);
+    final Color backgroundColor = isActive
+        ? primaryColor.withOpacity(0.05)
+        : Colors.grey.withOpacity(0.05);
+    final Color borderColor = isActive
+        ? primaryColor.withOpacity(0.2)
+        : Colors.grey.withOpacity(0.2);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: InkWell(
-        onTap: () => _navigateToCompanyDetails(company),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  // Logo/Icône
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: isActive 
-                          ? const Color(0xFF3B82F6).withOpacity(0.1)
-                          : Colors.grey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.business,
-                      color: isActive ? const Color(0xFF3B82F6) : Colors.grey,
-                      size: 24,
-                    ),
-                  ),
-                  
-                  const SizedBox(width: 12),
-                  
-                  // Nom et statut
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          company.nom,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1E293B),
-                          ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _navigateToCompanyDetails(company),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    // Logo/Icône amélioré
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            primaryColor,
+                            primaryColor.withOpacity(0.8),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: isActive ? Colors.green : Colors.red,
-                                shape: BoxShape.circle,
-                              ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.business_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+
+                    const SizedBox(width: 16),
+
+                    // Nom et informations
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            company.nom,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: isActive ? const Color(0xFF1E293B) : Colors.grey.shade600,
+                              letterSpacing: -0.5,
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              isActive ? 'Active' : 'Inactive',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: isActive ? Colors.green : Colors.red,
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              // Statut avec design amélioré
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isActive
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFEF4444),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      isActive ? 'Active' : 'Inactive',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
+                              const SizedBox(width: 12),
+                              // Type avec design amélioré
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: company.type == 'Takaful'
+                                      ? const Color(0xFF8B5CF6)
+                                      : const Color(0xFF3B82F6),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  company.type,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Menu actions moderne
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: PopupMenuButton<String>(
+                        onSelected: (value) => _handleCompanyAction(value, company),
+                        icon: Icon(
+                          Icons.more_vert_rounded,
+                          color: primaryColor,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'view',
+                            child: Row(
+                              children: [
+                                Icon(Icons.visibility_rounded, size: 18, color: primaryColor),
+                                const SizedBox(width: 12),
+                                const Text('Voir détails', style: TextStyle(fontWeight: FontWeight.w500)),
+                              ],
                             ),
-                            const SizedBox(width: 12),
+                          ),
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_rounded, size: 18, color: Colors.orange.shade600),
+                                const SizedBox(width: 12),
+                                const Text('Modifier', style: TextStyle(fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: isActive ? 'deactivate' : 'activate',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isActive ? Icons.block_rounded : Icons.check_circle_rounded,
+                                  size: 18,
+                                  color: isActive ? Colors.red.shade600 : Colors.green.shade600,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  isActive ? 'Désactiver' : 'Activer',
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_rounded, size: 18, color: Colors.red.shade600),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Supprimer',
+                                  style: TextStyle(
+                                    color: Colors.red.shade600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Informations de contact avec design amélioré
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: primaryColor.withOpacity(0.1)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildInfoItem(Icons.email_rounded, company.email, primaryColor),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildInfoItem(Icons.phone_rounded, company.telephone, primaryColor),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildInfoItem(Icons.location_on_rounded, company.adresse, primaryColor),
+                          ),
+                          if (company.code != null) ...[
+                            const SizedBox(width: 16),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: company.type == 'Takaful'
-                                    ? const Color(0xFF7C3AED).withOpacity(0.1)
-                                    : const Color(0xFF059669).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
+                                gradient: LinearGradient(
+                                  colors: [primaryColor, primaryColor.withOpacity(0.8)],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                company.type,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: company.type == 'Takaful'
-                                      ? const Color(0xFF7C3AED)
-                                      : const Color(0xFF059669),
+                                'Code: ${company.code}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
                           ],
+                        ],
+                      ),
+
+                      // Admin assigné avec design amélioré
+                      if (company.adminCompagnieNom != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.person_rounded, color: Colors.green.shade600, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Admin: ${company.adminCompagnieNom}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
-                    ),
-                  ),
-                  
-                  // Menu actions
-                  PopupMenuButton<String>(
-                    onSelected: (value) => _handleCompanyAction(value, company),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'view',
-                        child: Row(
-                          children: [
-                            Icon(Icons.visibility, size: 18),
-                            SizedBox(width: 8),
-                            Text('Voir détails'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 18),
-                            SizedBox(width: 8),
-                            Text('Modifier'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: isActive ? 'deactivate' : 'activate',
-                        child: Row(
-                          children: [
-                            Icon(
-                              isActive ? Icons.block : Icons.check_circle,
-                              size: 18,
-                              color: isActive ? Colors.red : Colors.green,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(isActive ? 'Désactiver' : 'Activer'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 18, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Supprimer', style: TextStyle(color: Colors.red)),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
-                ],
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Informations de contact
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildInfoItem(Icons.email, company.email),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildInfoItem(Icons.phone, company.telephone),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildInfoItem(Icons.location_on, company.adresse),
-                  ),
-                  if (company.code != null) ...[
-                    const SizedBox(width: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3B82F6).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Code: ${company.code}',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF3B82F6),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              
-              // Admin assigné
-              if (company.adminCompagnieNom != null) ...[
-                const SizedBox(height: 8),
-                _buildInfoItem(
-                  Icons.person,
-                  'Admin: ${company.adminCompagnieNom}',
                 ),
               ],
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildInfoItem(IconData icon, String text) {
+  /// 🎨 Obtenir une couleur unique pour chaque compagnie
+  Color _getCompanyColor(String companyName) {
+    final colors = [
+      const Color(0xFF3B82F6), // Bleu
+      const Color(0xFF10B981), // Vert
+      const Color(0xFF8B5CF6), // Violet
+      const Color(0xFFF59E0B), // Orange
+      const Color(0xFFEF4444), // Rouge
+      const Color(0xFF06B6D4), // Cyan
+      const Color(0xFF84CC16), // Lime
+      const Color(0xFFEC4899), // Rose
+      const Color(0xFF6366F1), // Indigo
+      const Color(0xFF14B8A6), // Teal
+    ];
+
+    final hash = companyName.hashCode;
+    return colors[hash.abs() % colors.length];
+  }
+
+  Widget _buildInfoItem(IconData icon, String text, Color color) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: const Color(0xFF64748B),
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            icon,
+            size: 14,
+            color: color,
+          ),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
             text,
             style: const TextStyle(
               fontSize: 12,
-              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF374151),
             ),
             overflow: TextOverflow.ellipsis,
           ),
@@ -599,6 +765,109 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
         },
       ),
     );
+  }
+
+  /// 🔢 Ajouter des codes aux compagnies existantes
+  Future<void> _addCodesToExistingCompanies() async {
+    try {
+      // Afficher un dialog de confirmation
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.qr_code, color: Color(0xFFF59E0B)),
+              SizedBox(width: 8),
+              Text('Ajouter des codes'),
+            ],
+          ),
+          content: const Text(
+            'Cette action va ajouter automatiquement des codes uniques aux compagnies qui n\'en ont pas encore.\n\nContinuer ?',
+            style: TextStyle(height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF59E0B),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Confirmer'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      // Afficher un indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Ajout des codes en cours...'),
+            ],
+          ),
+        ),
+      );
+
+      // Appeler le service
+      await InsuranceCompanyService.addCodesToExistingCompanies();
+
+      // Fermer le dialog de chargement
+      Navigator.pop(context);
+
+      // Actualiser les données
+      _refreshData();
+
+      // Afficher un message de succès
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Codes ajoutés avec succès !'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    } catch (e) {
+      // Fermer le dialog de chargement si ouvert
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 🎨 Obtenir une couleur unique pour chaque compagnie
+  Color _getCompanyColor(String companyName) {
+    final colors = [
+      const Color(0xFF3B82F6), // Bleu
+      const Color(0xFF10B981), // Vert
+      const Color(0xFF8B5CF6), // Violet
+      const Color(0xFFF59E0B), // Orange
+      const Color(0xFFEF4444), // Rouge
+      const Color(0xFF06B6D4), // Cyan
+      const Color(0xFF84CC16), // Lime
+      const Color(0xFFEC4899), // Rose
+      const Color(0xFF6366F1), // Indigo
+      const Color(0xFF14B8A6), // Teal
+    ];
+
+    final hash = companyName.hashCode;
+    return colors[hash.abs() % colors.length];
   }
 }
 

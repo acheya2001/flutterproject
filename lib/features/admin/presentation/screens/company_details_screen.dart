@@ -11,6 +11,8 @@ class CompanyDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final companyColor = _getCompanyColor(company.nom);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -19,16 +21,33 @@ class CompanyDetailsScreen extends StatelessWidget {
           style: const TextStyle(
             fontWeight: FontWeight.w700,
             color: Colors.white,
+            fontSize: 20,
           ),
         ),
-        backgroundColor: const Color(0xFF3B82F6),
+        backgroundColor: companyColor,
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [companyColor, companyColor.withOpacity(0.8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
         actions: [
-          IconButton(
-            onPressed: () => _editCompany(context),
-            icon: const Icon(Icons.edit),
-            tooltip: 'Modifier',
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              onPressed: () => _editCompany(context),
+              icon: const Icon(Icons.edit_rounded),
+              tooltip: 'Modifier',
+            ),
           ),
         ],
       ),
@@ -130,87 +149,155 @@ class CompanyDetailsScreen extends StatelessWidget {
 
   Widget _buildHeaderCard() {
     final isActive = company.status == 'active';
-    
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            colors: isActive 
-                ? [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)]
-                : [Colors.grey.shade600, Colors.grey.shade700],
-          ),
+    final companyColor = _getCompanyColor(company.nom);
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: [companyColor, companyColor.withOpacity(0.8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: companyColor.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
+            // Logo avec animation
             Container(
-              width: 60,
-              height: 60,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 2,
+                ),
               ),
               child: const Icon(
-                Icons.business,
+                Icons.business_rounded,
                 color: Colors.white,
-                size: 30,
+                size: 40,
               ),
             ),
-            
-            const SizedBox(height: 12),
-            
+
+            const SizedBox(height: 16),
+
+            // Nom de la compagnie
             Text(
               company.nom,
               style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
                 color: Colors.white,
+                letterSpacing: -0.5,
               ),
               textAlign: TextAlign.center,
             ),
-            
-            const SizedBox(height: 8),
-            
+
+            const SizedBox(height: 4),
+
+            // Code de la compagnie
+            if (company.code != null)
+              Text(
+                'Code: ${company.code}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withOpacity(0.8),
+                ),
+              ),
+
+            const SizedBox(height: 16),
+
+            // Badges de statut et type
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // Type
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    company.type,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
                     ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        company.type == 'Takaful'
+                            ? Icons.mosque_rounded
+                            : Icons.account_balance_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        company.type,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                
+
                 const SizedBox(width: 12),
-                
+
+                // Statut
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isActive ? Colors.green : Colors.red,
-                    borderRadius: BorderRadius.circular(12),
+                    color: isActive
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isActive
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFEF4444)).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    isActive ? 'Active' : 'Inactive',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isActive ? 'Active' : 'Inactive',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -226,35 +313,64 @@ class CompanyDetailsScreen extends StatelessWidget {
     required IconData icon,
     required List<Widget> children,
   }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    final companyColor = _getCompanyColor(company.nom);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: companyColor.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: companyColor.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(
-                  icon,
-                  color: const Color(0xFF3B82F6),
-                  size: 20,
+            // En-tête de la carte
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [companyColor.withOpacity(0.1), companyColor.withOpacity(0.05)],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: companyColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: companyColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             ...children,
           ],
         ),
@@ -263,18 +379,27 @@ class CompanyDetailsScreen extends StatelessWidget {
   }
 
   Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+    final companyColor = _getCompanyColor(company.nom);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: companyColor.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: companyColor.withOpacity(0.1)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 100,
+          Container(
+            width: 120,
             child: Text(
               '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: companyColor,
+                fontSize: 14,
               ),
             ),
           ),
@@ -283,7 +408,8 @@ class CompanyDetailsScreen extends StatelessWidget {
               value,
               style: const TextStyle(
                 color: Color(0xFF1E293B),
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
               ),
             ),
           ),
@@ -293,46 +419,80 @@ class CompanyDetailsScreen extends StatelessWidget {
   }
 
   Widget _buildContactRow(String label, String value, IconData icon, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
-              ),
-            ),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: onTap,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      value,
-                      style: const TextStyle(
-                        color: Color(0xFF3B82F6),
-                        fontWeight: FontWeight.w500,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    icon,
-                    size: 16,
-                    color: const Color(0xFF3B82F6),
-                  ),
-                ],
-              ),
-            ),
+    final companyColor = _getCompanyColor(company.nom);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: companyColor.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: companyColor.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [companyColor, companyColor.withOpacity(0.8)],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: companyColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        value,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
+                  color: companyColor,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -384,5 +544,24 @@ class CompanyDetailsScreen extends StatelessWidget {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
+  }
+
+  /// 🎨 Obtenir une couleur unique pour chaque compagnie
+  Color _getCompanyColor(String companyName) {
+    final colors = [
+      const Color(0xFF3B82F6), // Bleu
+      const Color(0xFF10B981), // Vert
+      const Color(0xFF8B5CF6), // Violet
+      const Color(0xFFF59E0B), // Orange
+      const Color(0xFFEF4444), // Rouge
+      const Color(0xFF06B6D4), // Cyan
+      const Color(0xFF84CC16), // Lime
+      const Color(0xFFEC4899), // Rose
+      const Color(0xFF6366F1), // Indigo
+      const Color(0xFF14B8A6), // Teal
+    ];
+
+    final hash = companyName.hashCode;
+    return colors[hash.abs() % colors.length];
   }
 }

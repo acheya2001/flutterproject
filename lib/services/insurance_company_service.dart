@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -139,55 +140,7 @@ class InsuranceCompanyService {
     return query.docs.isNotEmpty;
   }
 
-  /// ✏️ Modifier une compagnie
-  static Future<void> updateCompany(String id, InsuranceCompany company) async {
-    try {
-      await _firestore.collection('compagnies').doc(id).update({
-        ...company.toFirestore(),
-        'updatedBy': _auth.currentUser?.uid,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
 
-      debugPrint('[COMPANY_SERVICE] ✅ Compagnie modifiée: ${company.nom}');
-    } catch (e) {
-      debugPrint('[COMPANY_SERVICE] ❌ Erreur lors de la modification: $e');
-      rethrow;
-    }
-  }
-
-  /// ❌ Supprimer une compagnie
-  static Future<void> deleteCompany(String id) async {
-    try {
-      await _firestore.collection('compagnies').doc(id).delete();
-      debugPrint('[COMPANY_SERVICE] ✅ Compagnie supprimée: $id');
-    } catch (e) {
-      debugPrint('[COMPANY_SERVICE] ❌ Erreur lors de la suppression: $e');
-      rethrow;
-    }
-  }
-
-  /// 🟢🔴 Activer/Désactiver une compagnie
-  static Future<void> toggleCompanyStatus(String id, String newStatus) async {
-    try {
-      await _firestore.collection('compagnies').doc(id).update({
-        'status': newStatus,
-        'statusUpdatedBy': _auth.currentUser?.uid,
-        'statusUpdatedAt': FieldValue.serverTimestamp(),
-      });
-
-      // Si désactivation, désactiver tous les utilisateurs liés
-      if (newStatus == 'inactive') {
-        await _deactivateCompanyUsers(id);
-      } else if (newStatus == 'active') {
-        await _reactivateCompanyUsers(id);
-      }
-
-      debugPrint('[COMPANY_SERVICE] ✅ Statut compagnie changé: $id -> $newStatus');
-    } catch (e) {
-      debugPrint('[COMPANY_SERVICE] ❌ Erreur lors du changement de statut: $e');
-      rethrow;
-    }
-  }
 
   /// 👤 Associer un admin à une compagnie
   static Future<void> assignAdminToCompany(
@@ -214,6 +167,51 @@ class InsuranceCompanyService {
       debugPrint('[COMPANY_SERVICE] ✅ Admin assigné à la compagnie');
     } catch (e) {
       debugPrint('[COMPANY_SERVICE] ❌ Erreur lors de l\'assignation: $e');
+      rethrow;
+    }
+  }
+
+  /// 🔄 Ajouter des codes aux compagnies existantes (migration)
+  static Future<void> addCodesToExistingCompanies() async {
+    try {
+      debugPrint('[COMPANY_SERVICE] 🔄 Début de la migration des codes...');
+
+      // Récupérer toutes les compagnies sans code
+      final query = await _firestore
+          .collection('compagnies')
+          .where('code', isNull: true)
+          .get();
+
+      if (query.docs.isEmpty) {
+        debugPrint('[COMPANY_SERVICE] ✅ Toutes les compagnies ont déjà un code');
+        return;
+      }
+
+      int updated = 0;
+      for (final doc in query.docs) {
+        try {
+          final data = doc.data();
+          final nom = data['nom'] as String? ?? 'Compagnie';
+
+          // Générer un code pour cette compagnie
+          final code = await _generateCompanyCode(nom);
+
+          // Mettre à jour le document
+          await doc.reference.update({
+            'code': code,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+          updated++;
+          debugPrint('[COMPANY_SERVICE] ✅ Code ajouté: $nom -> $code');
+        } catch (e) {
+          debugPrint('[COMPANY_SERVICE] ❌ Erreur pour ${doc.id}: $e');
+        }
+      }
+
+      debugPrint('[COMPANY_SERVICE] ✅ Migration terminée: $updated compagnies mises à jour');
+    } catch (e) {
+      debugPrint('[COMPANY_SERVICE] ❌ Erreur lors de la migration: $e');
       rethrow;
     }
   }
