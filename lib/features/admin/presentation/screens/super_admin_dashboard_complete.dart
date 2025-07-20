@@ -4,6 +4,7 @@ import '../../../../models/insurance_company.dart';
 import '../../../../services/insurance_company_service.dart';
 import 'companies_management_screen.dart';
 import 'users_management_screen.dart';
+import 'super_admin_creation_screen.dart';
 
 /// 🏢 Dashboard Super Admin Complet
 class SuperAdminDashboardComplete extends StatefulWidget {
@@ -361,7 +362,17 @@ class _SuperAdminDashboardCompleteState extends State<SuperAdminDashboardComplet
               const Color(0xFF059669),
               () => _navigateToUsersManagement(),
             ),
-            
+
+            const SizedBox(height: 16),
+
+            _buildActionCard(
+              'Créer Super Admin',
+              'Créer un nouveau compte Super Admin',
+              Icons.admin_panel_settings,
+              const Color(0xFFDC2626),
+              () => _navigateToCreateSuperAdmin(),
+            ),
+
             const SizedBox(height: 16),
             
             _buildActionCard(
@@ -470,6 +481,15 @@ class _SuperAdminDashboardCompleteState extends State<SuperAdminDashboardComplet
       context,
       MaterialPageRoute(
         builder: (context) => const UsersManagementScreen(),
+      ),
+    );
+  }
+
+  void _navigateToCreateSuperAdmin() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SuperAdminCreationScreen(),
       ),
     );
   }

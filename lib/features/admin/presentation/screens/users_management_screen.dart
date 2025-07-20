@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'super_admin_creation_screen.dart';
+import 'admin_compagnie_creation_screen.dart';
 
 /// 👥 Écran de gestion des utilisateurs - Super Admin
 class UsersManagementScreen extends StatefulWidget {
@@ -15,7 +17,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -58,6 +60,10 @@ class _UsersManagementScreenState extends State<UsersManagementScreen>
           labelStyle: const TextStyle(fontWeight: FontWeight.w600),
           tabs: const [
             Tab(
+              icon: Icon(Icons.admin_panel_settings),
+              text: 'Super Admin',
+            ),
+            Tab(
               icon: Icon(Icons.business_center),
               text: 'Admin Compagnie',
             ),
@@ -79,10 +85,187 @@ class _UsersManagementScreenState extends State<UsersManagementScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
+          _buildSuperAdminTab(),
           _buildAdminCompagnieTab(),
           _buildAdminAgenceTab(),
           _buildAgentsTab(),
           _buildExpertsTab(),
+        ],
+      ),
+    );
+  }
+
+  /// 👑 Onglet Super Admin
+  Widget _buildSuperAdminTab() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête avec bouton d'ajout
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFDC2626), Color(0xFFB91C1C)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: const Icon(
+                    Icons.admin_panel_settings,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Super Administrateurs',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Gestion des comptes avec privilèges maximaux',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _navigateToCreateSuperAdmin(),
+                  icon: const Icon(Icons.security, size: 18),
+                  label: const Text('Créer Super Admin'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFFDC2626),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Avertissement de sécurité
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.red.shade600),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Zone de Haute Sécurité',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.red.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Les Super Admins ont un accès complet au système. Créez ces comptes avec précaution.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.red.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Message temporaire
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(60),
+                      border: Border.all(color: Colors.red.shade200, width: 2),
+                    ),
+                    child: Icon(
+                      Icons.admin_panel_settings,
+                      size: 60,
+                      color: Colors.red.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Gestion des Super Admins',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Créez et gérez les comptes avec\nles privilèges les plus élevés du système',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () => _navigateToCreateSuperAdmin(),
+                    icon: const Icon(Icons.security),
+                    label: const Text('Créer un Super Admin'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -348,12 +531,20 @@ class _UsersManagementScreenState extends State<UsersManagementScreen>
   }
 
   // Navigation methods
+  void _navigateToCreateSuperAdmin() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SuperAdminCreationScreen(),
+      ),
+    );
+  }
+
   void _navigateToCreateAdminCompagnie() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('🚧 Création d\'Admin Compagnie - En développement'),
-        backgroundColor: Color(0xFF059669),
-        duration: Duration(seconds: 2),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AdminCompagnieCreationScreen(),
       ),
     );
   }
