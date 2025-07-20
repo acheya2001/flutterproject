@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../models/insurance_company.dart';
 import '../../../../services/insurance_company_service.dart';
 import 'companies_management_screen.dart';
+import 'users_management_screen.dart';
 
 /// 🏢 Dashboard Super Admin Complet
 class SuperAdminDashboardComplete extends StatefulWidget {
@@ -465,11 +466,10 @@ class _SuperAdminDashboardCompleteState extends State<SuperAdminDashboardComplet
   }
 
   void _navigateToUsersManagement() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('👥 Gestion des Utilisateurs - Fonctionnalité prête !'),
-        backgroundColor: Color(0xFF059669),
-        duration: Duration(seconds: 2),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const UsersManagementScreen(),
       ),
     );
   }
