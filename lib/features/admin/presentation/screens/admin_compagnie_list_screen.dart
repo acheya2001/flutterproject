@@ -1389,9 +1389,12 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('👤 ${admin['displayName'] ?? '${admin['prenom']} ${admin['nom']}'}',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('📧 ${admin['email']}'),
-                  Text('🏢 ${admin['compagnieNom'] ?? 'Compagnie non définie'}'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis),
+                  Text('📧 ${admin['email']}',
+                    overflow: TextOverflow.ellipsis),
+                  Text('🏢 ${admin['compagnieNom'] ?? 'Compagnie non définie'}',
+                    overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
@@ -1489,37 +1492,53 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                         Text('📧 Email: ${result['adminEmail']}'),
                         Text('🏢 Compagnie: ${result['compagnieNom']}'),
                         const SizedBox(height: 8),
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('🔐 Nouveau mot de passe: '),
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  result['newPassword'],
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
+                            const Text(
+                              '🔐 Nouveau mot de passe:',
+                              style: TextStyle(fontWeight: FontWeight.w600),
                             ),
-                            IconButton(
-                              onPressed: () {
-                                Clipboard.setData(ClipboardData(text: result['newPassword']));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Mot de passe copié !'),
-                                    backgroundColor: Colors.green,
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      result['newPassword'],
+                                      style: const TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
                                   ),
-                                );
-                              },
-                              icon: const Icon(Icons.copy_rounded),
-                              tooltip: 'Copier le mot de passe',
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(text: result['newPassword']));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Mot de passe copié !'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.copy_rounded),
+                                  tooltip: 'Copier le mot de passe',
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: const Color(0xFF059669),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.all(8),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -1541,36 +1560,50 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
               ),
             ),
             actions: [
-              TextButton(
-                onPressed: () {
-                  final emailData = PasswordResetService.prepareEmailData(
-                    adminName: result['adminName'],
-                    adminEmail: result['adminEmail'],
-                    compagnieNom: result['compagnieNom'],
-                    newPassword: result['newPassword'],
-                  );
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        final emailData = PasswordResetService.prepareEmailData(
+                          adminName: result['adminName'],
+                          adminEmail: result['adminEmail'],
+                          compagnieNom: result['compagnieNom'],
+                          newPassword: result['newPassword'],
+                        );
 
-                  // Copier les données email pour envoi manuel
-                  Clipboard.setData(ClipboardData(text: emailData['textBody']));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Email copié pour envoi manuel !'),
-                      backgroundColor: Colors.blue,
+                        // Copier les données email pour envoi manuel
+                        Clipboard.setData(ClipboardData(text: emailData['textBody']));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Email copié pour envoi manuel !'),
+                            backgroundColor: Colors.blue,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.email_rounded),
+                      label: const Text('Copier email'),
                     ),
-                  );
-                },
-                child: const Text('📧 Copier email'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _loadData(); // Recharger les données
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('OK'),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _loadData(); // Recharger les données
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('Terminé'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
