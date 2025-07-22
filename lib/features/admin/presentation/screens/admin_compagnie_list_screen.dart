@@ -32,9 +32,12 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
+      debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Début rechargement des données');
+
       // Charger les données des compagnies
       final report = await CompanyStructureService.getCompanyReport();
 
@@ -42,15 +45,28 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
       final admins = await AdminCompagnieCrudService.getAllAdminCompagnie();
       final adminStats = await AdminCompagnieCrudService.getStatistics();
 
-      setState(() {
-        _companies = List<Map<String, dynamic>>.from(report['companies']);
-        _statistics = report['statistics'];
-        _admins = admins;
-        _adminStatistics = adminStats;
-        _isLoading = false;
-      });
+      debugPrint('[ADMIN_COMPAGNIE_LIST] 📊 Données chargées: ${admins.length} admins');
+
+      // Debug: Afficher le statut de chaque admin
+      for (final admin in admins) {
+        debugPrint('[ADMIN_COMPAGNIE_LIST] 👤 Admin ${admin['displayName']}: isActive=${admin['isActive']}, status=${admin['status']}');
+      }
+
+      if (mounted) {
+        setState(() {
+          _companies = List<Map<String, dynamic>>.from(report['companies']);
+          _statistics = report['statistics'];
+          _admins = admins;
+          _adminStatistics = adminStats;
+          _isLoading = false;
+        });
+        debugPrint('[ADMIN_COMPAGNIE_LIST] ✅ Interface mise à jour');
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
+      debugPrint('[ADMIN_COMPAGNIE_LIST] ❌ Erreur chargement: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
       _showErrorSnackBar('Erreur lors du chargement: $e');
     }
   }
@@ -123,6 +139,9 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                     break;
                   case 'fix_links':
                     _fixExistingLinks();
+                    break;
+                  case 'refresh':
+                    _forceRefresh();
                     break;
 
                   case 'diagnose':
@@ -613,6 +632,9 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
   }
 
   Widget _buildCompanyWithAdminCard(Map<String, dynamic> company) {
+    // Debug: Afficher le statut de la compagnie
+    debugPrint('[COMPANY_CARD] Compagnie: ${company['nom']}, Status: ${company['status']}');
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(20),
@@ -764,7 +786,7 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: (company['status'] == 'active' || company['status'] == 'actif')
+                  color: _isCompanyActive(company)
                       ? Colors.green.shade100
                       : Colors.red.shade100,
                   borderRadius: BorderRadius.circular(8),
@@ -773,23 +795,23 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      (company['status'] == 'active' || company['status'] == 'actif')
+                      _isCompanyActive(company)
                           ? Icons.check_circle_rounded
                           : Icons.cancel_rounded,
                       size: 16,
-                      color: (company['status'] == 'active' || company['status'] == 'actif')
+                      color: _isCompanyActive(company)
                           ? Colors.green.shade700
                           : Colors.red.shade700,
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      (company['status'] == 'active' || company['status'] == 'actif')
+                      _isCompanyActive(company)
                           ? 'Active'
                           : 'Inactive',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: (company['status'] == 'active' || company['status'] == 'actif')
+                        color: _isCompanyActive(company)
                             ? Colors.green.shade700
                             : Colors.red.shade700,
                       ),
@@ -802,19 +824,19 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
               ElevatedButton.icon(
                 onPressed: () => _toggleCompanyStatus(company),
                 icon: Icon(
-                  (company['status'] == 'active' || company['status'] == 'actif')
+                  _isCompanyActive(company)
                       ? Icons.pause_circle_rounded
                       : Icons.play_circle_rounded,
                   size: 16,
                 ),
                 label: Text(
-                  (company['status'] == 'active' || company['status'] == 'actif')
+                  _isCompanyActive(company)
                       ? 'Désactiver'
                       : 'Activer',
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: (company['status'] == 'active' || company['status'] == 'actif')
+                  backgroundColor: _isCompanyActive(company)
                       ? Colors.orange
                       : Colors.green,
                   foregroundColor: Colors.white,
@@ -1383,12 +1405,12 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
               ),
             ),
             child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 // Bouton Voir Détails
                 SizedBox(
-                  width: 90,
+                  width: 85,
                   child: ElevatedButton.icon(
                     onPressed: () => _navigateToAdminDetails(admin),
                     icon: const Icon(Icons.visibility_rounded, size: 14),
@@ -1409,7 +1431,7 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                 ),
                 // Bouton Activer/Désactiver
                 SizedBox(
-                  width: 100,
+                  width: 95,
                   child: ElevatedButton.icon(
                     onPressed: () => _toggleAdminStatus(admin),
                     icon: Icon(
@@ -1433,7 +1455,7 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                 ),
                 // Bouton Réinitialiser mot de passe
                 SizedBox(
-                  width: 110,
+                  width: 105,
                   child: ElevatedButton.icon(
                     onPressed: () => _resetAdminPassword(admin),
                     icon: const Icon(Icons.lock_reset_rounded, size: 14),
@@ -1454,7 +1476,7 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                 ),
                 // Bouton Désactiver pour réassignation
                 SizedBox(
-                  width: 110,
+                  width: 105,
                   child: ElevatedButton.icon(
                     onPressed: () => _deactivateAdminForReassignment(admin),
                     icon: const Icon(Icons.person_off_rounded, size: 14),
@@ -1475,7 +1497,7 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                 ),
                 // Bouton Supprimer
                 SizedBox(
-                  width: 100,
+                  width: 95,
                   child: ElevatedButton.icon(
                     onPressed: () => _confirmDeleteAdmin(admin),
                     icon: const Icon(Icons.delete_rounded, size: 14),
@@ -1500,6 +1522,25 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
         ],
       ),
     );
+  }
+
+  /// 🔄 Forcer le rechargement des données
+  Future<void> _forceRefresh() async {
+    debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Rechargement forcé demandé');
+    await _loadData();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Données actualisées'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// 🏢 Helper pour vérifier si une compagnie est active
+  bool _isCompanyActive(Map<String, dynamic> company) {
+    final status = company['status']?.toString().toLowerCase();
+    return status == 'active' || status == 'actif' || status == null; // Par défaut active si pas de statut
   }
 
   /// 🎨 Helper pour créer un titre de dialogue sans overflow
@@ -2016,7 +2057,7 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
 
   /// 🔄 Activer/Désactiver une compagnie avec synchronisation admin
   Future<void> _toggleCompanyStatus(Map<String, dynamic> company) async {
-    final currentStatus = company['status'] == 'active' || company['status'] == 'actif';
+    final currentStatus = _isCompanyActive(company);
     final newStatus = !currentStatus;
 
     // Confirmation
@@ -2192,7 +2233,14 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).pop();
-                  _loadData(); // Recharger les données
+                  // Recharger les données avec un délai pour laisser le temps à Firestore de se synchroniser
+                  debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Programmation rechargement après synchronisation');
+                  Future.delayed(const Duration(milliseconds: 1000), () {
+                    if (mounted) {
+                      debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Rechargement après synchronisation');
+                      _loadData();
+                    }
+                  });
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
