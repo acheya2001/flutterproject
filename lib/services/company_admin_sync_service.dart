@@ -14,7 +14,21 @@ class CompanyAdminSyncService {
       debugPrint('[COMPANY_SYNC] 🔄 Début synchronisation compagnie: $compagnieId');
       debugPrint('[COMPANY_SYNC] 📊 Nouveau statut: ${newStatus ? "actif" : "inactif"}');
 
-      // 1. Mettre à jour le statut de la compagnie
+      // 1. Récupérer les informations de la compagnie d'abord
+      final companyDoc = await _firestore.collection('compagnies').doc(compagnieId).get();
+      if (!companyDoc.exists) {
+        return {
+          'success': false,
+          'error': 'Compagnie non trouvée',
+        };
+      }
+
+      final companyData = companyDoc.data()!;
+      final companyName = companyData['nom'] as String?;
+
+      debugPrint('[COMPANY_SYNC] 🏢 Compagnie: $companyName');
+
+      // 2. Mettre à jour le statut de la compagnie
       await _firestore.collection('compagnies').doc(compagnieId).update({
         'status': newStatus ? 'active' : 'inactive',
         'updatedAt': FieldValue.serverTimestamp(),
@@ -23,42 +37,39 @@ class CompanyAdminSyncService {
 
       debugPrint('[COMPANY_SYNC] ✅ Compagnie mise à jour');
 
-      // 2. Trouver TOUS les admins de cette compagnie (actifs ET inactifs)
-      final adminQuery = await _firestore
-          .collection('users')
-          .where('role', isEqualTo: 'admin_compagnie')
-          .where('compagnieId', isEqualTo: compagnieId)
-          .get();
+      // 3. Rechercher les admins de cette compagnie avec plusieurs stratégies
+      final adminsToUpdate = await _findCompanyAdmins(compagnieId, companyName);
 
-      debugPrint('[COMPANY_SYNC] 🔍 ${adminQuery.docs.length} admins trouvés pour cette compagnie');
+      debugPrint('[COMPANY_SYNC] 📊 ${adminsToUpdate.length} admins trouvés pour synchronisation');
 
       int adminsUpdated = 0;
       String adminInfo = 'Aucun admin trouvé';
 
-      if (adminQuery.docs.isNotEmpty) {
-        for (final adminDoc in adminQuery.docs) {
-          final adminData = adminDoc.data();
-          final currentStatus = adminData['isActive'] ?? false;
+      debugPrint('[COMPANY_SYNC] 🔄 Début mise à jour des admins: ${adminsToUpdate.length} admins à traiter');
 
-          debugPrint('[COMPANY_SYNC] 👤 Admin ${adminDoc.id}: statut actuel=$currentStatus, nouveau=$newStatus');
+      // 4. Mettre à jour le statut de TOUS les admins trouvés
+      for (final adminData in adminsToUpdate) {
+        final adminId = adminData['id'] as String;
+        final currentStatus = adminData['isActive'] ?? false;
 
-          // 3. Mettre à jour le statut de TOUS les admins de cette compagnie
-          await _firestore.collection('users').doc(adminDoc.id).update({
-            'isActive': newStatus,
-            'status': newStatus ? 'actif' : 'inactif',
-            'updatedAt': FieldValue.serverTimestamp(),
-            'updatedBy': 'system_sync',
-            'syncReason': newStatus
-                ? 'Réactivation automatique suite à réactivation compagnie'
-                : 'Désactivation automatique suite à désactivation compagnie',
-            'lastSyncAt': FieldValue.serverTimestamp(),
-          });
+        debugPrint('[COMPANY_SYNC] 👤 Admin $adminId: statut actuel=$currentStatus, nouveau=$newStatus');
 
-          adminsUpdated++;
-          adminInfo = adminData['displayName'] ?? '${adminData['prenom']} ${adminData['nom']}';
+        await _firestore.collection('users').doc(adminId).update({
+          'isActive': newStatus,
+          'status': newStatus ? 'actif' : 'inactif',
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedBy': 'system_sync',
+          'syncReason': newStatus
+              ? 'Réactivation automatique suite à réactivation compagnie'
+              : 'Désactivation automatique suite à désactivation compagnie',
+          'lastSyncAt': FieldValue.serverTimestamp(),
+          'compagnieId': compagnieId, // S'assurer que le compagnieId est correct
+        });
 
-          debugPrint('[COMPANY_SYNC] ✅ Admin synchronisé: ${adminDoc.id} - $adminInfo (${currentStatus} → $newStatus)');
-        }
+        adminsUpdated++;
+        adminInfo = adminData['displayName'] ?? '${adminData['prenom']} ${adminData['nom']}';
+
+        debugPrint('[COMPANY_SYNC] ✅ Admin synchronisé: $adminId - $adminInfo ($currentStatus → $newStatus)');
       }
 
       // 4. Mettre à jour les champs de liaison dans la compagnie
@@ -361,6 +372,104 @@ class CompanyAdminSyncService {
     } catch (e) {
       debugPrint('[COMPANY_SYNC] ❌ Erreur statistiques: $e');
       return {};
+    }
+  }
+
+  /// 🔍 Trouver les admins d'une compagnie avec plusieurs stratégies
+  static Future<List<Map<String, dynamic>>> _findCompanyAdmins(String compagnieId, String? companyName) async {
+    final List<Map<String, dynamic>> foundAdmins = [];
+    final Set<String> processedAdminIds = {};
+
+    debugPrint('[COMPANY_SYNC] 🔍 Recherche admins pour compagnieId: $compagnieId, nom: $companyName');
+
+    try {
+      // Stratégie 1: Recherche par compagnieId
+      final adminsByIdQuery = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'admin_compagnie')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .get();
+
+      debugPrint('[COMPANY_SYNC] 📊 Stratégie 1 (compagnieId): ${adminsByIdQuery.docs.length} admins trouvés');
+
+      for (final doc in adminsByIdQuery.docs) {
+        if (!processedAdminIds.contains(doc.id)) {
+          final data = doc.data();
+          data['id'] = doc.id;
+          foundAdmins.add(data);
+          processedAdminIds.add(doc.id);
+          debugPrint('[COMPANY_SYNC] 👤 Admin trouvé (ID): ${data['displayName']} (${doc.id})');
+        }
+      }
+
+      // Stratégie 2: Recherche par nom de compagnie si fourni
+      if (companyName != null && companyName.isNotEmpty) {
+        final adminsByNameQuery = await _firestore
+            .collection('users')
+            .where('role', isEqualTo: 'admin_compagnie')
+            .where('compagnieNom', isEqualTo: companyName)
+            .get();
+
+        debugPrint('[COMPANY_SYNC] 📊 Stratégie 2 (nom): ${adminsByNameQuery.docs.length} admins trouvés');
+
+        for (final doc in adminsByNameQuery.docs) {
+          if (!processedAdminIds.contains(doc.id)) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            foundAdmins.add(data);
+            processedAdminIds.add(doc.id);
+            debugPrint('[COMPANY_SYNC] 👤 Admin trouvé (nom): ${data['displayName']} (${doc.id})');
+
+            // Mettre à jour le compagnieId si nécessaire
+            if (data['compagnieId'] != compagnieId) {
+              await _firestore.collection('users').doc(doc.id).update({
+                'compagnieId': compagnieId,
+                'updatedAt': FieldValue.serverTimestamp(),
+                'updatedBy': 'system_sync_fix',
+              });
+              debugPrint('[COMPANY_SYNC] 🔧 CompagnieId mis à jour pour admin: ${doc.id}');
+            }
+          }
+        }
+      }
+
+      // Stratégie 3: Recherche dans la compagnie elle-même (adminCompagnieId)
+      final companyDoc = await _firestore.collection('compagnies').doc(compagnieId).get();
+      if (companyDoc.exists) {
+        final companyData = companyDoc.data()!;
+        final adminCompagnieId = companyData['adminCompagnieId'] as String?;
+
+        if (adminCompagnieId != null && !processedAdminIds.contains(adminCompagnieId)) {
+          debugPrint('[COMPANY_SYNC] 🔍 Stratégie 3: Vérification admin référencé: $adminCompagnieId');
+
+          final adminDoc = await _firestore.collection('users').doc(adminCompagnieId).get();
+          if (adminDoc.exists) {
+            final data = adminDoc.data()!;
+            if (data['role'] == 'admin_compagnie') {
+              data['id'] = adminDoc.id;
+              foundAdmins.add(data);
+              processedAdminIds.add(adminDoc.id);
+              debugPrint('[COMPANY_SYNC] 👤 Admin trouvé (référence): ${data['displayName']} (${adminDoc.id})');
+
+              // Mettre à jour le compagnieId si nécessaire
+              if (data['compagnieId'] != compagnieId) {
+                await _firestore.collection('users').doc(adminDoc.id).update({
+                  'compagnieId': compagnieId,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                  'updatedBy': 'system_sync_fix',
+                });
+                debugPrint('[COMPANY_SYNC] 🔧 CompagnieId mis à jour pour admin référencé: ${adminDoc.id}');
+              }
+            }
+          }
+        }
+      }
+
+      debugPrint('[COMPANY_SYNC] ✅ Total admins trouvés: ${foundAdmins.length}');
+      return foundAdmins;
+    } catch (e) {
+      debugPrint('[COMPANY_SYNC] ❌ Erreur recherche admins: $e');
+      return [];
     }
   }
 }

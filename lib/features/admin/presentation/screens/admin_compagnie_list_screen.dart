@@ -150,6 +150,9 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                   case 'fix_duplicates':
                     _diagnoseDuplicateAdmins();
                     break;
+                  case 'test_sync':
+                    _testCompanyAdminSync();
+                    break;
 
                   case 'diagnose':
                     _diagnoseCollections();
@@ -360,6 +363,21 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                       Flexible(
                         child: Text(
                           'Corriger doublons admins',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'test_sync',
+                  child: Row(
+                    children: [
+                      Icon(Icons.sync_rounded, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Tester synchronisation',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -1792,6 +1810,207 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
       }
     } catch (e) {
       debugPrint('[ADMIN_COMPAGNIE_LIST] ❌ Erreur vérification doublons: $e');
+    }
+  }
+
+  /// 🧪 Tester la synchronisation compagnie-admin
+  Future<void> _testCompanyAdminSync() async {
+    // Sélectionner une compagnie pour tester
+    final companiesWithAdmin = _companies.where((c) => c['hasAdmin'] == true).toList();
+
+    if (companiesWithAdmin.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucune compagnie avec admin trouvée pour tester'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final selectedCompany = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: _buildDialogTitle(
+          icon: Icons.science_rounded,
+          text: 'Test synchronisation',
+          iconColor: Colors.blue,
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Sélectionnez une compagnie pour tester la synchronisation:'),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 200,
+                child: ListView.builder(
+                  itemCount: companiesWithAdmin.length,
+                  itemBuilder: (context, index) {
+                    final company = companiesWithAdmin[index];
+                    return ListTile(
+                      leading: Icon(
+                        Icons.business_rounded,
+                        color: _isCompanyActive(company) ? Colors.green : Colors.red,
+                      ),
+                      title: Text(company['nom'] ?? 'Sans nom'),
+                      subtitle: Text('Admin: ${company['adminCompagnieNom'] ?? 'Aucun'}'),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _isCompanyActive(company) ? Colors.green.shade100 : Colors.red.shade100,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          _isCompanyActive(company) ? 'Active' : 'Inactive',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: _isCompanyActive(company) ? Colors.green.shade700 : Colors.red.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      onTap: () => Navigator.of(context).pop(company),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Annuler'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedCompany != null) {
+      _performSyncTest(selectedCompany);
+    }
+  }
+
+  /// 🔬 Effectuer le test de synchronisation
+  Future<void> _performSyncTest(Map<String, dynamic> company) async {
+    final currentStatus = _isCompanyActive(company);
+    final testStatus = !currentStatus; // Inverser pour tester
+
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text('Test de synchronisation en cours...'),
+            const SizedBox(height: 8),
+            Text('${testStatus ? 'Activation' : 'Désactivation'} de ${company['nom']}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      debugPrint('[SYNC_TEST] 🧪 Test synchronisation: ${company['nom']} (${currentStatus} → $testStatus)');
+
+      // Effectuer le test de synchronisation
+      final result = await CompanyManagementService.toggleCompanyStatusWithSync(
+        compagnieId: company['id'],
+        newStatus: testStatus,
+      );
+
+      // Attendre un peu pour la synchronisation
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Remettre le statut original
+      final restoreResult = await CompanyManagementService.toggleCompanyStatusWithSync(
+        compagnieId: company['id'],
+        newStatus: currentStatus,
+      );
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      // Afficher le résultat
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: _buildDialogTitle(
+            icon: result['success'] && restoreResult['success'] ? Icons.check_circle_rounded : Icons.error_rounded,
+            text: 'Résultat du test',
+            iconColor: result['success'] && restoreResult['success'] ? Colors.green : Colors.red,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('🏢 Compagnie: ${company['nom']}'),
+              const SizedBox(height: 8),
+              Text('📊 Test effectué: ${currentStatus ? 'Actif' : 'Inactif'} → ${testStatus ? 'Actif' : 'Inactif'} → ${currentStatus ? 'Actif' : 'Inactif'}'),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (result['success'] && restoreResult['success'] ? Colors.green : Colors.red).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: (result['success'] && restoreResult['success'] ? Colors.green : Colors.red).withOpacity(0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      result['success'] && restoreResult['success'] ? '✅ Test réussi' : '❌ Test échoué',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: result['success'] && restoreResult['success'] ? Colors.green : Colors.red,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('1️⃣ Changement: ${result['success'] ? 'Réussi' : 'Échoué'}'),
+                    if (result['success'])
+                      Text('   Admins synchronisés: ${result['adminsUpdated'] ?? 0}'),
+                    Text('2️⃣ Restauration: ${restoreResult['success'] ? 'Réussie' : 'Échouée'}'),
+                    if (restoreResult['success'])
+                      Text('   Admins synchronisés: ${restoreResult['adminsUpdated'] ?? 0}'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _loadData(); // Recharger les données
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: result['success'] && restoreResult['success'] ? Colors.green : Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur test: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
