@@ -5,6 +5,7 @@ import '../../../../services/admin_compagnie_crud_service.dart';
 import '../../../../services/company_management_service.dart';
 import '../../../../services/database_cleanup_service.dart';
 import '../../../../services/password_reset_service.dart';
+import '../../../../services/company_admin_sync_service.dart';
 import 'admin_compagnie_details_screen.dart';
 import 'password_reset_dialog.dart';
 
@@ -755,6 +756,77 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          // Boutons d'action pour la compagnie
+          Row(
+            children: [
+              // Statut de la compagnie
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: (company['status'] == 'active' || company['status'] == 'actif')
+                      ? Colors.green.shade100
+                      : Colors.red.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      (company['status'] == 'active' || company['status'] == 'actif')
+                          ? Icons.check_circle_rounded
+                          : Icons.cancel_rounded,
+                      size: 16,
+                      color: (company['status'] == 'active' || company['status'] == 'actif')
+                          ? Colors.green.shade700
+                          : Colors.red.shade700,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      (company['status'] == 'active' || company['status'] == 'actif')
+                          ? 'Active'
+                          : 'Inactive',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: (company['status'] == 'active' || company['status'] == 'actif')
+                            ? Colors.green.shade700
+                            : Colors.red.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              // Bouton pour activer/désactiver
+              ElevatedButton.icon(
+                onPressed: () => _toggleCompanyStatus(company),
+                icon: Icon(
+                  (company['status'] == 'active' || company['status'] == 'actif')
+                      ? Icons.pause_circle_rounded
+                      : Icons.play_circle_rounded,
+                  size: 16,
+                ),
+                label: Text(
+                  (company['status'] == 'active' || company['status'] == 'actif')
+                      ? 'Désactiver'
+                      : 'Activer',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: (company['status'] == 'active' || company['status'] == 'actif')
+                      ? Colors.orange
+                      : Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -897,20 +969,42 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade100,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              'SANS ADMIN',
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: Colors.orange,
+          Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'SANS ADMIN',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.orange,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: () => _showAssignAdminDialog(company),
+                icon: const Icon(Icons.person_add_rounded, size: 14),
+                label: const Text(
+                  'Assigner',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1218,6 +1312,36 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
+                      // Afficher la raison de la désactivation si applicable
+                      if (!isActive && admin['syncReason'] != null) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.orange.shade300),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.sync_rounded, size: 12, color: Colors.orange.shade700),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  admin['syncReason'],
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.orange.shade700,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       if (companyData != null) ...[
                         const SizedBox(height: 4),
                         Row(
@@ -1319,6 +1443,27 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                // Bouton Désactiver pour réassignation
+                SizedBox(
+                  width: 110,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _deactivateAdminForReassignment(admin),
+                    icon: const Icon(Icons.person_off_rounded, size: 14),
+                    label: const Text(
+                      'Réassigner',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                       shape: RoundedRectangleBorder(
@@ -1640,6 +1785,441 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
       // Fermer l'indicateur de chargement
       Navigator.of(context).pop();
       _showErrorSnackBar('Erreur: $e');
+    }
+  }
+
+  /// 👤 Afficher le dialogue d'assignation d'admin
+  Future<void> _showAssignAdminDialog(Map<String, dynamic> company) async {
+    final availableAdmins = await CompanyManagementService.getAvailableAdminsForReassignment();
+
+    if (availableAdmins.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucun admin disponible pour assignation'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final selectedAdminId = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: _buildDialogTitle(
+          icon: Icons.person_add_rounded,
+          text: 'Assigner un admin à ${company['nom']}',
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: availableAdmins.length,
+            itemBuilder: (context, index) {
+              final admin = availableAdmins[index];
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFF059669),
+                  child: const Icon(Icons.person_rounded, color: Colors.white),
+                ),
+                title: Text(admin['displayName'] ?? 'Sans nom'),
+                subtitle: Text(admin['email'] ?? ''),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded),
+                onTap: () => Navigator.of(context).pop(admin['id']),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Annuler'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedAdminId != null) {
+      await _assignAdminToCompany(selectedAdminId, company['id']);
+    }
+  }
+
+  /// 🔄 Assigner un admin à une compagnie
+  Future<void> _assignAdminToCompany(String adminId, String compagnieId) async {
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Assignation en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await CompanyManagementService.reassignAdminToCompany(
+        newAdminId: adminId,
+        compagnieId: compagnieId,
+      );
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (result['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Admin assigné avec succès à ${result['compagnieNom']}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadData(); // Recharger les données
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${result['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 🔄 Désactiver un admin pour permettre la réassignation
+  Future<void> _deactivateAdminForReassignment(Map<String, dynamic> admin) async {
+    // Confirmation
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: _buildDialogTitle(
+          icon: Icons.person_off_rounded,
+          text: 'Désactiver pour réassignation',
+          iconColor: Colors.orange,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Voulez-vous désactiver cet admin pour permettre la réassignation ?'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.orange.withOpacity(0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('👤 ${admin['displayName'] ?? '${admin['prenom']} ${admin['nom']}'}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis),
+                  Text('📧 ${admin['email']}',
+                    overflow: TextOverflow.ellipsis),
+                  Text('🏢 ${admin['compagnieNom'] ?? 'Compagnie non définie'}',
+                    overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '⚠️ Cet admin sera désactivé et la compagnie pourra recevoir un nouvel admin.',
+              style: TextStyle(color: Colors.orange, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Désactiver'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Désactivation en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await CompanyManagementService.deactivateAdminForReassignment(
+        adminId: admin['id'],
+        compagnieId: admin['compagnieId'],
+      );
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (result['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadData(); // Recharger les données
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${result['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 🔄 Activer/Désactiver une compagnie avec synchronisation admin
+  Future<void> _toggleCompanyStatus(Map<String, dynamic> company) async {
+    final currentStatus = company['status'] == 'active' || company['status'] == 'actif';
+    final newStatus = !currentStatus;
+
+    // Confirmation
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: _buildDialogTitle(
+          icon: newStatus ? Icons.play_circle_rounded : Icons.pause_circle_rounded,
+          text: '${newStatus ? 'Activer' : 'Désactiver'} la compagnie',
+          iconColor: newStatus ? Colors.green : Colors.orange,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Voulez-vous ${newStatus ? 'activer' : 'désactiver'} cette compagnie ?'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: (newStatus ? Colors.green : Colors.orange).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: (newStatus ? Colors.green : Colors.orange).withOpacity(0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('🏢 ${company['nom'] ?? 'Nom non défini'}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis),
+                  Text('👤 Admin: ${company['adminCompagnieNom'] ?? 'Aucun'}',
+                    overflow: TextOverflow.ellipsis),
+                  Text('📧 ${company['adminCompagnieEmail'] ?? 'Aucun email'}',
+                    overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.blue.withOpacity(0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.sync_rounded, color: Colors.blue, size: 16),
+                      SizedBox(width: 8),
+                      Text('🔄 Synchronisation automatique',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    newStatus
+                        ? '✅ La compagnie ET son admin seront activés\n✅ L\'admin pourra se connecter'
+                        : '⚠️ La compagnie ET son admin seront désactivés\n⚠️ L\'admin ne pourra plus se connecter',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: newStatus ? Colors.green : Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(newStatus ? '✅ Activer' : '⚠️ Désactiver'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text('${newStatus ? 'Activation' : 'Désactivation'} en cours...'),
+            const SizedBox(height: 8),
+            const Text('Synchronisation avec l\'admin...',
+              style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await CompanyManagementService.toggleCompanyStatusWithSync(
+        compagnieId: company['id'],
+        newStatus: newStatus,
+      );
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (result['success']) {
+        // Afficher le résultat de la synchronisation
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: _buildDialogTitle(
+              icon: Icons.check_circle_rounded,
+              text: 'Synchronisation réussie',
+              iconColor: Colors.green,
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('✅ ${result['message']}'),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.green.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('🔄 Synchronisation effectuée:',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                      const SizedBox(height: 8),
+                      Text('🏢 Compagnie: ${newStatus ? 'Activée' : 'Désactivée'}'),
+                      if (result['adminsUpdated'] > 0) ...[
+                        Text('👤 Admin synchronisé: ${result['adminInfo']}'),
+                        Text('📊 Statut admin: ${newStatus ? 'Actif' : 'Inactif'}'),
+                      ] else
+                        const Text('👤 Aucun admin à synchroniser'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  newStatus
+                      ? '🎉 La compagnie et son admin sont maintenant actifs !'
+                      : '⚠️ La compagnie et son admin sont maintenant inactifs.',
+                  style: TextStyle(
+                    color: newStatus ? Colors.green : Colors.orange,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _loadData(); // Recharger les données
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${result['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

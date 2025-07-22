@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'company_admin_sync_service.dart';
 import '../models/insurance_company.dart';
 
 /// 🏢 Service centralisé pour la gestion des compagnies d'assurance
@@ -504,5 +505,43 @@ class CompanyManagementService {
         'error': e.toString(),
       };
     }
+  }
+
+  /// 🔄 Activer/Désactiver une compagnie avec synchronisation admin
+  static Future<Map<String, dynamic>> toggleCompanyStatusWithSync({
+    required String compagnieId,
+    required bool newStatus,
+  }) async {
+    return await CompanyAdminSyncService.toggleCompanyStatus(
+      compagnieId: compagnieId,
+      newStatus: newStatus,
+    );
+  }
+
+  /// 👤 Désactiver un admin pour permettre la réassignation
+  static Future<Map<String, dynamic>> deactivateAdminForReassignment({
+    required String adminId,
+    required String compagnieId,
+  }) async {
+    return await CompanyAdminSyncService.deactivateAdminForReassignment(
+      adminId: adminId,
+      compagnieId: compagnieId,
+    );
+  }
+
+  /// 🔄 Réassigner un admin à une compagnie
+  static Future<Map<String, dynamic>> reassignAdminToCompany({
+    required String newAdminId,
+    required String compagnieId,
+  }) async {
+    return await CompanyAdminSyncService.reassignAdminToCompany(
+      newAdminId: newAdminId,
+      compagnieId: compagnieId,
+    );
+  }
+
+  /// 📋 Obtenir les admins disponibles pour réassignation
+  static Future<List<Map<String, dynamic>>> getAvailableAdminsForReassignment() async {
+    return await CompanyAdminSyncService.getAvailableAdminsForReassignment();
   }
 }
