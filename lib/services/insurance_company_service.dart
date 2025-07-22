@@ -9,7 +9,7 @@ class InsuranceCompanyService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// 📋 Obtenir toutes les compagnies
+  /// 📋 Obtenir toutes les compagnies (Stream)
   static Stream<List<InsuranceCompany>> getAllCompanies() {
     return _firestore
         .collection('compagnies')
@@ -18,6 +18,23 @@ class InsuranceCompanyService {
         .map((snapshot) => snapshot.docs
             .map((doc) => InsuranceCompany.fromFirestore(doc))
             .toList());
+  }
+
+  /// 📋 Obtenir toutes les compagnies (Future)
+  static Future<List<InsuranceCompany>> getAllCompaniesFuture() async {
+    try {
+      final snapshot = await _firestore
+          .collection('compagnies')
+          .orderBy('nom')
+          .get();
+
+      return snapshot.docs
+          .map((doc) => InsuranceCompany.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Erreur lors du chargement des compagnies: $e');
+      return [];
+    }
   }
 
   /// 🔍 Obtenir une compagnie par ID

@@ -94,7 +94,7 @@ class _CompanyFormScreenState extends State<CompanyFormScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context);
+        Navigator.pop(context, true); // Retourner true pour indiquer le succès
       }
     } catch (e) {
       if (mounted) {

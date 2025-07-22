@@ -4,6 +4,8 @@ import '../../../../models/insurance_company.dart';
 import '../../../../services/insurance_company_service.dart';
 import 'company_form_screen.dart';
 import 'company_details_screen.dart';
+import 'super_admin_company_form.dart';
+import 'admin_compagnie_creation_screen.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 
 /// 🏢 Écran de gestion des compagnies d'assurance
@@ -655,11 +657,84 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
     );
   }
 
-  void _showAddCompanyDialog() {
+  void _showAddCompanyDialog() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SuperAdminCompanyForm(),
+      ),
+    );
+
+    // Si une compagnie a été ajoutée, proposer d'affecter un admin
+    if (result != null && result['success'] == true) {
+      _showAssignAdminDialog(result);
+    }
+  }
+
+  /// 👤 Proposer d'affecter un admin après ajout de compagnie
+  void _showAssignAdminDialog(Map<String, dynamic> companyResult) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF059669)),
+            SizedBox(width: 12),
+            Text('Affecter un admin ?'),
+          ],
+        ),
+        content: Text(
+          'Compagnie "${companyResult['companyName']}" créée avec succès !\n\n'
+          'Voulez-vous maintenant créer et affecter un administrateur '
+          'à cette compagnie ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Plus tard'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _navigateToAdminCreation(companyResult);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Créer Admin'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🔄 Naviguer vers la création d'admin compagnie
+  void _navigateToAdminCreation(Map<String, dynamic> companyResult) {
+    // Créer un objet InsuranceCompany pour pré-sélection
+    final preSelectedCompany = InsuranceCompany(
+      id: companyResult['companyId'],
+      nom: companyResult['companyName'],
+      code: companyResult['companyData']['numeroAgrement'] ?? '',
+      type: companyResult['companyData']['type'] ?? 'Classique',
+      email: companyResult['companyData']['email'] ?? '',
+      telephone: companyResult['companyData']['telephone'] ?? '',
+      adresse: companyResult['companyData']['adresse'] ?? '',
+      siteWeb: companyResult['companyData']['siteWeb'],
+      status: companyResult['companyData']['status'] ?? 'actif',
+      adminCompagnieId: null,
+      adminCompagnieNom: null,
+      adminCompagnieEmail: null,
+      createdAt: DateTime.now(),
+      hasAdmin: false,
+    );
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const CompanyFormScreen(),
+        builder: (context) => AdminCompagnieCreationScreen(
+          preSelectedCompany: preSelectedCompany,
+        ),
       ),
     );
   }

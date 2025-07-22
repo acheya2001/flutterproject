@@ -43,3 +43,73 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase configuration (keep secure)
+# Note: firebase_options.dart should be committed for the app to work
+# but sensitive config files should be ignored
+/android/app/google-services.json.backup
+/ios/Runner/GoogleService-Info.plist.backup
+
+# Environment variables and secrets
+.env
+.env.local
+.env.production
+.env.staging
+secrets/
+config/secrets/
+
+# Database backups and exports
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+backups/
+exports/
+
+# Logs and debugging
+logs/
+*.log
+debug/
+crash_reports/
+
+# IDE and editor files
+.vscode/settings.json
+.vscode/launch.json
+*.code-workspace
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Documentation builds
+docs/_build/
+docs/build/
+
+# Test coverage
+coverage/
+test/coverage/
+*.lcov
+
+# Package manager
+.packages
+.pub/
+.pub-cache/
+pubspec.lock.backup
+
+# Flutter specific
+.flutter-plugins-dependencies.backup
+.metadata.backup
+
+# Project specific
+# Add any project-specific files to ignore here
+test_data/
+mock_data/
+sample_exports/

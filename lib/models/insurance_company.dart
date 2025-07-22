@@ -16,6 +16,7 @@ class InsuranceCompany {
   final String? adminCompagnieId;
   final String? adminCompagnieEmail;
   final String? adminCompagnieNom;
+  final bool? hasAdmin; // Indique si la compagnie a déjà un admin
 
   InsuranceCompany({
     required this.id,
@@ -32,7 +33,26 @@ class InsuranceCompany {
     this.adminCompagnieId,
     this.adminCompagnieEmail,
     this.adminCompagnieNom,
+    this.hasAdmin,
   });
+
+  /// Constructeur simplifié pour la sélection d'admin
+  InsuranceCompany.forSelection({
+    required this.id,
+    required this.nom,
+    this.code,
+    required this.type,
+    this.hasAdmin,
+  }) : adresse = '',
+       telephone = '',
+       email = '',
+       siteWeb = null,
+       logoUrl = null,
+       status = 'active',
+       createdAt = DateTime.now(),
+       adminCompagnieId = null,
+       adminCompagnieEmail = null,
+       adminCompagnieNom = null;
 
   /// Créer depuis Firestore
   factory InsuranceCompany.fromFirestore(DocumentSnapshot doc) {

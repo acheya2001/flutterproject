@@ -2,11 +2,27 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:math' as math;
+import 'company_structure_service.dart';
+import 'company_management_service.dart';
 
 /// 🏢 Service pour la gestion des Admin Compagnie
 class AdminCompagnieService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  /// 🔐 Générer un mot de passe sécurisé
+  static String generateSecurePassword() {
+    const String chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const String symbols = '@#!&*';
+    final random = math.Random.secure();
+
+    // Structure: @Assur + 4 chiffres + # + 2 lettres + !
+    final year = DateTime.now().year;
+    final numbers = List.generate(4, (_) => random.nextInt(10)).join();
+    final letters = List.generate(2, (_) => chars[random.nextInt(chars.length)]).join();
+
+    return '@Assur$year#$numbers$letters!';
+  }
 
   /// 👤 Créer un nouveau Admin Compagnie
   static Future<Map<String, dynamic>> createAdminCompagnie({
@@ -25,24 +41,69 @@ class AdminCompagnieService {
         throw Exception('Utilisateur non connecté');
       }
 
+      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Utilisateur actuel: ${currentUser.uid}');
+      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Email actuel: ${currentUser.email}');
+
       final currentUserDoc = await _firestore
           .collection('users')
           .doc(currentUser.uid)
           .get();
 
-      if (!currentUserDoc.exists || 
-          currentUserDoc.data()?['role'] != 'super_admin') {
-        throw Exception('Seul un Super Admin peut créer des Admin Compagnie');
+      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Document existe: ${currentUserDoc.exists}');
+
+      if (currentUserDoc.exists) {
+        final userData = currentUserDoc.data();
+        debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Role utilisateur: ${userData?['role']}');
+        debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Données utilisateur: $userData');
       }
 
-      // Vérifier que la compagnie existe
-      final compagnieDoc = await _firestore
-          .collection('compagnies_assurance')
-          .doc(compagnieId)
-          .get();
+      // Vérification alternative pour le super admin
+      bool isSuperAdmin = false;
 
-      if (!compagnieDoc.exists) {
-        throw Exception('Compagnie non trouvée');
+      if (currentUserDoc.exists) {
+        final userData = currentUserDoc.data();
+        isSuperAdmin = userData?['role'] == 'super_admin';
+      }
+
+      // Vérification alternative par email (pour le compte principal)
+      if (!isSuperAdmin && currentUser.email == 'constat.tunisie.app@gmail.com') {
+        debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Utilisateur reconnu comme super admin par email');
+        isSuperAdmin = true;
+      }
+
+      if (!isSuperAdmin) {
+        String currentRole = 'document inexistant';
+        if (currentUserDoc.exists) {
+          final userData = currentUserDoc.data();
+          currentRole = userData?['role']?.toString() ?? 'role non défini';
+        }
+        throw Exception('Seul un Super Admin peut créer des Admin Compagnie. Role actuel: $currentRole');
+      }
+
+      // Recherche intelligente de la compagnie avec le nouveau service
+      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Recherche compagnie ID: $compagnieId');
+      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Nom compagnie: $compagnieNom');
+
+      var company = await CompanyManagementService.smartFindCompany(compagnieId);
+
+      if (company == null) {
+        // Essayer par nom si l'ID ne fonctionne pas
+        debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Recherche par nom: $compagnieNom');
+        company = await CompanyManagementService.findCompanyByName(compagnieNom);
+      }
+
+      if (company == null) {
+        throw Exception('Compagnie non trouvée (ID: $compagnieId, Nom: $compagnieNom)');
+      }
+
+      // Utiliser l'ID correct de la compagnie trouvée
+      compagnieId = company.id;
+      debugPrint('[ADMIN_COMPAGNIE_SERVICE] ✅ Compagnie trouvée: ${company.nom} (ID: $compagnieId)');
+
+      // Vérifier si la compagnie a déjà un admin
+      final hasAdmin = company.adminCompagnieId != null && company.adminCompagnieId!.isNotEmpty;
+      if (hasAdmin) {
+        throw Exception('Cette compagnie a déjà un administrateur assigné: ${company.adminCompagnieNom}');
       }
 
       // Vérifier qu'il n'y a pas déjà un admin pour cette compagnie
@@ -71,7 +132,7 @@ class AdminCompagnieService {
       }
 
       // Générer un mot de passe sécurisé
-      final password = _generateSecurePassword();
+      final password = generateSecurePassword();
       final userId = _generateUserId();
 
       // Créer le document utilisateur
@@ -110,14 +171,30 @@ class AdminCompagnieService {
       // Sauvegarder dans Firestore
       await _firestore.collection('users').doc(userId).set(userData);
 
-      // Mettre à jour la compagnie avec l'admin assigné
-      await _firestore.collection('compagnies_assurance').doc(compagnieId).update({
+      // Mettre à jour la compagnie avec l'admin assigné dans la collection unifiée
+      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔄 Mise à jour compagnie ID: $compagnieId');
+      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔄 Admin ID: $userId');
+      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔄 Admin Email: $email');
+
+      // Mettre à jour directement dans la collection compagnies
+      await _firestore.collection('compagnies').doc(compagnieId).update({
         'adminCompagnieId': userId,
         'adminCompagnieNom': '$prenom $nom',
         'adminCompagnieEmail': email,
         'adminAssignedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      final updateSuccess = await CompanyStructureService.updateCompanyAdmin(
+        compagnieId: compagnieId,
+        adminId: userId,
+        adminNom: '$prenom $nom',
+        adminEmail: email,
+      );
+
+      if (!updateSuccess) {
+        debugPrint('[ADMIN_COMPAGNIE_SERVICE] ⚠️ Échec mise à jour compagnie, mais compte créé');
+      }
 
       // Log de sécurité
       await _logSecurityEvent(
