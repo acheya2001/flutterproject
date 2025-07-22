@@ -1357,18 +1357,37 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
     );
   }
 
+  /// 🎨 Helper pour créer un titre de dialogue sans overflow
+  Widget _buildDialogTitle({
+    required IconData icon,
+    required String text,
+    Color iconColor = const Color(0xFF059669),
+    double fontSize = 16,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, color: iconColor),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: fontSize),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
   /// 🔐 Réinitialiser le mot de passe d'un admin spécifique
   Future<void> _resetAdminPassword(Map<String, dynamic> admin) async {
     // Confirmation
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.lock_reset_rounded, color: Color(0xFF059669)),
-            SizedBox(width: 12),
-            Text('🔐 Réinitialiser le mot de passe'),
-          ],
+        title: _buildDialogTitle(
+          icon: Icons.lock_reset_rounded,
+          text: '🔐 Réinitialiser le mot de passe',
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1454,11 +1473,17 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Row(
+            title: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.green),
-                SizedBox(width: 12),
-                Text('🔐 Mot de passe réinitialisé'),
+                const Icon(Icons.check_circle, color: Colors.green),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    '🔐 Mot de passe réinitialisé',
+                    style: TextStyle(fontSize: 16),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
             content: SingleChildScrollView(
@@ -1890,11 +1915,17 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.auto_delete_rounded, color: Colors.orange),
-            SizedBox(width: 12),
-            Text('🎯 Supprimer données automatiques'),
+            const Icon(Icons.auto_delete_rounded, color: Colors.orange),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                '🎯 Supprimer données automatiques',
+                style: TextStyle(fontSize: 16),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: const Text(
@@ -1961,11 +1992,17 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Row(
+            title: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.green),
-                SizedBox(width: 12),
-                Text('🎯 Suppression ciblée terminée'),
+                const Icon(Icons.check_circle, color: Colors.green),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    '🎯 Suppression ciblée terminée',
+                    style: TextStyle(fontSize: 16),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
             content: SingleChildScrollView(
