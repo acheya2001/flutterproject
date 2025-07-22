@@ -6,6 +6,7 @@ import '../../../../services/company_management_service.dart';
 import '../../../../services/database_cleanup_service.dart';
 import '../../../../services/password_reset_service.dart';
 import '../../../../services/company_admin_sync_service.dart';
+import '../../../../services/admin_duplicate_fix_service.dart';
 import 'admin_compagnie_details_screen.dart';
 import 'password_reset_dialog.dart';
 
@@ -142,6 +143,9 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                     break;
                   case 'refresh':
                     _forceRefresh();
+                    break;
+                  case 'fix_duplicates':
+                    _diagnoseDuplicateAdmins();
                     break;
 
                   case 'diagnose':
@@ -339,6 +343,21 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                         child: Text(
                           'Corriger liaisons',
                           style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'fix_duplicates',
+                  child: Row(
+                    children: [
+                      Icon(Icons.content_copy_rounded, color: Colors.red),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Corriger doublons admins',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
@@ -1524,6 +1543,205 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
     );
   }
 
+  /// 🔧 Diagnostiquer et corriger les doublons d'admins
+  Future<void> _diagnoseDuplicateAdmins() async {
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Diagnostic en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final diagnosis = await AdminDuplicateFixService.diagnoseMultipleAdmins();
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (!diagnosis['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur diagnostic: ${diagnosis['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final duplicateCompanies = diagnosis['duplicateCompanies'] as List<Map<String, dynamic>>;
+
+      if (duplicateCompanies.isEmpty) {
+        // Aucun doublon trouvé
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: _buildDialogTitle(
+              icon: Icons.check_circle_rounded,
+              text: 'Diagnostic terminé',
+              iconColor: Colors.green,
+            ),
+            content: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.green, size: 64),
+                SizedBox(height: 16),
+                Text(
+                  '✅ Aucun doublon trouvé !',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Toutes les compagnies ont un seul admin actif.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      // Afficher les doublons trouvés et proposer la correction
+      _showDuplicateAdminsDialog(diagnosis);
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 📋 Afficher le dialogue des doublons d'admins
+  void _showDuplicateAdminsDialog(Map<String, dynamic> diagnosis) {
+    final duplicateCompanies = diagnosis['duplicateCompanies'] as List<Map<String, dynamic>>;
+    final totalDuplicates = diagnosis['totalDuplicatesToFix'] as int;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: _buildDialogTitle(
+          icon: Icons.warning_amber_rounded,
+          text: 'Doublons d\'admins détectés',
+          iconColor: Colors.orange,
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '⚠️ ${duplicateCompanies.length} compagnies ont plusieurs admins actifs',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('📊 Total admins en doublon: $totalDuplicates'),
+                    Text('🔧 Action: Garder le plus récent, désactiver les autres'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Compagnies concernées:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 200,
+                child: ListView.builder(
+                  itemCount: duplicateCompanies.length,
+                  itemBuilder: (context, index) {
+                    final company = duplicateCompanies[index];
+                    final admins = company['admins'] as List<Map<String, dynamic>>;
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '🏢 ${company['compagnieNom']}',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Text('👥 ${admins.length} admins actifs:'),
+                            ...admins.map((admin) => Padding(
+                              padding: const EdgeInsets.only(left: 16, top: 4),
+                              child: Text('• ${admin['displayName']} (${admin['email']})'),
+                            )),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _fixDuplicateAdmins(false); // Simulation d'abord
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Simuler correction'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _confirmFixDuplicateAdmins();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Corriger maintenant'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 🔄 Forcer le rechargement des données
   Future<void> _forceRefresh() async {
     debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Rechargement forcé demandé');
@@ -1533,6 +1751,241 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
         content: Text('Données actualisées'),
         backgroundColor: Colors.green,
         duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// ⚠️ Confirmer la correction des doublons
+  Future<void> _confirmFixDuplicateAdmins() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: _buildDialogTitle(
+          icon: Icons.warning_rounded,
+          text: 'Confirmation correction',
+          iconColor: Colors.red,
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '⚠️ ATTENTION: Cette action va désactiver définitivement les admins en doublon.',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
+            SizedBox(height: 16),
+            Text('🔧 Action qui sera effectuée:'),
+            SizedBox(height: 8),
+            Text('• Garder l\'admin le plus récent pour chaque compagnie'),
+            Text('• Désactiver tous les autres admins de la même compagnie'),
+            Text('• Mettre à jour les liaisons compagnie-admin'),
+            SizedBox(height: 16),
+            Text(
+              '💡 Conseil: Faites d\'abord une simulation pour voir les changements.',
+              style: TextStyle(color: Colors.blue),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirmer correction'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      _fixDuplicateAdmins(true); // Correction réelle
+    }
+  }
+
+  /// 🔧 Exécuter la correction des doublons
+  Future<void> _fixDuplicateAdmins(bool applyFix) async {
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(applyFix ? 'Correction en cours...' : 'Simulation en cours...'),
+            const SizedBox(height: 8),
+            const Text('Traitement des doublons...',
+              style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await AdminDuplicateFixService.fixDuplicateAdmins(
+        dryRun: !applyFix,
+      );
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (!result['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${result['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Afficher le résultat
+      _showFixResultDialog(result, applyFix);
+
+      if (applyFix) {
+        // Recharger les données après correction
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) {
+            _loadData();
+          }
+        });
+      }
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 📊 Afficher le résultat de la correction
+  void _showFixResultDialog(Map<String, dynamic> result, bool wasApplied) {
+    final fixedCompanies = result['fixedCompanies'] as int;
+    final deactivatedAdmins = result['deactivatedAdmins'] as int;
+    final fixedDetails = result['fixedDetails'] as List<Map<String, dynamic>>;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: _buildDialogTitle(
+          icon: wasApplied ? Icons.check_circle_rounded : Icons.preview_rounded,
+          text: wasApplied ? 'Correction terminée' : 'Simulation terminée',
+          iconColor: wasApplied ? Colors.green : Colors.blue,
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (wasApplied ? Colors.green : Colors.blue).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: (wasApplied ? Colors.green : Colors.blue).withOpacity(0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      wasApplied ? '✅ Correction appliquée' : '🔍 Simulation effectuée',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: wasApplied ? Colors.green : Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('🏢 Compagnies ${wasApplied ? 'corrigées' : 'à corriger'}: $fixedCompanies'),
+                    Text('👤 Admins ${wasApplied ? 'désactivés' : 'à désactiver'}: $deactivatedAdmins'),
+                  ],
+                ),
+              ),
+              if (fixedDetails.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Text('Détails:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    itemCount: fixedDetails.length,
+                    itemBuilder: (context, index) {
+                      final detail = fixedDetails[index];
+                      final adminKept = detail['adminKept'] as Map<String, dynamic>;
+                      final adminsDeactivated = detail['adminsDeactivated'] as List<Map<String, dynamic>>;
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '🏢 ${detail['compagnieNom']}',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              Text('✅ Admin gardé: ${adminKept['displayName']}'),
+                              if (adminsDeactivated.isNotEmpty) ...[
+                                Text('⚠️ Admins ${wasApplied ? 'désactivés' : 'à désactiver'}:'),
+                                ...adminsDeactivated.map((admin) => Padding(
+                                  padding: const EdgeInsets.only(left: 16),
+                                  child: Text('• ${admin['displayName']}'),
+                                )),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          if (!wasApplied) ...[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Fermer'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _confirmFixDuplicateAdmins();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Appliquer correction'),
+            ),
+          ] else
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('OK'),
+            ),
+        ],
       ),
     );
   }

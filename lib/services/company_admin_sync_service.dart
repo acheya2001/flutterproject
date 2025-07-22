@@ -138,7 +138,7 @@ class CompanyAdminSyncService {
     try {
       debugPrint('[COMPANY_SYNC] 🔄 Réassignation admin: $newAdminId -> $compagnieId');
 
-      // 1. Vérifier que la compagnie n'a pas d'admin actif
+      // 1. Vérifier que la compagnie existe
       final companyDoc = await _firestore.collection('compagnies').doc(compagnieId).get();
       if (!companyDoc.exists) {
         return {
@@ -148,14 +148,31 @@ class CompanyAdminSyncService {
       }
 
       final companyData = companyDoc.data()!;
-      if (companyData['hasAdmin'] == true) {
-        return {
-          'success': false,
-          'error': 'Cette compagnie a déjà un admin actif. Désactivez-le d\'abord.',
-        };
+
+      // 2. IMPORTANT: Désactiver TOUS les admins actifs de cette compagnie
+      final existingAdminsQuery = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'admin_compagnie')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      debugPrint('[COMPANY_SYNC] 🔍 ${existingAdminsQuery.docs.length} admins actifs trouvés pour cette compagnie');
+
+      // Désactiver tous les admins existants
+      for (final adminDoc in existingAdminsQuery.docs) {
+        await _firestore.collection('users').doc(adminDoc.id).update({
+          'isActive': false,
+          'status': 'inactif',
+          'deactivationReason': 'Désactivé automatiquement pour réassignation',
+          'deactivatedAt': FieldValue.serverTimestamp(),
+          'deactivatedBy': 'system_reassignment',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        debugPrint('[COMPANY_SYNC] ⚠️ Admin ${adminDoc.id} désactivé pour réassignation');
       }
 
-      // 2. Vérifier que le nouvel admin existe et n'est pas déjà assigné
+      // 3. Vérifier que le nouvel admin existe
       final adminDoc = await _firestore.collection('users').doc(newAdminId).get();
       if (!adminDoc.exists) {
         return {
@@ -172,14 +189,24 @@ class CompanyAdminSyncService {
         };
       }
 
+      // 4. Si l'admin est déjà assigné à une autre compagnie, le désassigner d'abord
       if (adminData['compagnieId'] != null && adminData['compagnieId'] != compagnieId) {
-        return {
-          'success': false,
-          'error': 'Cet admin est déjà assigné à une autre compagnie',
-        };
+        debugPrint('[COMPANY_SYNC] ⚠️ Admin déjà assigné à ${adminData['compagnieId']}, désassignation...');
+
+        // Mettre à jour l'ancienne compagnie
+        await _firestore.collection('compagnies').doc(adminData['compagnieId']).update({
+          'hasAdmin': false,
+          'adminCompagnieId': null,
+          'adminCompagnieEmail': null,
+          'adminCompagnieNom': null,
+          'adminStatus': 'none',
+          'adminRemovedAt': FieldValue.serverTimestamp(),
+          'adminRemovedReason': 'Admin réassigné à une autre compagnie',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
       }
 
-      // 3. Assigner l'admin à la compagnie
+      // 5. Assigner le nouvel admin à la compagnie
       await _firestore.collection('users').doc(newAdminId).update({
         'compagnieId': compagnieId,
         'compagnieNom': companyData['nom'],
@@ -188,29 +215,34 @@ class CompanyAdminSyncService {
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedBy': 'admin_reassignment',
         'assignmentReason': 'Réassigné à la compagnie ${companyData['nom']}',
+        'reassignedAt': FieldValue.serverTimestamp(),
       });
 
-      // 4. Mettre à jour la compagnie
+      // 6. Mettre à jour la compagnie
       await _firestore.collection('compagnies').doc(compagnieId).update({
         'hasAdmin': true,
         'adminCompagnieId': newAdminId,
         'adminCompagnieEmail': adminData['email'],
-        'adminCompagnieNom': adminData['displayName'],
+        'adminCompagnieNom': adminData['displayName'] ?? '${adminData['prenom']} ${adminData['nom']}',
         'adminStatus': 'active',
         'adminAssignedAt': FieldValue.serverTimestamp(),
+        'previousAdminsDeactivated': existingAdminsQuery.docs.length,
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedBy': 'admin_reassignment',
       });
 
       debugPrint('[COMPANY_SYNC] ✅ Réassignation terminée');
 
+      debugPrint('[COMPANY_SYNC] ✅ Réassignation terminée avec succès');
+
       return {
         'success': true,
         'adminId': newAdminId,
         'compagnieId': compagnieId,
-        'adminName': adminData['displayName'],
+        'adminName': adminData['displayName'] ?? '${adminData['prenom']} ${adminData['nom']}',
         'compagnieNom': companyData['nom'],
-        'message': 'Admin réassigné avec succès à la compagnie',
+        'previousAdminsDeactivated': existingAdminsQuery.docs.length,
+        'message': 'Admin réassigné avec succès. ${existingAdminsQuery.docs.length} ancien(s) admin(s) désactivé(s).',
       };
     } catch (e) {
       debugPrint('[COMPANY_SYNC] ❌ Erreur réassignation: $e');
