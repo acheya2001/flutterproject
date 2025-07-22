@@ -50,8 +50,11 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
 
       // Debug: Afficher le statut de chaque admin
       for (final admin in admins) {
-        debugPrint('[ADMIN_COMPAGNIE_LIST] 👤 Admin ${admin['displayName']}: isActive=${admin['isActive']}, status=${admin['status']}');
+        debugPrint('[ADMIN_COMPAGNIE_LIST] 👤 Admin ${admin['displayName']}: isActive=${admin['isActive']}, status=${admin['status']}, compagnieId=${admin['compagnieId']}');
       }
+
+      // Vérification automatique des doublons
+      _checkForDuplicatesInBackground();
 
       if (mounted) {
         setState(() {
@@ -364,6 +367,11 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                   ),
                 ),
               ],
+            ),
+            IconButton(
+              onPressed: _diagnoseDuplicateAdmins,
+              icon: const Icon(Icons.content_copy_rounded),
+              tooltip: 'Corriger doublons admins',
             ),
             IconButton(
               onPressed: _loadData,
@@ -1742,6 +1750,51 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
     );
   }
 
+  /// 🔍 Vérifier les doublons en arrière-plan
+  Future<void> _checkForDuplicatesInBackground() async {
+    try {
+      final diagnosis = await AdminDuplicateFixService.diagnoseMultipleAdmins();
+
+      if (diagnosis['success'] && diagnosis['duplicateCompanies'].isNotEmpty) {
+        final duplicateCount = diagnosis['duplicateCompanies'].length;
+        debugPrint('[ADMIN_COMPAGNIE_LIST] ⚠️ $duplicateCount compagnies avec doublons détectées');
+
+        // Afficher une notification discrète
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('⚠️ $duplicateCount compagnies ont plusieurs admins actifs'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      _diagnoseDuplicateAdmins();
+                    },
+                    child: const Text('CORRIGER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 8),
+              action: SnackBarAction(
+                label: 'X',
+                textColor: Colors.white,
+                onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_LIST] ❌ Erreur vérification doublons: $e');
+    }
+  }
+
   /// 🔄 Forcer le rechargement des données
   Future<void> _forceRefresh() async {
     debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Rechargement forcé demandé');
@@ -2344,17 +2397,23 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => const AlertDialog(
-        content: Row(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(),
             SizedBox(width: 16),
             Text('Assignation en cours...'),
+            SizedBox(height: 8),
+            Text('Désactivation des anciens admins...',
+              style: TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
       ),
     );
 
     try {
+      debugPrint('[ADMIN_ASSIGNMENT] 🔄 Début assignation admin $adminId à compagnie $compagnieId');
+
       final result = await CompanyManagementService.reassignAdminToCompany(
         newAdminId: adminId,
         compagnieId: compagnieId,
@@ -2364,13 +2423,27 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
       Navigator.of(context).pop();
 
       if (result['success']) {
+        final previousAdminsDeactivated = result['previousAdminsDeactivated'] ?? 0;
+        final message = previousAdminsDeactivated > 0
+            ? 'Admin assigné avec succès à ${result['compagnieNom']}. ${previousAdminsDeactivated} ancien(s) admin(s) désactivé(s).'
+            : 'Admin assigné avec succès à ${result['compagnieNom']}';
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Admin assigné avec succès à ${result['compagnieNom']}'),
+            content: Text(message),
             backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
           ),
         );
-        _loadData(); // Recharger les données
+
+        debugPrint('[ADMIN_ASSIGNMENT] ✅ Assignation réussie: $message');
+
+        // Recharger les données avec un délai pour la synchronisation
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) {
+            _loadData();
+          }
+        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

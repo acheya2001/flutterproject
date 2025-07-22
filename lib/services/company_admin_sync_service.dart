@@ -23,12 +23,14 @@ class CompanyAdminSyncService {
 
       debugPrint('[COMPANY_SYNC] ✅ Compagnie mise à jour');
 
-      // 2. Trouver l'admin de cette compagnie
+      // 2. Trouver TOUS les admins de cette compagnie (actifs ET inactifs)
       final adminQuery = await _firestore
           .collection('users')
           .where('role', isEqualTo: 'admin_compagnie')
           .where('compagnieId', isEqualTo: compagnieId)
           .get();
+
+      debugPrint('[COMPANY_SYNC] 🔍 ${adminQuery.docs.length} admins trouvés pour cette compagnie');
 
       int adminsUpdated = 0;
       String adminInfo = 'Aucun admin trouvé';
@@ -36,22 +38,26 @@ class CompanyAdminSyncService {
       if (adminQuery.docs.isNotEmpty) {
         for (final adminDoc in adminQuery.docs) {
           final adminData = adminDoc.data();
-          
-          // 3. Mettre à jour le statut de l'admin
+          final currentStatus = adminData['isActive'] ?? false;
+
+          debugPrint('[COMPANY_SYNC] 👤 Admin ${adminDoc.id}: statut actuel=$currentStatus, nouveau=$newStatus');
+
+          // 3. Mettre à jour le statut de TOUS les admins de cette compagnie
           await _firestore.collection('users').doc(adminDoc.id).update({
             'isActive': newStatus,
             'status': newStatus ? 'actif' : 'inactif',
             'updatedAt': FieldValue.serverTimestamp(),
             'updatedBy': 'system_sync',
-            'syncReason': newStatus 
+            'syncReason': newStatus
                 ? 'Réactivation automatique suite à réactivation compagnie'
                 : 'Désactivation automatique suite à désactivation compagnie',
+            'lastSyncAt': FieldValue.serverTimestamp(),
           });
 
           adminsUpdated++;
           adminInfo = adminData['displayName'] ?? '${adminData['prenom']} ${adminData['nom']}';
-          
-          debugPrint('[COMPANY_SYNC] 👤 Admin synchronisé: ${adminDoc.id} - $adminInfo');
+
+          debugPrint('[COMPANY_SYNC] ✅ Admin synchronisé: ${adminDoc.id} - $adminInfo (${currentStatus} → $newStatus)');
         }
       }
 
