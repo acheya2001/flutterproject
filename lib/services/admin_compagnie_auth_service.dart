@@ -1,1 +1,225 @@
-import 'package:cloud_firestore/cloud_firestore.dart';import 'package:flutter/foundation.dart';import ';  }';/// 🏢 Service d';      debugPrint('[ADMIN_COMPAGNIE_AUTH] 🔐 Tentative connexion: 'email';      // 1. Verifier si l';          .collection('users';          .where('email, isEqualTo: email';          .where('role', isEqualTo: ';      if (userQuery.docs.isEmpty';          error: ';      final userData = userQuery.docs.first.data(';      debugPrint('[ADMIN_COMPAGNIE_AUTH] 👤 Utilisateur trouve: '{userData['compagnieNom';      // 2. Verifier le mot de passe (TOUS les champs possibles';      final storedPassword = userData['password';                            userData['temporaryPassword';                            userData['motDePasseTemporaire';                            userData['motDePasse';                            userData['temp_password';                            userData['generated_password';      debugPrint('[ADMIN_COMPAGNIE_AUTH] 🔑 Verification mot de passe...';      debugPrint('[ADMIN_COMPAGNIE_AUTH] 📝 Champs disponibles: {userData.keys.toList(')}';      debugPrint('[ADMIN_COMPAGNIE_AUTH] 🔍 Champs mot de passe:';      debugPrint('[ADMIN_COMPAGNIE_AUTH]   - password: '{userData['password']}';      debugPrint('[ADMIN_COMPAGNIE_AUTH]   - temporaryPassword: '{userData['temporaryPassword']}';      debugPrint('[ADMIN_COMPAGNIE_AUTH]   - motDePasseTemporaire: '{userData['motDePasseTemporaire']}';      debugPrint('[ADMIN_COMPAGNIE_AUTH]   - motDePasse: '{userData['motDePasse']}';      debugPrint('[ADMIN_COMPAGNIE_AUTH]   - temp_password: '{userData['temp_password']}';      debugPrint('[ADMIN_COMPAGNIE_AUTH]   - generated_password: '{userData['generated_password';      if (storedPassword == null';        debugPrint('[ADMIN_COMPAGNIE_AUTH] ❌ Aucun mot de passe trouve dans les champs';          error: '❌ MOT DE PASSE NON DÉFINI\n\nCe compte n\';      if (storedPassword != password';        debugPrint('[ADMIN_COMPAGNIE_AUTH] ❌ Mot de passe incorrect';        debugPrint('[ADMIN_COMPAGNIE_AUTH] 🔍 Attendu: $storedPassword, Recu: 'password';          error: ';        ';      debugPrint('[ADMIN_COMPAGNIE_AUTH] ✅ Mot de passe correct';      final status = userData['status';      final isActive = userData['isActive';      debugPrint('[ADMIN_COMPAGNIE_AUTH] 📊 Verification statut: $status, actif: 'isActive';      if (status == 'supprime' || status == 'deleted';          error: ';        ';      if (status != 'actif || isActive != true';          error: '❌ COMPTE DÉSACTIVÉ\n\nStatut: $status\nActif: 'isActive\n\n💡 Contactez l\';        await _auth.signInAnonymously(';        debugPrint(';      } catch (e';        debugPrint('[ADMIN_COMPAGNIE_AUTH] ⚠️ Session Firebase echouee:  + e.toString()';          .collection('users';          .doc(userData['uid]';        'last_login: FieldValue.serverTimestamp(';        ';      }';      debugPrint('[ADMIN_COMPAGNIE_AUTH] 🎉 Connexion reussie pour '{userData['compagnieNom']}';        compagnieId: userData['compagnieId';        compagnieNom: userData[';    } catch (e';      debugPrint('[ADMIN_COMPAGNIE_AUTH] ❌ Erreur connexion:  + e.toString()';        error: 'Erreur de connexion: ';  static Future<Map<String, dynamic>?> getCompagnieData(String compagnieId';      final collections = ['companies', 'compagnies_assurance', ';          if (doc.exists';            debugPrint('[ADMIN_COMPAGNIE_AUTH] 🏢 Compagnie trouvee dans: ';        } catch (e';        'id';        'nom': compagnieId.replaceAll('_', ' ';        'code';        'status': 'actif';        'created_at: FieldValue.serverTimestamp(';          .collection(';    } catch (e';      debugPrint(';  static Future<Map<String, dynamic>> getCompagnieStats(String compagnieId';      debugPrint('[ADMIN_COMPAGNIE_AUTH] 📈 Recuperation stats pour: 'compagnieId';            .collection('agencies';            .where(';      } catch (e';        debugPrint('[ADMIN_COMPAGNIE_AUTH] ⚠️ Erreur count agences:  + e.toString()';            .collection('users';            .where('compagnieId, isEqualTo: compagnieId';            .where('role', isEqualTo: ';      } catch (e';        debugPrint('[ADMIN_COMPAGNIE_AUTH] ⚠️ Erreur count agents:  + e.toString()';            .collection('contracts';            .where(';      } catch (e';        debugPrint('[ADMIN_COMPAGNIE_AUTH] ⚠️ Erreur count contrats:  + e.toString()';            .collection('claims';            .where(';      } catch (e';        debugPrint('[ADMIN_COMPAGNIE_AUTH] ⚠️ Erreur count sinistres:  + e.toString()';        'total_agences';        'total_agents';        'total_contrats';        'total_sinistres';        'last_updated: DateTime.now().toIso8601String(';      debugPrint('[ADMIN_COMPAGNIE_AUTH] 📊 Stats calculees: ';    } catch (e';      debugPrint('[ADMIN_COMPAGNIE_AUTH] ❌ Erreur calcul stats:  + e.toString()';        'total_agences';        'total_agents';        'total_contrats';        'total_sinistres';        ';  }';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 👤 Creation Admin Agence: $prenom 'nom';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 📋 Parametres: compagnieId=$compagnieId, agenceId='agenceId';      // 1. Verifier que l';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Verification agence...';      // Essayer d';          .collection(';          .doc(compagnieId';          .collection(';      if (!agenceDoc.exists';        debugPrint('[ADMIN_COMPAGNIE_SERVICE] ⚠️ Agence non trouvee dans nouvelle structure, essai ancienne...';        // Fallback vers l';            .collection(';        if (!oldAgenceDoc.exists';          debugPrint('[ADMIN_COMPAGNIE_SERVICE] ❌ Agence introuvable dans les deux structures: 'agenceId';            'success';            'error': 'Agence introuvable';            'message': 'L\'agence specifiee n\'existe pas. Veuillez d\';        agenceData = oldAgenceDoc.data(';        debugPrint('[ADMIN_COMPAGNIE_SERVICE] ✅ Agence trouvee dans ancienne structure: '{agenceData['nom']}';        debugPrint(';        agenceData = agenceDoc.data(';        debugPrint('[ADMIN_COMPAGNIE_SERVICE] ✅ Agence trouvee dans nouvelle structure: '{agenceData['nom']}';      // 2. Verifier qu'il n';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Verification admin existant...';          .collection('users';          .where('role', isEqualTo: 'admin_agence';          .where('agenceId, isEqualTo: agenceId';          .where('compagnieId, isEqualTo: compagnieId';          .where(';        final existingAdminData = existingAdmin.docs.first.data(';        debugPrint('[ADMIN_COMPAGNIE_SERVICE] ❌ Admin deja existant: '{existingAdminData['email']}';          'success';          'error': 'Admin deja existant';          'message': 'Cette agence a deja un administrateur: '{existingAdminData['prenom']} '{existingAdminData['nom']} ('{existingAdminData['email]}')';      // 3. Verifier que l'email n';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔍 Verification email...';          .collection('users';          .where('email, isEqualTo: email';          .where(';      if (existingUser.docs.isNotEmpty';        debugPrint('[ADMIN_COMPAGNIE_SERVICE] ❌ Email deja utilise: 'email';          'success';          'error': 'Email deja utilise';          'message': ';      final tempPassword = _generateSecurePassword(';      final adminId = 'admin_agence_${agenceId}_{DateTime.now(').millisecondsSinceEpoch}';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔐 Mot de passe genere: 'tempPassword';        'uid';        'email';        'nom';        'prenom';        'role': 'admin_agence';        'compagnieId';        'agenceId';        'telephone';        'adresse': adresse ?? ';        'cin': cin ?? ';        'status': 'actif';        'isActive';        'isFirstLogin';        'passwordChangeRequired';        'created_at: FieldValue.serverTimestamp(';        'created_by';        ';        // Mots de passe dans tous les champs pour compatibilite (même format que Super Admin';        'password';        'temporaryPassword';        'motDePasseTemporaire';        'motDePasse';        'temp_password';        'generated_password';      // 5. Creer l';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 💾 Creation utilisateur...';          .collection(';          .set(adminData';      // 6. Mettre a jour l'agence avec l';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 🔗 Liaison agence-admin...';        'adminUid';        'adminEmail';        'adminNom': '$prenom 'nom';        'hasAdmin';        ';      if (isNewStructure';            .collection(';            .doc(compagnieId';            .collection(';        // Ancienne structure (fallback';            .collection(';            .update(updateData';        debugPrint('[ADMIN_COMPAGNIE_SERVICE] ⚠️ Agence mise a jour dans ancienne structure - Migration recommandee';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] ✅ Admin Agence cree avec succes: 'adminId';        'success';        'adminId';        'email';        'password';        'message': 'Admin Agence cree avec succes';        'displayCredentials';          'email';          'password';          'nom': '"prenom 'nom';          'role': 'Admin Agence';          'agence': agenceData[';    } catch (e';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] ❌ Erreur creation Admin Agence:  + e.toString()';      debugPrint('[ADMIN_COMPAGNIE_SERVICE] 📍 Stack trace: '{StackTrace.current}';        'success';        'error: e.toString(';        'message': 'Erreur lors de la creation de l\'Admin Agence: {e.toString(')}';    String password = ';    password += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ[random.nextInt(26';    password += 'abcdefghijklmnopqrstuvwxyz[random.nextInt(26';    password += '0123456789[random.nextInt(10';    password += '!@#\';      password += chars[random.nextInt(chars.length';    final passwordList = password.split(';      await _auth.signOut(';      debugPrint(';    } catch (e';      debugPrint(';  static Future<bool> checkAdminCompagnieExists(String email';          .collection('users';          .where('email, isEqualTo: email';          .where('role', isEqualTo: ';    } catch (e';      debugPrint(';    if (!kDebugMode';          .collection('users';          .where(';        final userData = userQuery.docs.first.data(';        debugPrint('=== DEBUG USER DATA ===';        debugPrint('Email: 'email';        debugPrint('Donnees completes: 'userData';        debugPrint('Champs mot de passe:';        debugPrint('  - password: '{userData['password']}';        debugPrint('  - temporaryPassword: '{userData['temporaryPassword']}';        debugPrint('  - motDePasseTemporaire: '{userData['motDePasseTemporaire']}';        debugPrint('========================';        debugPrint('❌ Aucun utilisateur trouve avec l\'email: ';    } catch (e';      debugPrint('❌ Erreur debug: ';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
+/// 🔐 Service d'authentification spécialisé pour les admins compagnie
+class AdminCompagnieAuthService {
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  /// 🔐 Connexion d'admin compagnie avec gestion des comptes différés
+  static Future<Map<String, dynamic>> loginAdminCompagnie({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      debugPrint('[ADMIN_COMPAGNIE_AUTH] 🔐 Tentative connexion: $email');
+
+      // 1. Vérifier si l'utilisateur existe dans Firestore
+      final userQuery = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .where('role', isEqualTo: 'admin_compagnie')
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isEmpty) {
+        return {
+          'success': false,
+          'error': 'Aucun admin compagnie trouvé avec cet email',
+          'code': 'user-not-found',
+        };
+      }
+
+      final userDoc = userQuery.docs.first;
+      final userData = userDoc.data();
+      final userId = userDoc.id;
+
+      // Vérifier si l'admin est actif
+      if (userData['isActive'] != true || userData['status'] != 'actif') {
+        return {
+          'success': false,
+          'error': 'Compte désactivé. Contactez l\'administrateur.',
+          'code': 'account-disabled',
+        };
+      }
+
+      // 2. Vérifier si le compte Firebase Auth existe
+      final firebaseAuthCreated = userData['firebaseAuthCreated'] ?? false;
+      
+      if (!firebaseAuthCreated) {
+        // 🔧 Créer le compte Firebase Auth maintenant
+        debugPrint('[ADMIN_COMPAGNIE_AUTH] 🔧 Création compte Firebase Auth différé...');
+        
+        try {
+          final userCredential = await _auth.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+
+          // Mettre à jour le document avec l'UID Firebase Auth
+          await _firestore.collection('users').doc(userId).update({
+            'uid': userCredential.user!.uid,
+            'firebaseAuthCreated': true,
+            'firebaseAuthCreatedAt': FieldValue.serverTimestamp(),
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          });
+
+          debugPrint('[ADMIN_COMPAGNIE_AUTH] ✅ Compte Firebase Auth créé: ${userCredential.user!.uid}');
+
+          return {
+            'success': true,
+            'user': userCredential.user,
+            'userData': userData,
+            'userId': userId,
+            'message': 'Connexion réussie - Compte Firebase Auth créé',
+            'firstLogin': true,
+          };
+
+        } catch (authError) {
+          debugPrint('[ADMIN_COMPAGNIE_AUTH] ❌ Erreur création Firebase Auth: $authError');
+          
+          // Si l'utilisateur existe déjà, essayer de se connecter
+          if (authError.toString().contains('email-already-in-use')) {
+            debugPrint('[ADMIN_COMPAGNIE_AUTH] 🔄 Email déjà utilisé, tentative connexion...');
+            
+            try {
+              final userCredential = await _auth.signInWithEmailAndPassword(
+                email: email,
+                password: password,
+              );
+
+              // Mettre à jour le document
+              await _firestore.collection('users').doc(userId).update({
+                'uid': userCredential.user!.uid,
+                'firebaseAuthCreated': true,
+                'firebaseAuthCreatedAt': FieldValue.serverTimestamp(),
+                'lastLoginAt': FieldValue.serverTimestamp(),
+              });
+
+              return {
+                'success': true,
+                'user': userCredential.user,
+                'userData': userData,
+                'userId': userId,
+                'message': 'Connexion réussie',
+                'firstLogin': false,
+              };
+
+            } catch (signInError) {
+              return {
+                'success': false,
+                'error': 'Mot de passe incorrect',
+                'code': 'wrong-password',
+              };
+            }
+          }
+
+          return {
+            'success': false,
+            'error': 'Erreur lors de la création du compte: $authError',
+            'code': 'auth-creation-failed',
+          };
+        }
+      } else {
+        // 3. Connexion normale avec Firebase Auth existant
+        try {
+          final userCredential = await _auth.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+
+          // Mettre à jour la dernière connexion
+          await _firestore.collection('users').doc(userId).update({
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          });
+
+          debugPrint('[ADMIN_COMPAGNIE_AUTH] ✅ Connexion normale réussie');
+
+          return {
+            'success': true,
+            'user': userCredential.user,
+            'userData': userData,
+            'userId': userId,
+            'message': 'Connexion réussie',
+            'firstLogin': false,
+          };
+
+        } catch (signInError) {
+          debugPrint('[ADMIN_COMPAGNIE_AUTH] ❌ Erreur connexion: $signInError');
+          
+          return {
+            'success': false,
+            'error': 'Email ou mot de passe incorrect',
+            'code': 'invalid-credentials',
+          };
+        }
+      }
+
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_AUTH] ❌ Erreur générale: $e');
+      return {
+        'success': false,
+        'error': 'Erreur de connexion: $e',
+        'code': 'general-error',
+      };
+    }
+  }
+
+  /// 📊 Obtenir les informations de l'admin compagnie connecté
+  static Future<Map<String, dynamic>?> getCurrentAdminCompagnieInfo() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) return null;
+
+      final userData = userDoc.data()!;
+      if (userData['role'] != 'admin_compagnie') return null;
+
+      return {
+        'uid': user.uid,
+        'email': user.email,
+        'userData': userData,
+        'compagnieId': userData['compagnieId'],
+        'compagnieNom': userData['compagnieNom'],
+      };
+
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_AUTH] ❌ Erreur info admin: $e');
+      return null;
+    }
+  }
+
+  /// 🚪 Déconnexion
+  static Future<void> logout() async {
+    try {
+      await _auth.signOut();
+      debugPrint('[ADMIN_COMPAGNIE_AUTH] ✅ Déconnexion réussie');
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_AUTH] ❌ Erreur déconnexion: $e');
+    }
+  }
+
+  /// 🔍 Vérifier si un admin compagnie est connecté
+  static bool isAdminCompagnieLoggedIn() {
+    return _auth.currentUser != null;
+  }
+
+  /// 📧 Réinitialiser le mot de passe
+  static Future<Map<String, dynamic>> resetPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      return {
+        'success': true,
+        'message': 'Email de réinitialisation envoyé',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Erreur lors de l\'envoi: $e',
+      };
+    }
+  }
+}

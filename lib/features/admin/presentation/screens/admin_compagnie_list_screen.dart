@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../services/company_structure_service.dart';
 import '../../../../services/admin_compagnie_crud_service.dart';
 import '../../../../services/company_management_service.dart';
@@ -7,6 +8,12 @@ import '../../../../services/database_cleanup_service.dart';
 import '../../../../services/password_reset_service.dart';
 import '../../../../services/company_admin_sync_service.dart';
 import '../../../../services/admin_duplicate_fix_service.dart';
+import '../../../../services/direct_admin_sync_service.dart';
+import '../../../../utils/create_test_admin_compagnie.dart';
+import '../../../../utils/temp_admin_compagnie_setup.dart';
+import '../../../../services/direct_admin_sync_service.dart';
+import '../../../../services/admin_compagnie_service.dart';
+import '../../../../services/firestore_rules_service.dart';
 import 'admin_compagnie_details_screen.dart';
 import 'password_reset_dialog.dart';
 
@@ -25,6 +32,7 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
   Map<String, dynamic> _adminStatistics = {};
   bool _isLoading = true;
   int _selectedTabIndex = 0;
+  int _duplicateCompaniesCount = 0;
 
   @override
   void initState() {
@@ -114,6 +122,30 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                   case 'duplicates':
                     _detectDuplicates();
                     break;
+                  case 'create_test_admin':
+                    _createTestAdminCompagnie();
+                    break;
+                  case 'temp_admin_setup':
+                    _setupTempAdminCompagnie();
+                    break;
+                  case 'test_firebase_auth':
+                    _testFirebaseAuthCreation();
+                    break;
+                  case 'fix_company_links':
+                    _fixCompanyLinks();
+                    break;
+                  case 'finalize_creation':
+                    _finalizeAdminCreation();
+                    break;
+                  case 'create_alternative':
+                    _createAdminAlternative();
+                    break;
+                  case 'check_firestore_rules':
+                    _checkFirestoreRules();
+                    break;
+                  case 'show_credentials':
+                    _showAdminCredentials();
+                    break;
                   case 'search':
                     _searchCompaniesInAllCollections();
                     break;
@@ -153,6 +185,9 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                   case 'test_sync':
                     _testCompanyAdminSync();
                     break;
+                  case 'fix_all_links':
+                    _fixAllBrokenLinks();
+                    break;
 
                   case 'diagnose':
                     _diagnoseCollections();
@@ -180,6 +215,16 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                       Icon(Icons.content_copy_rounded, color: Colors.orange),
                       SizedBox(width: 12),
                       Text('Détecter doublons'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'show_credentials',
+                  child: Row(
+                    children: [
+                      Icon(Icons.key_rounded, color: Colors.blue),
+                      SizedBox(width: 12),
+                      Text('Voir identifiants'),
                     ],
                   ),
                 ),
@@ -384,13 +429,147 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
                     ],
                   ),
                 ),
+                const PopupMenuItem(
+                  value: 'fix_all_links',
+                  child: Row(
+                    children: [
+                      Icon(Icons.healing_rounded, color: Colors.green),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'CORRIGER TOUT',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'create_test_admin',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_add_rounded, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Créer Admin Test',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'temp_admin_setup',
+                  child: Row(
+                    children: [
+                      Icon(Icons.swap_horiz_rounded, color: Colors.purple),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Config Temp Admin',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'test_firebase_auth',
+                  child: Row(
+                    children: [
+                      Icon(Icons.security_rounded, color: Colors.red),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Test Firebase Auth',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'fix_company_links',
+                  child: Row(
+                    children: [
+                      Icon(Icons.link_off_rounded, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Libérer Compagnies',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'finalize_creation',
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: Colors.green),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Finaliser Création',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'create_alternative',
+                  child: Row(
+                    children: [
+                      Icon(Icons.build_rounded, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Création Alternative',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'check_firestore_rules',
+                  child: Row(
+                    children: [
+                      Icon(Icons.security_rounded, color: Colors.purple),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Vérifier Règles Firestore',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
-            IconButton(
-              onPressed: _diagnoseDuplicateAdmins,
-              icon: const Icon(Icons.content_copy_rounded),
-              tooltip: 'Corriger doublons admins',
-            ),
+
+            if (_duplicateCompaniesCount > 0)
+              IconButton(
+                onPressed: _diagnoseDuplicateAdmins,
+                icon: Icon(
+                  Icons.content_copy_rounded,
+                  color: Colors.orange[300],
+                ),
+                tooltip: 'Corriger doublons admins ($_duplicateCompaniesCount)',
+              )
+            else
+              IconButton(
+                onPressed: null,
+                icon: Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.green[300],
+                ),
+                tooltip: 'Aucun doublon détecté',
+              ),
             IconButton(
               onPressed: _loadData,
               icon: const Icon(Icons.refresh_rounded),
@@ -1777,6 +1956,11 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
         final duplicateCount = diagnosis['duplicateCompanies'].length;
         debugPrint('[ADMIN_COMPAGNIE_LIST] ⚠️ $duplicateCount compagnies avec doublons détectées');
 
+        // Mettre à jour le compteur de doublons
+        setState(() {
+          _duplicateCompaniesCount = duplicateCount;
+        });
+
         // Afficher une notification discrète
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1807,9 +1991,18 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
             ),
           );
         }
+      } else {
+        // Aucun doublon détecté, réinitialiser le compteur
+        setState(() {
+          _duplicateCompaniesCount = 0;
+        });
       }
     } catch (e) {
       debugPrint('[ADMIN_COMPAGNIE_LIST] ❌ Erreur vérification doublons: $e');
+      // En cas d'erreur, réinitialiser le compteur
+      setState(() {
+        _duplicateCompaniesCount = 0;
+      });
     }
   }
 
@@ -2014,6 +2207,801 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
     }
   }
 
+  /// 🔧 Corriger toutes les liaisons cassées
+  Future<void> _fixAllBrokenLinks() async {
+    // Confirmation
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: _buildDialogTitle(
+          icon: Icons.healing_rounded,
+          text: 'CORRIGER TOUTES LES LIAISONS',
+          iconColor: Colors.green,
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '🔧 Cette action va corriger TOUTES les liaisons cassées entre compagnies et admins.',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 16),
+            Text('✅ Actions qui seront effectuées:'),
+            SizedBox(height: 8),
+            Text('• Diagnostic complet de toutes les liaisons'),
+            Text('• Correction des compagnieId manquants'),
+            Text('• Synchronisation des statuts compagnie ↔ admin'),
+            Text('• Réparation des liaisons cassées'),
+            SizedBox(height: 16),
+            Text(
+              '⚡ Cette action va FORCER la synchronisation de TOUS les admins.',
+              style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('🔧 CORRIGER TOUT'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('🔧 Correction en cours...'),
+            SizedBox(height: 8),
+            Text('Diagnostic et réparation des liaisons...',
+              style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // Diagnostic d'abord
+      final diagnosis = await DirectAdminSyncService.diagnoseCompanyAdminLinks();
+
+      if (!diagnosis['success']) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur diagnostic: ${diagnosis['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Correction
+      final fixResult = await DirectAdminSyncService.fixAllBrokenLinks();
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (fixResult['success']) {
+        // Afficher le résultat
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: _buildDialogTitle(
+              icon: Icons.check_circle_rounded,
+              text: 'Correction terminée',
+              iconColor: Colors.green,
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '✅ Correction réussie !',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('🏢 Compagnies corrigées: ${fixResult['fixedCompanies']}'),
+                      Text('👤 Admins corrigés: ${fixResult['fixedAdmins']}'),
+                      Text('📊 Total compagnies: ${diagnosis['totalCompanies']}'),
+                      Text('👥 Total admins: ${diagnosis['totalAdmins']}'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '🎉 Toutes les liaisons compagnie-admin sont maintenant synchronisées !',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.of(context).pop();
+
+                  // Rechargement multiple pour forcer la mise à jour
+                  debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 RECHARGEMENT FORCÉ APRÈS CORRECTION');
+                  await _loadData();
+
+                  // Rechargement supplémentaire après 500ms
+                  Future.delayed(const Duration(milliseconds: 500), () async {
+                    if (mounted) {
+                      await _loadData();
+                      debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Rechargement supplémentaire terminé');
+                    }
+                  });
+
+                  // Rechargement final après 1500ms
+                  Future.delayed(const Duration(milliseconds: 1500), () async {
+                    if (mounted) {
+                      await _loadData();
+                      debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Rechargement final terminé');
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✅ Interface mise à jour - Doublons corrigés !'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    }
+                  });
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('✅ OK - Actualiser'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur correction: ${fixResult['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 🧪 Test direct de synchronisation
+  Future<void> _testDirectSync() async {
+    // Sélectionner une compagnie pour tester
+    final companiesWithAdmin = _companies.where((c) => c['hasAdmin'] == true).toList();
+
+    if (companiesWithAdmin.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucune compagnie avec admin trouvée'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final selectedCompany = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('🧪 TEST DIRECT SYNC'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Sélectionnez une compagnie pour TEST DIRECT:'),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 200,
+                child: ListView.builder(
+                  itemCount: companiesWithAdmin.length,
+                  itemBuilder: (context, index) {
+                    final company = companiesWithAdmin[index];
+                    return ListTile(
+                      leading: Icon(
+                        Icons.business_rounded,
+                        color: _isCompanyActive(company) ? Colors.green : Colors.red,
+                      ),
+                      title: Text(company['nom'] ?? 'Sans nom'),
+                      subtitle: Text('Admin: ${company['adminCompagnieNom'] ?? 'Aucun'}'),
+                      trailing: Text(_isCompanyActive(company) ? 'ACTIF' : 'INACTIF'),
+                      onTap: () => Navigator.of(context).pop(company),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Annuler'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedCompany != null) {
+      _performDirectSyncTest(selectedCompany);
+    }
+  }
+
+  /// 🔬 Effectuer le test direct
+  Future<void> _performDirectSyncTest(Map<String, dynamic> company) async {
+    final currentStatus = _isCompanyActive(company);
+    final newStatus = !currentStatus; // Inverser pour tester
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('🧪 TEST DIRECT EN COURS...'),
+            Text('Regardez les logs dans la console !'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      debugPrint('');
+      debugPrint('🧪 ========== TEST DIRECT SYNC ==========');
+      debugPrint('🏢 Compagnie: ${company['nom']}');
+      debugPrint('🆔 CompagnieId: ${company['id']}');
+      debugPrint('📊 Statut actuel: $currentStatus');
+      debugPrint('📊 Nouveau statut: $newStatus');
+      debugPrint('👤 Admin actuel: ${company['adminCompagnieNom']}');
+      debugPrint('📧 Email admin: ${company['adminCompagnieEmail']}');
+      debugPrint('🔄 Appel DirectAdminSyncService.syncCompanyToAdmin...');
+      debugPrint('');
+
+      // Appel DIRECT au service
+      final result = await DirectAdminSyncService.syncCompanyToAdmin(
+        compagnieId: company['id'],
+        newStatus: newStatus,
+      );
+
+      debugPrint('');
+      debugPrint('📊 RÉSULTAT DU TEST:');
+      debugPrint('✅ Success: ${result['success']}');
+      debugPrint('👥 Admins mis à jour: ${result['adminsUpdated']}');
+      debugPrint('📝 Message: ${result['message']}');
+      if (result['updatedAdmins'] != null) {
+        final updatedAdmins = result['updatedAdmins'] as List<String>;
+        debugPrint('👤 Admins modifiés:');
+        for (final admin in updatedAdmins) {
+          debugPrint('   - $admin');
+        }
+      }
+      debugPrint('🧪 ========== FIN TEST DIRECT ==========');
+      debugPrint('');
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      // Afficher le résultat
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            result['success'] ? '✅ TEST RÉUSSI' : '❌ TEST ÉCHOUÉ',
+            style: TextStyle(
+              color: result['success'] ? Colors.green : Colors.red,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('🏢 Compagnie: ${company['nom']}'),
+              Text('📊 Changement: $currentStatus → $newStatus'),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (result['success'] ? Colors.green : Colors.red).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Résultat:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: result['success'] ? Colors.green : Colors.red,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('👥 Admins synchronisés: ${result['adminsUpdated'] ?? 0}'),
+                    Text('📝 ${result['message'] ?? result['error'] ?? 'Aucun message'}'),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '📋 Vérifiez les logs dans la console pour plus de détails !',
+                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                debugPrint('[TEST_DIRECT] 🔄 Rechargement après test direct');
+                _forceMultipleReloads(); // Rechargement multiple
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: result['success'] ? Colors.green : Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('OK - Recharger'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint('');
+      debugPrint('❌ ERREUR TEST DIRECT: $e');
+      debugPrint('🧪 ========== FIN TEST DIRECT (ERREUR) ==========');
+      debugPrint('');
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur test: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 🔄 Forcer plusieurs rechargements pour s'assurer de la mise à jour
+  Future<void> _forceMultipleReloads() async {
+    debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 DÉBUT RECHARGEMENTS MULTIPLES FORCÉS');
+
+    // Rechargement immédiat
+    await _loadData();
+    debugPrint('[ADMIN_COMPAGNIE_LIST] ✅ Rechargement 1/5 terminé');
+
+    // Rechargement après 300ms
+    Future.delayed(const Duration(milliseconds: 300), () async {
+      if (mounted) {
+        await _loadData();
+        debugPrint('[ADMIN_COMPAGNIE_LIST] ✅ Rechargement 2/5 terminé');
+      }
+    });
+
+    // Rechargement après 800ms
+    Future.delayed(const Duration(milliseconds: 800), () async {
+      if (mounted) {
+        await _loadData();
+        debugPrint('[ADMIN_COMPAGNIE_LIST] ✅ Rechargement 3/5 terminé');
+      }
+    });
+
+    // Rechargement après 1500ms
+    Future.delayed(const Duration(milliseconds: 1500), () async {
+      if (mounted) {
+        await _loadData();
+        debugPrint('[ADMIN_COMPAGNIE_LIST] ✅ Rechargement 4/5 terminé');
+      }
+    });
+
+    // Rechargement final après 2500ms
+    Future.delayed(const Duration(milliseconds: 2500), () async {
+      if (mounted) {
+        await _loadData();
+        debugPrint('[ADMIN_COMPAGNIE_LIST] ✅ Rechargement 5/5 FINAL terminé');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('🔄 Synchronisation terminée - Vérifiez l\'onglet Admins !'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    });
+  }
+
+  /// 🔧 FORCER la synchronisation compagnie-admin DIRECTEMENT
+  Future<void> _forceSyncCompanyAndAdmin(Map<String, dynamic> company, bool newStatus) async {
+    final compagnieId = company['id'] as String;
+    final compagnieNom = company['nom'] as String;
+
+    debugPrint('');
+    debugPrint('🔧 ========== SYNCHRONISATION FORCÉE ==========');
+    debugPrint('🏢 Compagnie: $compagnieNom');
+    debugPrint('🆔 ID: $compagnieId');
+    debugPrint('📊 Nouveau statut: ${newStatus ? "ACTIF" : "INACTIF"}');
+
+    try {
+      // 1. FORCER la mise à jour de la compagnie
+      await FirebaseFirestore.instance.collection('compagnies').doc(compagnieId).update({
+        'status': newStatus ? 'active' : 'inactive',
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': 'force_sync',
+        'lastForceSync': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      debugPrint('🔧 ✅ Compagnie mise à jour FORCÉE');
+
+      // 2. TROUVER et FORCER la mise à jour de l'admin
+
+      // Méthode 1: Par adminCompagnieId dans la compagnie
+      final adminCompagnieId = company['adminCompagnieId'] as String?;
+      if (adminCompagnieId != null && adminCompagnieId.isNotEmpty) {
+        debugPrint('🔧 🔍 Mise à jour admin par ID référencé: $adminCompagnieId');
+        await _forceUpdateAdmin(adminCompagnieId, newStatus, 'ID_REFERENCE');
+      }
+
+      // Méthode 2: Par compagnieId
+      final adminsByIdQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin_compagnie')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .get();
+
+      debugPrint('🔧 🔍 Admins trouvés par compagnieId: ${adminsByIdQuery.docs.length}');
+      for (final adminDoc in adminsByIdQuery.docs) {
+        await _forceUpdateAdmin(adminDoc.id, newStatus, 'COMPAGNIE_ID');
+      }
+
+      // Méthode 3: Par nom de compagnie
+      final adminsByNameQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin_compagnie')
+          .where('compagnieNom', isEqualTo: compagnieNom)
+          .get();
+
+      debugPrint('🔧 🔍 Admins trouvés par nom: ${adminsByNameQuery.docs.length}');
+      for (final adminDoc in adminsByNameQuery.docs) {
+        await _forceUpdateAdmin(adminDoc.id, newStatus, 'COMPAGNIE_NOM');
+      }
+
+      debugPrint('🔧 ========== SYNCHRONISATION FORCÉE TERMINÉE ==========');
+      debugPrint('');
+
+    } catch (e) {
+      debugPrint('🔧 ❌ ERREUR SYNCHRONISATION FORCÉE: $e');
+    }
+  }
+
+  /// 🔧 FORCER la mise à jour d'un admin spécifique
+  Future<void> _forceUpdateAdmin(String adminId, bool newStatus, String method) async {
+    try {
+      debugPrint('🔧 👤 FORCE UPDATE Admin: $adminId via $method');
+
+      // Récupérer l'admin actuel
+      final adminDoc = await FirebaseFirestore.instance.collection('users').doc(adminId).get();
+      if (!adminDoc.exists) {
+        debugPrint('🔧 ❌ Admin non trouvé: $adminId');
+        return;
+      }
+
+      final adminData = adminDoc.data()!;
+      final currentStatus = adminData['isActive'] ?? false;
+      final adminName = adminData['displayName'] ?? '${adminData['prenom']} ${adminData['nom']}';
+
+      debugPrint('🔧 👤 Admin: $adminName');
+      debugPrint('🔧 📊 Statut actuel: $currentStatus');
+      debugPrint('🔧 📊 Nouveau statut: $newStatus');
+
+      // FORCER la mise à jour
+      await FirebaseFirestore.instance.collection('users').doc(adminId).update({
+        'isActive': newStatus,
+        'status': newStatus ? 'actif' : 'inactif',
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': 'force_sync_$method',
+        'syncReason': newStatus
+            ? 'RÉACTIVATION FORCÉE suite à réactivation compagnie'
+            : 'DÉSACTIVATION FORCÉE suite à désactivation compagnie',
+        'lastForceSync': DateTime.now().millisecondsSinceEpoch,
+        'forceSyncMethod': method,
+      });
+
+      debugPrint('🔧 ✅ Admin $adminName FORCÉ: $currentStatus → $newStatus');
+
+      // Vérification immédiate
+      await Future.delayed(const Duration(milliseconds: 200));
+      final verifyDoc = await FirebaseFirestore.instance.collection('users').doc(adminId).get();
+      if (verifyDoc.exists) {
+        final verifyData = verifyDoc.data()!;
+        final verifiedStatus = verifyData['isActive'] ?? false;
+        debugPrint('🔧 🔍 VÉRIFICATION: $verifiedStatus (attendu: $newStatus)');
+
+        if (verifiedStatus == newStatus) {
+          debugPrint('🔧 ✅ VÉRIFICATION RÉUSSIE !');
+        } else {
+          debugPrint('🔧 ❌ VÉRIFICATION ÉCHOUÉE !');
+        }
+      }
+
+    } catch (e) {
+      debugPrint('🔧 ❌ ERREUR mise à jour admin $adminId: $e');
+    }
+  }
+
+  /// 📧 Mettre à jour admin par email
+  Future<int> _updateAdminByEmail(String email, bool newStatus) async {
+    try {
+      debugPrint('🔧 📧 Recherche admin par email: $email');
+
+      final query = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .where('role', isEqualTo: 'admin_compagnie')
+          .get();
+
+      debugPrint('🔧 📧 Admins trouvés par email: ${query.docs.length}');
+
+      for (final doc in query.docs) {
+        final data = doc.data();
+        final currentStatus = data['isActive'] ?? false;
+        final adminName = data['displayName'] ?? '${data['prenom']} ${data['nom']}';
+
+        debugPrint('🔧 📧 Mise à jour admin: $adminName ($currentStatus → $newStatus)');
+
+        await FirebaseFirestore.instance.collection('users').doc(doc.id).update({
+          'isActive': newStatus,
+          'status': newStatus ? 'actif' : 'inactif',
+          'updatedAt': FieldValue.serverTimestamp(),
+          'syncMethod': 'EMAIL',
+          'lastEmailSync': DateTime.now().millisecondsSinceEpoch,
+        });
+
+        debugPrint('🔧 📧 ✅ Admin mis à jour par email: $adminName');
+      }
+
+      return query.docs.length;
+    } catch (e) {
+      debugPrint('🔧 📧 ❌ Erreur mise à jour par email: $e');
+      return 0;
+    }
+  }
+
+  /// 👤 Mettre à jour admin par nom
+  Future<int> _updateAdminByName(String name, bool newStatus) async {
+    try {
+      debugPrint('🔧 👤 Recherche admin par nom: $name');
+
+      final query = await FirebaseFirestore.instance
+          .collection('users')
+          .where('displayName', isEqualTo: name)
+          .where('role', isEqualTo: 'admin_compagnie')
+          .get();
+
+      debugPrint('🔧 👤 Admins trouvés par nom: ${query.docs.length}');
+
+      for (final doc in query.docs) {
+        final data = doc.data();
+        final currentStatus = data['isActive'] ?? false;
+
+        debugPrint('🔧 👤 Mise à jour admin: $name ($currentStatus → $newStatus)');
+
+        await FirebaseFirestore.instance.collection('users').doc(doc.id).update({
+          'isActive': newStatus,
+          'status': newStatus ? 'actif' : 'inactif',
+          'updatedAt': FieldValue.serverTimestamp(),
+          'syncMethod': 'NAME',
+          'lastNameSync': DateTime.now().millisecondsSinceEpoch,
+        });
+
+        debugPrint('🔧 👤 ✅ Admin mis à jour par nom: $name');
+      }
+
+      return query.docs.length;
+    } catch (e) {
+      debugPrint('🔧 👤 ❌ Erreur mise à jour par nom: $e');
+      return 0;
+    }
+  }
+
+  /// 🔍 Recherche exhaustive et mise à jour de l'admin
+  Future<int> _findAndUpdateAdminExhaustive(Map<String, dynamic> company, bool newStatus) async {
+    final compagnieId = company['id'] as String;
+    final compagnieNom = company['nom'] as String;
+    final adminEmail = company['adminCompagnieEmail'] as String?;
+    final adminNom = company['adminCompagnieNom'] as String?;
+    final adminId = company['adminCompagnieId'] as String?;
+
+    int totalUpdated = 0;
+    final Set<String> updatedAdminIds = {};
+
+    try {
+      // STRATÉGIE 1: Par adminCompagnieId direct
+      if (adminId != null && adminId.isNotEmpty) {
+        debugPrint('🔧 🎯 STRATÉGIE 1: Recherche par adminCompagnieId: $adminId');
+        final adminDoc = await FirebaseFirestore.instance.collection('users').doc(adminId).get();
+        if (adminDoc.exists) {
+          final data = adminDoc.data()!;
+          if (data['role'] == 'admin_compagnie') {
+            await _updateSingleAdmin(adminDoc.id, data, newStatus, 'ADMIN_ID_DIRECT');
+            updatedAdminIds.add(adminDoc.id);
+            totalUpdated++;
+            debugPrint('🔧 ✅ STRATÉGIE 1 RÉUSSIE');
+          }
+        } else {
+          debugPrint('🔧 ❌ STRATÉGIE 1 ÉCHOUÉE: Admin non trouvé');
+        }
+      }
+
+      // STRATÉGIE 2: Par email
+      if (adminEmail != null && adminEmail.isNotEmpty) {
+        debugPrint('🔧 📧 STRATÉGIE 2: Recherche par email: $adminEmail');
+        final emailQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: adminEmail)
+            .where('role', isEqualTo: 'admin_compagnie')
+            .get();
+
+        debugPrint('🔧 📧 Admins trouvés par email: ${emailQuery.docs.length}');
+        for (final doc in emailQuery.docs) {
+          if (!updatedAdminIds.contains(doc.id)) {
+            await _updateSingleAdmin(doc.id, doc.data(), newStatus, 'EMAIL');
+            updatedAdminIds.add(doc.id);
+            totalUpdated++;
+          }
+        }
+      }
+
+      // STRATÉGIE 3: Par compagnieId
+      debugPrint('🔧 🏢 STRATÉGIE 3: Recherche par compagnieId: $compagnieId');
+      final compagnieIdQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin_compagnie')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .get();
+
+      debugPrint('🔧 🏢 Admins trouvés par compagnieId: ${compagnieIdQuery.docs.length}');
+      for (final doc in compagnieIdQuery.docs) {
+        if (!updatedAdminIds.contains(doc.id)) {
+          await _updateSingleAdmin(doc.id, doc.data(), newStatus, 'COMPAGNIE_ID');
+          updatedAdminIds.add(doc.id);
+          totalUpdated++;
+        }
+      }
+
+      // STRATÉGIE 4: Par nom de compagnie
+      debugPrint('🔧 🏷️ STRATÉGIE 4: Recherche par nom compagnie: $compagnieNom');
+      final compagnieNomQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin_compagnie')
+          .where('compagnieNom', isEqualTo: compagnieNom)
+          .get();
+
+      debugPrint('🔧 🏷️ Admins trouvés par nom compagnie: ${compagnieNomQuery.docs.length}');
+      for (final doc in compagnieNomQuery.docs) {
+        if (!updatedAdminIds.contains(doc.id)) {
+          await _updateSingleAdmin(doc.id, doc.data(), newStatus, 'COMPAGNIE_NOM');
+          updatedAdminIds.add(doc.id);
+          totalUpdated++;
+        }
+      }
+
+      // STRATÉGIE 5: Par nom d'admin (displayName)
+      if (adminNom != null && adminNom.isNotEmpty) {
+        debugPrint('🔧 👤 STRATÉGIE 5: Recherche par nom admin: $adminNom');
+        final adminNomQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('role', isEqualTo: 'admin_compagnie')
+            .where('displayName', isEqualTo: adminNom)
+            .get();
+
+        debugPrint('🔧 👤 Admins trouvés par nom: ${adminNomQuery.docs.length}');
+        for (final doc in adminNomQuery.docs) {
+          if (!updatedAdminIds.contains(doc.id)) {
+            await _updateSingleAdmin(doc.id, doc.data(), newStatus, 'ADMIN_NOM');
+            updatedAdminIds.add(doc.id);
+            totalUpdated++;
+          }
+        }
+      }
+
+      debugPrint('🔧 📊 TOTAL ADMINS MIS À JOUR: $totalUpdated');
+      debugPrint('🔧 📋 IDs mis à jour: ${updatedAdminIds.toList()}');
+
+      return totalUpdated;
+    } catch (e) {
+      debugPrint('🔧 ❌ ERREUR RECHERCHE EXHAUSTIVE: $e');
+      return 0;
+    }
+  }
+
+  /// 🔧 Mettre à jour un seul admin
+  Future<void> _updateSingleAdmin(String adminId, Map<String, dynamic> adminData, bool newStatus, String method) async {
+    try {
+      final currentStatus = adminData['isActive'] ?? false;
+      final adminName = adminData['displayName'] ?? '${adminData['prenom']} ${adminData['nom']}';
+
+      debugPrint('🔧 🔄 MISE À JOUR ADMIN ($method):');
+      debugPrint('🔧    ID: $adminId');
+      debugPrint('🔧    Nom: $adminName');
+      debugPrint('🔧    Statut: $currentStatus → $newStatus');
+
+      await FirebaseFirestore.instance.collection('users').doc(adminId).update({
+        'isActive': newStatus,
+        'status': newStatus ? 'actif' : 'inactif',
+        'updatedAt': FieldValue.serverTimestamp(),
+        'syncMethod': method,
+        'syncReason': newStatus
+            ? 'RÉACTIVATION automatique compagnie'
+            : 'DÉSACTIVATION automatique compagnie',
+        'lastExhaustiveSync': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      // Vérification immédiate
+      await Future.delayed(const Duration(milliseconds: 100));
+      final verifyDoc = await FirebaseFirestore.instance.collection('users').doc(adminId).get();
+      if (verifyDoc.exists) {
+        final verifyData = verifyDoc.data()!;
+        final verifiedStatus = verifyData['isActive'] ?? false;
+        debugPrint('🔧 🔍 VÉRIFICATION: $verifiedStatus (attendu: $newStatus)');
+
+        if (verifiedStatus == newStatus) {
+          debugPrint('🔧 ✅ ADMIN $adminName MIS À JOUR AVEC SUCCÈS !');
+        } else {
+          debugPrint('🔧 ❌ ÉCHEC MISE À JOUR ADMIN $adminName !');
+        }
+      }
+    } catch (e) {
+      debugPrint('🔧 ❌ ERREUR MISE À JOUR ADMIN $adminId: $e');
+    }
+  }
+
   /// 🔄 Forcer le rechargement des données
   Future<void> _forceRefresh() async {
     debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Rechargement forcé demandé');
@@ -2025,6 +3013,139 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
         duration: Duration(seconds: 2),
       ),
     );
+  }
+
+  /// 🔑 Afficher les identifiants des admins compagnie
+  Future<void> _showAdminCredentials() async {
+    try {
+      debugPrint('[ADMIN_COMPAGNIE_LIST] 🔑 Récupération identifiants admins...');
+
+      final usersQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin_compagnie')
+          .orderBy('created_at', descending: true)
+          .limit(10)
+          .get();
+
+      if (usersQuery.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Aucun admin compagnie trouvé'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      final admins = usersQuery.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'email': data['email'] ?? 'Email non défini',
+          'password': data['password'] ??
+                     data['temporaryPassword'] ??
+                     data['motDePasseTemporaire'] ??
+                     data['generated_password'] ??
+                     'Mot de passe non trouvé',
+          'nom': '${data['prenom'] ?? ''} ${data['nom'] ?? ''}',
+          'compagnie': data['compagnieNom'] ?? 'Compagnie non définie',
+          'status': data['status'] ?? 'Statut inconnu',
+          'firebaseAuth': data['firebaseAuthCreated'] ?? false,
+        };
+      }).toList();
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.key_rounded, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Identifiants Admins Compagnie'),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 400,
+            child: ListView.builder(
+              itemCount: admins.length,
+              itemBuilder: (context, index) {
+                final admin = admins[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              admin['firebaseAuth'] ? Icons.verified : Icons.pending,
+                              color: admin['firebaseAuth'] ? Colors.green : Colors.orange,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                admin['nom'],
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text('📧 ${admin['email']}'),
+                        Text('🔑 ${admin['password']}'),
+                        Text('🏢 ${admin['compagnie']}'),
+                        Text('📊 ${admin['status']}'),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(
+                                  text: 'Email: ${admin['email']}\nMot de passe: ${admin['password']}',
+                                ));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Identifiants copiés')),
+                                );
+                              },
+                              icon: const Icon(Icons.copy, size: 16),
+                              label: const Text('Copier'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fermer'),
+            ),
+          ],
+        ),
+      );
+
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_LIST] ❌ Erreur récupération identifiants: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   /// ⚠️ Confirmer la correction des doublons
@@ -2914,63 +4035,153 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
     );
 
     try {
-      final result = await CompanyManagementService.toggleCompanyStatusWithSync(
+      debugPrint('');
+      debugPrint('🔄 ========== SYNCHRONISATION AUTOMATIQUE ==========');
+      debugPrint('🏢 Compagnie: ${company['nom']}');
+      debugPrint('🆔 CompagnieId: ${company['id']}');
+      debugPrint('📊 Changement: $currentStatus → $newStatus');
+      debugPrint('👤 Admin: ${company['adminCompagnieNom']}');
+      debugPrint('🔄 Appel synchronisation directe...');
+      debugPrint('');
+
+      // RETOUR À LA MÉTHODE QUI MARCHAIT HIER
+      debugPrint('');
+      debugPrint('🔄 ========== SYNCHRONISATION AUTOMATIQUE ==========');
+      debugPrint('🏢 Compagnie: ${company['nom']}');
+      debugPrint('🆔 CompagnieId: ${company['id']}');
+      debugPrint('📊 Changement: $currentStatus → $newStatus');
+      debugPrint('👤 Admin: ${company['adminCompagnieNom']}');
+      debugPrint('🔄 Appel synchronisation directe...');
+      debugPrint('');
+
+      // Utiliser EXACTEMENT le même service qui marchait hier
+      debugPrint('🔄 AVANT APPEL DirectAdminSyncService.syncCompanyToAdmin');
+      debugPrint('🔄 CompagnieId: ${company['id']}');
+      debugPrint('🔄 NewStatus: $newStatus');
+
+      final result = await DirectAdminSyncService.syncCompanyToAdmin(
         compagnieId: company['id'],
         newStatus: newStatus,
       );
 
+      debugPrint('🔄 APRÈS APPEL DirectAdminSyncService.syncCompanyToAdmin');
+      debugPrint('🔄 Résultat reçu: $result');
+
+      debugPrint('');
+      debugPrint('📊 RÉSULTAT SYNCHRONISATION:');
+      debugPrint('✅ Success: ${result['success']}');
+      debugPrint('👥 Admins synchronisés: ${result['adminsUpdated']}');
+      debugPrint('📝 Message: ${result['message']}');
+      if (result['updatedAdmins'] != null) {
+        final updatedAdmins = result['updatedAdmins'] as List<String>;
+        debugPrint('👤 Admins modifiés:');
+        for (final admin in updatedAdmins) {
+          debugPrint('   - $admin');
+        }
+      }
+      debugPrint('🔄 ========== FIN SYNCHRONISATION ==========');
+      debugPrint('');
+
+
+      debugPrint('');
+      debugPrint('📊 RÉSULTAT SYNCHRONISATION:');
+      debugPrint('✅ Success: ${result['success']}');
+      debugPrint('👥 Admins synchronisés: ${result['adminsUpdated']}');
+      debugPrint('📝 Message: ${result['message']}');
+      if (result['updatedAdmins'] != null) {
+        final updatedAdmins = result['updatedAdmins'] as List<String>;
+        debugPrint('👤 Admins modifiés:');
+        for (final admin in updatedAdmins) {
+          debugPrint('   - $admin');
+        }
+      }
+      debugPrint('🔄 ========== FIN SYNCHRONISATION ==========');
+      debugPrint('');
+
       // Fermer l'indicateur de chargement
       Navigator.of(context).pop();
 
-      if (result['success']) {
-        // Afficher le résultat de la synchronisation
+      if (result['success'] == true) {
+        // Vérifier si le widget est encore monté avant d'afficher le dialogue
+        if (!mounted) return;
+
+        // Afficher le résultat de la synchronisation avec détails
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
             title: _buildDialogTitle(
               icon: Icons.check_circle_rounded,
-              text: 'Synchronisation réussie',
+              text: 'Synchronisation automatique réussie',
               iconColor: Colors.green,
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('✅ ${result['message']}'),
-                const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.green.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.green.withOpacity(0.3),
-                    ),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('🔄 Synchronisation effectuée:',
+                      const Text('✅ Synchronisation automatique effectuée:',
                         style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                       const SizedBox(height: 8),
-                      Text('🏢 Compagnie: ${newStatus ? 'Activée' : 'Désactivée'}'),
-                      if (result['adminsUpdated'] > 0) ...[
-                        Text('👤 Admin synchronisé: ${result['adminInfo']}'),
-                        Text('📊 Statut admin: ${newStatus ? 'Actif' : 'Inactif'}'),
-                      ] else
-                        const Text('👤 Aucun admin à synchroniser'),
+                      Text('🏢 Compagnie: ${company['nom']} → ${newStatus ? 'ACTIVÉE' : 'DÉSACTIVÉE'}'),
+                      Text('👥 Admins synchronisés: ${result['adminsUpdated'] ?? 0}'),
+                      if (result['updatedAdmins'] != null && (result['updatedAdmins'] as List).isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        const Text('👤 Admins modifiés:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ...(result['updatedAdmins'] as List<String>).map((admin) =>
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16),
+                            child: Text('• $admin → ${newStatus ? 'ACTIF' : 'INACTIF'}'),
+                          )
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.info_rounded, color: Colors.blue, size: 16),
+                          SizedBox(width: 8),
+                          Text('Vérification:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text('🔄 Les données vont être rechargées automatiquement'),
+                      Text('👀 Vérifiez l\'onglet "Admins" pour voir le changement'),
+                      Text('📊 L\'admin doit maintenant être "${newStatus ? 'ACTIF' : 'INACTIF'}"'),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   newStatus
-                      ? '🎉 La compagnie et son admin sont maintenant actifs !'
-                      : '⚠️ La compagnie et son admin sont maintenant inactifs.',
+                      ? '🎉 Compagnie ET admin maintenant ACTIFS !'
+                      : '⚠️ Compagnie ET admin maintenant INACTIFS !',
                   style: TextStyle(
                     color: newStatus ? Colors.green : Colors.orange,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -2978,20 +4189,15 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).pop();
-                  // Recharger les données avec un délai pour laisser le temps à Firestore de se synchroniser
-                  debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Programmation rechargement après synchronisation');
-                  Future.delayed(const Duration(milliseconds: 1000), () {
-                    if (mounted) {
-                      debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 Rechargement après synchronisation');
-                      _loadData();
-                    }
-                  });
+                  // Recharger IMMÉDIATEMENT et plusieurs fois pour forcer la mise à jour
+                  debugPrint('[ADMIN_COMPAGNIE_LIST] 🔄 RECHARGEMENT FORCÉ APRÈS SYNCHRONISATION AUTOMATIQUE');
+                  _forceMultipleReloads();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('OK'),
+                child: const Text('✅ OK - Recharger les données'),
               ),
             ],
           ),
@@ -5035,4 +6241,1315 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
       _showErrorSnackBar('Erreur lors de la correction: $e');
     }
   }
+
+  /// 🧪 Créer un admin compagnie de test
+  Future<void> _createTestAdminCompagnie() async {
+    // Dialogue de confirmation
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.person_add_rounded, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('🧪 Créer Admin Test'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Voulez-vous créer un admin compagnie de test ?'),
+            SizedBox(height: 16),
+            Text(
+              '📧 Email: admin.test@comarassurances.com\n'
+              '🔑 Mot de passe: Test123!\n'
+              '🏢 Sera assigné à une compagnie existante',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            child: const Text('Créer', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Afficher indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Création en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await CreateTestAdminCompagnie.createTestAdmin();
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (result['success']) {
+        // Recharger les données
+        await _loadData();
+
+        // Afficher le résultat
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 8),
+                Text('✅ Admin créé'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${result['message']}'),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('🔑 Identifiants de connexion:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Text('📧 Email: ${result['email']}'),
+                      Text('🔑 Mot de passe: ${result['password']}'),
+                      Text('🏢 Compagnie: ${result['compagnieNom']}'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '💡 Vous pouvez maintenant tester la connexion avec ces identifiants !',
+                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // Afficher l'erreur
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.red),
+                SizedBox(width: 8),
+                Text('❌ Erreur'),
+              ],
+            ),
+            content: Text('${result['error']}'),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      }
+
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.error, color: Colors.red),
+              SizedBox(width: 8),
+              Text('❌ Erreur'),
+            ],
+          ),
+          content: Text('Erreur lors de la création: $e'),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  /// 🔄 Configuration temporaire admin compagnie
+  Future<void> _setupTempAdminCompagnie() async {
+    // Vérifier l'état actuel
+    final currentState = await TempAdminCompagnieSetup.checkCurrentState();
+
+    if (currentState['success']) {
+      final isTemp = currentState['isTemporaryModification'] ?? false;
+      final currentRole = currentState['currentRole'];
+
+      if (isTemp) {
+        // Proposer de restaurer
+        _showRestoreDialog();
+        return;
+      }
+    }
+
+    // Dialogue de configuration
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.swap_horiz_rounded, color: Colors.purple),
+            SizedBox(width: 8),
+            Text('🔄 Configuration Temporaire'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Cette action va temporairement transformer le Super Admin en Admin Compagnie pour tester le dashboard.'),
+            SizedBox(height: 16),
+            Text(
+              '⚠️ ATTENTION :\n'
+              '• Le rôle sera modifié temporairement\n'
+              '• Vous pourrez restaurer facilement\n'
+              '• Utilisez constat.tunisie.app@gmail.com pour vous connecter',
+              style: TextStyle(fontSize: 12, color: Colors.orange),
+            ),
+            SizedBox(height: 16),
+            Text(
+              '🔑 Identifiants de test :\n'
+              'Email: constat.tunisie.app@gmail.com\n'
+              'Mot de passe: Acheya123',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+            child: const Text('Configurer', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Afficher indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Configuration en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await TempAdminCompagnieSetup.makeSuperAdminCompagnieAdmin();
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (result['success']) {
+        // Recharger les données
+        await _loadData();
+
+        // Afficher le résultat
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 8),
+                Text('✅ Configuration réussie'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${result['message']}'),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('🎯 ÉTAPES SUIVANTES:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      const Text('1. Déconnectez-vous du Super Admin',
+                        style: TextStyle(fontSize: 12)),
+                      const Text('2. Reconnectez-vous avec les mêmes identifiants',
+                        style: TextStyle(fontSize: 12)),
+                      const Text('3. Vous serez redirigé vers le Dashboard Admin Compagnie',
+                        style: TextStyle(fontSize: 12)),
+                      const SizedBox(height: 8),
+                      Text('🏢 Compagnie assignée: ${result['compagnieNom']}'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '🔄 Pour restaurer le Super Admin, utilisez "Config Temp Admin" → "Restaurer"',
+                  style: TextStyle(color: Colors.orange, fontSize: 11),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      } else {
+        _showErrorDialog('Erreur de configuration', result['error']);
+      }
+
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      _showErrorDialog('Erreur', 'Erreur lors de la configuration: $e');
+    }
+  }
+
+  /// 🔙 Dialogue de restauration
+  void _showRestoreDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.restore_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('🔙 Restaurer Super Admin'),
+          ],
+        ),
+        content: const Text(
+          'Le Super Admin est actuellement configuré comme Admin Compagnie.\n\n'
+          'Voulez-vous restaurer le rôle Super Admin original ?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _restoreSuperAdmin();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Restaurer', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🔙 Restaurer le super admin
+  Future<void> _restoreSuperAdmin() async {
+    // Afficher indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Restauration en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await TempAdminCompagnieSetup.restoreSuperAdmin();
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (result['success']) {
+        // Recharger les données
+        await _loadData();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Super Admin restauré avec succès'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        _showErrorDialog('Erreur de restauration', result['error']);
+      }
+
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      _showErrorDialog('Erreur', 'Erreur lors de la restauration: $e');
+    }
+  }
+
+  /// ❌ Afficher dialogue d'erreur
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.red),
+            const SizedBox(width: 8),
+            Text(title),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('OK', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🧪 Tester la création Firebase Auth
+  Future<void> _testFirebaseAuthCreation() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.security_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('🧪 Test Firebase Auth'),
+          ],
+        ),
+        content: const Text(
+          'Ce test va créer un admin compagnie avec Firebase Auth.\n\n'
+          'Email: test.firebase@comarassurances.com\n'
+          'Vous pourrez ensuite tester la connexion.'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Créer Test', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Afficher indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Test en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // Trouver une compagnie
+      final compagniesQuery = await FirebaseFirestore.instance
+          .collection('compagnies')
+          .limit(1)
+          .get();
+
+      if (compagniesQuery.docs.isEmpty) {
+        throw Exception('Aucune compagnie trouvée');
+      }
+
+      final compagnie = compagniesQuery.docs.first;
+      final compagnieNom = compagnie.data()['nom'] ?? 'Test Company';
+
+      // Créer l'admin avec Firebase Auth
+      final result = await AdminCompagnieService.creerAdminCompagnie(
+        compagnieNom: compagnieNom,
+        nom: 'Firebase',
+        prenom: 'Test',
+        email: 'test.firebase@comarassurances.com',
+        telephone: '+216 12 345 678',
+      );
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (result['success']) {
+        // Recharger les données
+        await _loadData();
+
+        // Afficher le résultat
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 8),
+                Text('✅ Test réussi !'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('🎉 Admin compagnie créé avec Firebase Auth !'),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('🔑 Identifiants de test:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      const Text('📧 Email: test.firebase@comarassurances.com'),
+                      Text('🔑 Mot de passe: ${result['password']}'),
+                      Text('🏢 Compagnie: $compagnieNom'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '🎯 Maintenant déconnectez-vous et testez la connexion !',
+                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      } else {
+        _showErrorDialog('Erreur de test', result['error']);
+      }
+
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      _showErrorDialog('Erreur', 'Erreur lors du test: $e');
+    }
+  }
+
+  /// 🔗 Libérer les compagnies des admins désactivés
+  Future<void> _fixCompanyLinks() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.link_off_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('🔗 Libérer Compagnies'),
+          ],
+        ),
+        content: const Text(
+          'Cette action va libérer toutes les compagnies qui sont encore liées à des admins désactivés.\n\n'
+          'Cela permettra de créer de nouveaux admins pour ces compagnies.'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Libérer', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Afficher indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Libération en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      int companiesFixed = 0;
+
+      // 1. Récupérer toutes les compagnies
+      final compagniesQuery = await FirebaseFirestore.instance
+          .collection('compagnies')
+          .get();
+
+      for (final compagnieDoc in compagniesQuery.docs) {
+        final compagnieData = compagnieDoc.data();
+        final adminId = compagnieData['adminCompagnieId'] as String?;
+
+        if (adminId != null && adminId.isNotEmpty) {
+          // 2. Vérifier si l'admin existe et est actif
+          try {
+            final adminDoc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(adminId)
+                .get();
+
+            bool shouldFreeCompany = false;
+
+            if (!adminDoc.exists) {
+              // Admin n'existe plus
+              debugPrint('[FIX_COMPANY_LINKS] Admin $adminId n\'existe plus');
+              shouldFreeCompany = true;
+            } else {
+              final adminData = adminDoc.data()!;
+              final isActive = adminData['isActive'] ?? false;
+              final status = adminData['status'] ?? '';
+
+              if (!isActive || status != 'actif') {
+                // Admin désactivé
+                debugPrint('[FIX_COMPANY_LINKS] Admin $adminId est désactivé');
+                shouldFreeCompany = true;
+              }
+            }
+
+            // 3. Libérer la compagnie si nécessaire
+            if (shouldFreeCompany) {
+              await FirebaseFirestore.instance
+                  .collection('compagnies')
+                  .doc(compagnieDoc.id)
+                  .update({
+                'adminCompagnieId': FieldValue.delete(),
+                'adminCompagnieNom': FieldValue.delete(),
+                'adminCompagnieEmail': FieldValue.delete(),
+                'adminAssignedAt': FieldValue.delete(),
+                'adminDeactivatedAt': FieldValue.serverTimestamp(),
+                'isAvailable': true,
+                'updatedAt': FieldValue.serverTimestamp(),
+              });
+
+              companiesFixed++;
+              debugPrint('[FIX_COMPANY_LINKS] ✅ Compagnie ${compagnieData['nom']} libérée');
+            }
+
+          } catch (e) {
+            debugPrint('[FIX_COMPANY_LINKS] ❌ Erreur vérification admin $adminId: $e');
+          }
+        }
+      }
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      // Recharger les données
+      await _loadData();
+
+      // Afficher le résultat
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                companiesFixed > 0 ? Icons.check_circle : Icons.info,
+                color: companiesFixed > 0 ? Colors.green : Colors.blue,
+              ),
+              const SizedBox(width: 8),
+              Text(companiesFixed > 0 ? '✅ Libération terminée' : 'ℹ️ Aucune action nécessaire'),
+            ],
+          ),
+          content: Text(
+            companiesFixed > 0
+                ? '$companiesFixed compagnie(s) ont été libérées.\n\nVous pouvez maintenant créer de nouveaux admins pour ces compagnies.'
+                : 'Toutes les compagnies sont déjà correctement configurées.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: companiesFixed > 0 ? Colors.green : Colors.blue,
+              ),
+              child: const Text('OK', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      _showErrorDialog('Erreur', 'Erreur lors de la libération: $e');
+    }
+  }
+
+  /// ✅ Finaliser la création d'admin compagnie (contournement bug Firebase)
+  Future<void> _finalizeAdminCreation() async {
+    // Dialogue pour saisir les informations
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => _FinalizeAdminDialog(),
+    );
+
+    if (result == null) return;
+
+    // Afficher indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Finalisation en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final finalizeResult = await AdminCompagnieService.verifyAndFinalizeAdminCreation(
+        email: result['email']!,
+        prenom: result['prenom']!,
+        nom: result['nom']!,
+        telephone: result['telephone']!,
+        compagnieId: result['compagnieId']!,
+        compagnieNom: result['compagnieNom']!,
+        password: result['password']!,
+      );
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (finalizeResult['success']) {
+        // Recharger les données
+        await _loadData();
+
+        // Afficher le succès
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 8),
+                Text('✅ Finalisation réussie'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Admin compagnie finalisé avec succès !'),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('📧 Email: ${result['email']}'),
+                      Text('🔑 Mot de passe: ${result['password']}'),
+                      Text('🏢 Compagnie: ${result['compagnieNom']}'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      } else {
+        _showErrorDialog('Erreur de finalisation', finalizeResult['error']);
+      }
+
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      _showErrorDialog('Erreur', 'Erreur lors de la finalisation: $e');
+    }
+  }
+
+  /// 🔍 Vérifier les règles Firestore
+  Future<void> _checkFirestoreRules() async {
+    // Afficher indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Vérification des règles...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final rulesResult = await FirestoreRulesService.checkFirestoreRules();
+      final userInfo = await FirestoreRulesService.getCurrentUserInfo();
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      // Afficher les résultats
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                rulesResult['success'] ? Icons.check_circle : Icons.error,
+                color: rulesResult['success'] ? Colors.green : Colors.red,
+              ),
+              const SizedBox(width: 8),
+              Text(rulesResult['success'] ? '✅ Règles OK' : '❌ Règles à ajuster'),
+            ],
+          ),
+          content: SizedBox(
+            width: 500,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Informations utilisateur
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('👤 Utilisateur actuel:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text('Email: ${userInfo['email'] ?? 'Non connecté'}'),
+                        Text('UID: ${userInfo['uid'] ?? 'N/A'}'),
+                        Text('Authentifié: ${userInfo['authenticated'] ?? false}'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Résultats des tests
+                  const Text('🔍 Résultats des tests:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  ...((rulesResult['results'] as Map<String, bool>? ?? {}).entries.map((entry) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        children: [
+                          Icon(
+                            entry.value ? Icons.check_circle : Icons.error,
+                            color: entry.value ? Colors.green : Colors.red,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(entry.key.replaceAll('_', ' ').toUpperCase()),
+                        ],
+                      ),
+                    );
+                  }).toList()),
+
+                  if (!rulesResult['success']) ...[
+                    const SizedBox(height: 16),
+                    const Text('❌ Erreurs:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                    const SizedBox(height: 8),
+                    ...((rulesResult['errors'] as List<String>? ?? []).map((error) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text('• $error', style: const TextStyle(fontSize: 12, color: Colors.red)),
+                      );
+                    }).toList()),
+
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('🔧 Solution:', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          const Text('1. Allez sur Firebase Console'),
+                          const Text('2. Firestore Database → Règles'),
+                          const Text('3. Remplacez par les règles recommandées'),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              // Copier les règles dans le presse-papier
+                              final rules = FirestoreRulesService.getRecommendedRules();
+                              // Note: Il faudrait ajouter le package clipboard pour copier
+                              debugPrint('Règles recommandées:\n$rules');
+                            },
+                            icon: const Icon(Icons.copy, size: 16),
+                            label: const Text('Voir règles recommandées'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: rulesResult['success'] ? Colors.green : Colors.orange,
+              ),
+              child: const Text('OK', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      _showErrorDialog('Erreur', 'Erreur lors de la vérification: $e');
+    }
+  }
+
+  /// 🔧 Créer admin compagnie avec méthode alternative (contournement SSL)
+  Future<void> _createAdminAlternative() async {
+    // Dialogue pour saisir les informations
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => _CreateAlternativeAdminDialog(),
+    );
+
+    if (result == null) return;
+
+    // Afficher indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Création alternative en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final createResult = await AdminCompagnieService.createAdminCompagnieAlternative(
+        prenom: result['prenom']!,
+        nom: result['nom']!,
+        telephone: result['telephone']!,
+        compagnieId: result['compagnieId']!,
+        compagnieNom: result['compagnieNom']!,
+      );
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (createResult['success']) {
+        // Recharger les données
+        await _loadData();
+
+        // Afficher le succès
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.blue),
+                SizedBox(width: 8),
+                Text('✅ Création alternative réussie'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Admin compagnie créé avec la méthode alternative !'),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('📧 Email: ${createResult['email']}'),
+                      Text('🔑 Mot de passe: ${createResult['password']}'),
+                      Text('🏢 Compagnie: ${createResult['compagnieNom']}'),
+                      const SizedBox(height: 8),
+                      const Text(
+                        '⚠️ Note: Le compte Firebase Auth sera créé lors de la première connexion',
+                        style: TextStyle(fontSize: 12, color: Colors.orange),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      } else {
+        _showErrorDialog('Erreur de création alternative', createResult['error']);
+      }
+
+    } catch (e) {
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+      _showErrorDialog('Erreur', 'Erreur lors de la création alternative: $e');
+    }
+  }
+}
+
+/// 📝 Dialogue pour finaliser la création d'admin
+class _FinalizeAdminDialog extends StatefulWidget {
+  @override
+  State<_FinalizeAdminDialog> createState() => _FinalizeAdminDialogState();
+}
+
+class _FinalizeAdminDialogState extends State<_FinalizeAdminDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController(text: 'karim.kr9@comarassurances.com');
+  final _prenomController = TextEditingController(text: 'karim');
+  final _nomController = TextEditingController(text: 'kr9');
+  final _telephoneController = TextEditingController(text: '+216 12 345 678');
+  final _passwordController = TextEditingController();
+
+  String _selectedCompagnieId = 'aTjE287t3aHikNoB47BY';
+  String _selectedCompagnieNom = 'COMAR Assurances';
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.check_circle_rounded, color: Colors.green),
+          SizedBox(width: 8),
+          Text('✅ Finaliser Création Admin'),
+        ],
+      ),
+      content: SizedBox(
+        width: 400,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Saisissez les informations de l\'admin à finaliser :',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => value?.isEmpty == true ? 'Requis' : null,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _prenomController,
+                      decoration: const InputDecoration(
+                        labelText: 'Prénom',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => value?.isEmpty == true ? 'Requis' : null,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _nomController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nom',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => value?.isEmpty == true ? 'Requis' : null,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _telephoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Téléphone',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => value?.isEmpty == true ? 'Requis' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Mot de passe généré',
+                  border: OutlineInputBorder(),
+                  hintText: 'Saisissez le mot de passe qui a été généré',
+                ),
+                validator: (value) => value?.isEmpty == true ? 'Requis' : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              Navigator.pop(context, {
+                'email': _emailController.text.trim(),
+                'prenom': _prenomController.text.trim(),
+                'nom': _nomController.text.trim(),
+                'telephone': _telephoneController.text.trim(),
+                'password': _passwordController.text.trim(),
+                'compagnieId': _selectedCompagnieId,
+                'compagnieNom': _selectedCompagnieNom,
+              });
+            }
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+          child: const Text('Finaliser', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    );
+  }
+}
+
+/// 🔧 Dialogue pour création alternative d'admin
+class _CreateAlternativeAdminDialog extends StatefulWidget {
+  @override
+  State<_CreateAlternativeAdminDialog> createState() => _CreateAlternativeAdminDialogState();
+}
+
+class _CreateAlternativeAdminDialogState extends State<_CreateAlternativeAdminDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _prenomController = TextEditingController(text: 'karim');
+  final _nomController = TextEditingController(text: 'kr9');
+  final _telephoneController = TextEditingController(text: '+216 12 345 678');
+
+  String _selectedCompagnieId = 'aTjE287t3aHikNoB47BY';
+  String _selectedCompagnieNom = 'COMAR Assurances';
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.build_rounded, color: Colors.blue),
+          SizedBox(width: 8),
+          Text('🔧 Création Alternative'),
+        ],
+      ),
+      content: SizedBox(
+        width: 400,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Cette méthode contourne les problèmes SSL de Firebase Auth.',
+                style: TextStyle(fontSize: 14, color: Colors.blue),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _prenomController,
+                      decoration: const InputDecoration(
+                        labelText: 'Prénom',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => value?.isEmpty == true ? 'Requis' : null,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _nomController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nom',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => value?.isEmpty == true ? 'Requis' : null,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _telephoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Téléphone',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => value?.isEmpty == true ? 'Requis' : null,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('🏢 Compagnie sélectionnée:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text('Nom: $_selectedCompagnieNom'),
+                    Text('ID: $_selectedCompagnieId'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              Navigator.pop(context, {
+                'prenom': _prenomController.text.trim(),
+                'nom': _nomController.text.trim(),
+                'telephone': _telephoneController.text.trim(),
+                'compagnieId': _selectedCompagnieId,
+                'compagnieNom': _selectedCompagnieNom,
+              });
+            }
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+          child: const Text('Créer', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    );
+  }
+
+
 }

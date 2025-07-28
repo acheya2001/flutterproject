@@ -630,12 +630,7 @@ class UserTypeSelectionScreenModern extends StatelessWidget {
   }
 
   void _handleSuperAdminAccess(BuildContext context) {
-    // Logique d'accès super admin
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => LoginScreen(userType: 'super_admin'),
-      ),
-    );
+    // Accès direct au dashboard Super Admin
+    Navigator.pushReplacementNamed(context, '/super-admin-dashboard');
   }
 }

@@ -1,0 +1,208 @@
+// 🔐 Règles Firestore pour la gestion des agences et admins agence
+// À ajouter dans les règles Firestore de votre projet
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 🏢 Collection des agences
+    match /agences/{agenceId} {
+      // Lecture : Super Admin, Admin Compagnie (sa compagnie), Admin Agence (son agence)
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdminCompagnie() && resource.data.compagnieId == getUserCompagnieId()) ||
+        (isAdminAgence() && resource.id == getUserAgenceId())
+      );
+      
+      // Création : Super Admin, Admin Compagnie (sa compagnie uniquement)
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdminCompagnie() && request.resource.data.compagnieId == getUserCompagnieId())
+      ) && validateAgenceData();
+      
+      // Modification : Super Admin, Admin Compagnie (sa compagnie)
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdminCompagnie() && resource.data.compagnieId == getUserCompagnieId())
+      ) && validateAgenceUpdate();
+      
+      // Suppression : Super Admin uniquement
+      allow delete: if isAuthenticated() && isSuperAdmin();
+    }
+    
+    // 👥 Collection des utilisateurs (pour les admins agence)
+    match /users/{userId} {
+      // Lecture des admins agence
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdminCompagnie() && resource.data.compagnieId == getUserCompagnieId()) ||
+        (isAdminAgence() && resource.id == request.auth.uid)
+      );
+      
+      // Création d'admin agence
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdminCompagnie() && request.resource.data.compagnieId == getUserCompagnieId())
+      ) && request.resource.data.role == 'admin_agence' && validateAdminAgenceData();
+      
+      // Modification d'admin agence
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdminCompagnie() && resource.data.compagnieId == getUserCompagnieId()) ||
+        (isAdminAgence() && resource.id == request.auth.uid && isProfileUpdate())
+      );
+      
+      // Suppression : Super Admin uniquement
+      allow delete: if isAuthenticated() && isSuperAdmin();
+    }
+    
+    // 📋 Collection des constats (lecture pour admin compagnie et admin agence)
+    match /constats/{constatId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdminCompagnie() && resource.data.compagnieId == getUserCompagnieId()) ||
+        (isAdminAgence() && resource.data.agenceId == getUserAgenceId())
+      );
+    }
+    
+    // 🏛️ Collection des compagnies (lecture pour admin compagnie)
+    match /compagnies_assurance/{compagnieId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdminCompagnie() && resource.id == getUserCompagnieId())
+      );
+    }
+    
+    // 🔧 Fonctions utilitaires
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isSuperAdmin() {
+      return getUserRole() == 'super_admin';
+    }
+    
+    function isAdminCompagnie() {
+      return getUserRole() == 'admin_compagnie';
+    }
+    
+    function isAdminAgence() {
+      return getUserRole() == 'admin_agence';
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function getUserCompagnieId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.compagnieId;
+    }
+    
+    function getUserAgenceId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agenceId;
+    }
+    
+    // ✅ Validation des données d'agence
+    function validateAgenceData() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['nom', 'code', 'adresse', 'telephone', 'gouvernorat', 'emailContact', 'compagnieId', 'compagnieNom']) &&
+             data.nom is string && data.nom.size() > 0 &&
+             data.code is string && data.code.size() > 0 &&
+             data.adresse is string && data.adresse.size() > 0 &&
+             data.telephone is string && data.telephone.size() > 0 &&
+             data.gouvernorat is string && data.gouvernorat.size() > 0 &&
+             data.emailContact is string && data.emailContact.matches('.*@.*\\..*') &&
+             data.compagnieId is string && data.compagnieId.size() > 0 &&
+             data.compagnieNom is string && data.compagnieNom.size() > 0 &&
+             data.isActive is bool &&
+             data.hasAdminAgence is bool &&
+             data.nombreAgents is number &&
+             data.nombreConstats is number &&
+             data.dateCreation is timestamp &&
+             data.createdBy is string;
+    }
+    
+    // ✅ Validation des mises à jour d'agence
+    function validateAgenceUpdate() {
+      let data = request.resource.data;
+      // Empêcher la modification de certains champs critiques
+      return !data.diff(resource.data).affectedKeys().hasAny(['compagnieId', 'code', 'dateCreation', 'createdBy']) &&
+             // Valider les champs modifiables
+             (data.nom is string && data.nom.size() > 0) &&
+             (data.adresse is string && data.adresse.size() > 0) &&
+             (data.telephone is string && data.telephone.size() > 0) &&
+             (data.emailContact is string && data.emailContact.matches('.*@.*\\..*'));
+    }
+    
+    // ✅ Validation des données d'admin agence
+    function validateAdminAgenceData() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['uid', 'email', 'password', 'prenom', 'nom', 'telephone', 'role', 'agenceId', 'agenceNom', 'compagnieId', 'compagnieNom']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && data.email.matches('.*@.*\\..*') &&
+             data.password is string && data.password.size() >= 8 &&
+             data.prenom is string && data.prenom.size() > 0 &&
+             data.nom is string && data.nom.size() > 0 &&
+             data.telephone is string && data.telephone.size() > 0 &&
+             data.role == 'admin_agence' &&
+             data.agenceId is string && data.agenceId.size() > 0 &&
+             data.agenceNom is string && data.agenceNom.size() > 0 &&
+             data.compagnieId is string && data.compagnieId.size() > 0 &&
+             data.compagnieNom is string && data.compagnieNom.size() > 0 &&
+             data.isActive is bool &&
+             data.status is string &&
+             data.firebaseAuthCreated is bool &&
+             data.created_at is timestamp &&
+             data.createdBy is string &&
+             data.origin is string;
+    }
+    
+    // ✅ Vérifier si c'est une mise à jour de profil autorisée
+    function isProfileUpdate() {
+      let allowedFields = ['prenom', 'nom', 'telephone', 'adresse', 'updatedAt'];
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
+    }
+    
+    // 🔒 Règles de sécurité supplémentaires
+    
+    // Empêcher l'accès aux collections sensibles
+    match /admin_logs/{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+    
+    match /email_logs/{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+    
+    // Audit des actions sur les agences
+    match /agence_audit/{auditId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdminCompagnie() && resource.data.compagnieId == getUserCompagnieId())
+      );
+      allow create: if isAuthenticated();
+    }
+    
+    // 📊 Statistiques et métriques (lecture seule pour les admins)
+    match /stats/{document=**} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        isAdminCompagnie() ||
+        isAdminAgence()
+      );
+    }
+  }
+}
+
+// 📝 Instructions d'utilisation :
+// 1. Copiez ces règles dans la console Firebase Firestore
+// 2. Adaptez les noms de collections si nécessaire
+// 3. Testez les règles avec l'émulateur Firestore
+// 4. Déployez en production après validation
+
+// 🔍 Points clés de sécurité :
+// - Cloisonnement strict par compagnie et agence
+// - Validation des données obligatoires
+// - Empêche la modification des champs critiques
+// - Audit des actions sensibles
+// - Accès en lecture seule aux statistiques

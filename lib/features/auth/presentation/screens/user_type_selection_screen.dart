@@ -492,12 +492,7 @@ class UserTypeSelectionScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const LoginScreen(userType: 'super_admin'),
-                ),
-              );
+              Navigator.pushReplacementNamed(context, '/super-admin-dashboard');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade600,

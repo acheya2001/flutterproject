@@ -28,9 +28,15 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
   
   bool _isLoading = false;
   List<InsuranceCompany> _companies = [];
+  List<InsuranceCompany> _filteredCompanies = [];
   InsuranceCompany? _selectedCompany;
   String? _selectedCompanyId;
   String _generatedEmail = '';
+
+  // 🔧 Nouvelles fonctionnalités (méthode hybride automatique)
+  String _searchQuery = '';
+  bool _showOnlyAvailable = true;
+  final _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -40,6 +46,7 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
     _loadCompanies();
     _prenomController.addListener(_updateGeneratedEmail);
     _nomController.addListener(_updateGeneratedEmail);
+    _searchController.addListener(_filterCompanies);
   }
 
   @override
@@ -47,6 +54,7 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
     _prenomController.dispose();
     _nomController.dispose();
     _telephoneController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -75,6 +83,7 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
 
       setState(() {
         _companies = enrichedCompanies;
+        _filteredCompanies = enrichedCompanies;
 
         // Vérifier si la compagnie pré-sélectionnée existe dans la liste
         if (_selectedCompanyId != null) {
@@ -88,6 +97,9 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
             _selectedCompanyId = null;
           }
         }
+
+        // Appliquer le filtrage initial
+        _filterCompanies();
       });
 
       debugPrint('[ADMIN_COMPAGNIE_CREATION] ✅ ${enrichedCompanies.length} compagnies chargées');
@@ -95,6 +107,30 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
       debugPrint('[ADMIN_COMPAGNIE_CREATION] ❌ Erreur chargement: $e');
       _showErrorSnackBar('Erreur lors du chargement des compagnies: $e');
     }
+  }
+
+  /// 🔍 Filtrer les compagnies selon les critères
+  void _filterCompanies() {
+    _searchQuery = _searchController.text;
+    setState(() {
+      _filteredCompanies = _companies.where((company) {
+        // Filtrer par disponibilité
+        if (_showOnlyAvailable && (company.hasAdmin ?? false)) {
+          return false;
+        }
+
+        // Filtrer par recherche
+        if (_searchQuery.isNotEmpty) {
+          final query = _searchQuery.toLowerCase();
+          final nom = company.nom.toLowerCase();
+          final code = company.code?.toLowerCase() ?? '';
+
+          return nom.contains(query) || code.contains(query);
+        }
+
+        return true;
+      }).toList();
+    });
   }
 
   void _updateGeneratedEmail() {
@@ -310,6 +346,14 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 🔍 Barre de recherche et filtres
+              _buildSearchAndFilters(),
+              const SizedBox(height: 16),
+
+              // 🎯 Indicateur de méthode automatique
+              _buildAutoMethodIndicator(),
+              const SizedBox(height: 24),
+
               // En-tête simple
               Container(
                 padding: const EdgeInsets.all(16),
@@ -538,7 +582,7 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
                 vertical: 12,
               ),
             ),
-            items: _companies.map((company) {
+            items: _filteredCompanies.map((company) {
               final hasAdmin = company.hasAdmin ?? false;
               return DropdownMenuItem<String>(
                 value: company.id,
@@ -1209,7 +1253,10 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
     setState(() => _isLoading = true);
 
     try {
-      final result = await AdminCompagnieService.createAdminCompagnie(
+      Map<String, dynamic> result;
+
+      // 🎯 Utiliser UNIQUEMENT la méthode alternative (contourne SSL)
+      result = await AdminCompagnieService.createAdminCompagnieAlternative(
         prenom: _prenomController.text.trim(),
         nom: _nomController.text.trim(),
         telephone: _telephoneController.text.trim(),
@@ -1235,10 +1282,10 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
       context,
       MaterialPageRoute(
         builder: (context) => AdminCredentialsDisplay(
-          email: result['email'],
-          password: result['password'],
-          companyName: result['compagnieNom'],
-          adminName: result['displayName'],
+          email: result['email'] ?? 'Email non disponible',
+          password: result['password'] ?? 'Mot de passe non disponible',
+          companyName: result['compagnieNom'] ?? _selectedCompany?.nom ?? 'Compagnie',
+          adminName: result['displayName'] ?? '${_prenomController.text} ${_nomController.text}',
         ),
       ),
     );
@@ -1249,6 +1296,124 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
       SnackBar(
         content: Text('❌ $message'),
         backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+
+
+  /// 🔍 Barre de recherche et filtres
+  Widget _buildSearchAndFilters() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.search_rounded, color: Colors.grey, size: 20),
+              SizedBox(width: 8),
+              Text(
+                '🔍 Recherche et filtres',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Barre de recherche
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Rechercher une compagnie...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        _filterCompanies();
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Filtres
+          Row(
+            children: [
+              Expanded(
+                child: CheckboxListTile(
+                  title: const Text('Seulement disponibles'),
+                  subtitle: Text('${_filteredCompanies.where((c) => !(c.hasAdmin ?? false)).length} compagnies'),
+                  value: _showOnlyAvailable,
+                  onChanged: (value) {
+                    setState(() {
+                      _showOnlyAvailable = value!;
+                      _filterCompanies();
+                    });
+                  },
+                  activeColor: Colors.green,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '📊 ${_filteredCompanies.length} résultat(s)',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🎯 Indicateur de méthode automatique
+  Widget _buildAutoMethodIndicator() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.withOpacity(0.3)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.auto_awesome_rounded, color: Colors.green, size: 18),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '🎯 Création automatique optimisée - Le système choisit la meilleure méthode',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.green,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

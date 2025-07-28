@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'company_admin_sync_service.dart';
+import 'direct_admin_sync_service.dart';
 import '../models/insurance_company.dart';
 
 /// 🏢 Service centralisé pour la gestion des compagnies d'assurance
@@ -167,25 +168,90 @@ class CompanyManagementService {
       final result = <Map<String, dynamic>>[];
 
       for (var company in companies) {
-        // Vérifier si la compagnie a déjà un admin
-        final hasAdmin = company.adminCompagnieId != null && 
-                        company.adminCompagnieId!.isNotEmpty;
+        // 🎯 VÉRIFICATION AMÉLIORÉE : Admin actif uniquement
+        bool hasActiveAdmin = false;
+
+        if (company.adminCompagnieId != null && company.adminCompagnieId!.isNotEmpty) {
+          try {
+            // Vérifier si l'admin existe et est actif
+            final adminDoc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(company.adminCompagnieId)
+                .get();
+                ;
+              
+
+
+
+            if (adminDoc.exists) {
+              final adminData = adminDoc.data()!;
+              final isActive = adminData['isActive'] ?? false;
+              final status = adminData['status'] ?? '';
+
+              // Admin considéré comme actif seulement s'il est vraiment actif
+              hasActiveAdmin = isActive && status == 'actif';
+
+              debugPrint('[COMPANY_MANAGEMENT] 🏢 ${company.nom}: Admin ${hasActiveAdmin ? "ACTIF" : "INACTIF"}');
+            } else {
+              // L'admin n'existe plus, libérer la compagnie
+              debugPrint('[COMPANY_MANAGEMENT] ⚠️ Admin ${company.adminCompagnieId} n\'existe plus pour ${company.nom}');
+
+              // Nettoyer la référence dans la compagnie
+              await FirebaseFirestore.instance
+                  .collection('compagnies')
+                  .doc(company.id)
+                  .update({
+                'adminCompagnieId': FieldValue.delete(),
+                'adminCompagnieNom': FieldValue.delete(),
+                'adminCompagnieEmail': FieldValue.delete(),
+                'isAvailable': true,
+                'updatedAt': FieldValue.serverTimestamp(),
+              });
+            }
+          } catch (e) {
+            debugPrint('[COMPANY_MANAGEMENT] ❌ Erreur vérification admin pour ${company.nom}: $e');
+          }
+        }
 
         result.add({
           'id': company.id,
           'nom': company.nom,
           'code': company.code,
           'type': company.type,
-          'hasAdmin': hasAdmin,
-          'adminCompagnieId': company.adminCompagnieId,
-          'adminCompagnieNom': company.adminCompagnieNom,
-          'adminCompagnieEmail': company.adminCompagnieEmail,
+          'hasAdmin': hasActiveAdmin, // 🎯 Seulement les admins ACTIFS
+          'adminCompagnieId': hasActiveAdmin ? company.adminCompagnieId : null,
+          'adminCompagnieNom': hasActiveAdmin ? company.adminCompagnieNom : null,
+          'adminCompagnieEmail': hasActiveAdmin ? company.adminCompagnieEmail : null,
+          'isAvailable': !hasActiveAdmin, // Disponible si pas d'admin actif
         });
       }
+
+      debugPrint('[COMPANY_MANAGEMENT] ✅ ${result.length} compagnies chargées pour sélection admin');
+      final availableCount = result.where((c) => !c['hasAdmin']).length;
+      debugPrint('[COMPANY_MANAGEMENT] 📊 $availableCount compagnies disponibles');
 
       return result;
     } catch (e) {
       debugPrint('[COMPANY_MANAGEMENT] ❌ Erreur sélection admin: $e');
+      return [];
+    }
+  }
+
+  /// 🆓 Obtenir seulement les compagnies disponibles (sans admin actif)
+  static Future<List<Map<String, dynamic>>> getAvailableCompanies() async {
+    try {
+      final allCompanies = await getCompaniesForAdminSelection();
+
+      // Filtrer seulement les compagnies disponibles
+      final availableCompanies = allCompanies
+          .where((company) => !company['hasAdmin'])
+          .toList();
+
+      debugPrint('[COMPANY_MANAGEMENT] 🆓 ${availableCompanies.length} compagnies disponibles trouvées');
+
+      return availableCompanies;
+    } catch (e) {
+      debugPrint('[COMPANY_MANAGEMENT] ❌ Erreur compagnies disponibles: $e');
       return [];
     }
   }
@@ -507,12 +573,13 @@ class CompanyManagementService {
     }
   }
 
-  /// 🔄 Activer/Désactiver une compagnie avec synchronisation admin
+  /// 🔄 Activer/Désactiver une compagnie avec synchronisation admin DIRECTE
   static Future<Map<String, dynamic>> toggleCompanyStatusWithSync({
     required String compagnieId,
     required bool newStatus,
   }) async {
-    return await CompanyAdminSyncService.toggleCompanyStatus(
+    debugPrint('[COMPANY_MANAGEMENT] 🚀 Utilisation synchronisation DIRECTE');
+    return await DirectAdminSyncService.syncCompanyToAdmin(
       compagnieId: compagnieId,
       newStatus: newStatus,
     );

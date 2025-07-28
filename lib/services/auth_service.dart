@@ -92,6 +92,245 @@ class AuthService {
     await _auth.signOut();
   }
 
+  /// 🔒 Vérifier le statut du compte utilisateur
+  static Future<Map<String, dynamic>> checkAccountStatus(Map<String, dynamic> userData) async {
+    try {
+      final role = userData['role'];
+      final isActive = userData['isActive'];
+
+      debugPrint('[AUTH_SERVICE] 🔍 Vérification statut pour rôle: $role, isActive: $isActive');
+
+      // 1. Vérification du statut direct de l'utilisateur
+      if (isActive == false) {
+        return {
+          'isActive': false,
+          'reason': 'user_disabled',
+          'message': '🚫 Votre compte a été désactivé par un administrateur.\n\n'
+                    'Contactez votre responsable pour plus d\'informations.',
+        };
+      }
+
+      // 2. Vérifications spécifiques selon le rôle
+      switch (role) {
+        case 'super_admin':
+          // Super admin toujours autorisé s'il est actif
+          return {'isActive': true};
+
+        case 'admin_compagnie':
+          return await _checkAdminCompagnieStatus(userData);
+
+        case 'admin_agence':
+          return await _checkAdminAgenceStatus(userData);
+
+        case 'agent':
+          return await _checkAgentStatus(userData);
+
+        case 'expert':
+          return await _checkExpertStatus(userData);
+
+        case 'conducteur':
+          return await _checkConducteurStatus(userData);
+
+        default:
+          return {
+            'isActive': false,
+            'reason': 'unknown_role',
+            'message': '🚫 Rôle utilisateur non reconnu.\n\n'
+                      'Contactez l\'administrateur système.',
+          };
+      }
+    } catch (e) {
+      debugPrint('[AUTH_SERVICE] ❌ Erreur vérification statut: $e');
+      return {
+        'isActive': false,
+        'reason': 'check_error',
+        'message': '🚫 Erreur lors de la vérification du compte.\n\n'
+                  'Veuillez réessayer ou contacter le support.',
+      };
+    }
+  }
+
+  /// 🏢 Vérifier le statut d'un admin compagnie
+  static Future<Map<String, dynamic>> _checkAdminCompagnieStatus(Map<String, dynamic> userData) async {
+    try {
+      final compagnieId = userData['compagnieId'];
+
+      if (compagnieId == null) {
+        return {
+          'isActive': false,
+          'reason': 'no_company',
+          'message': '🚫 Aucune compagnie associée à votre compte.\n\n'
+                    'Contactez le super administrateur.',
+        };
+      }
+
+      // Vérifier le statut de la compagnie
+      final compagnieDoc = await _firestore
+          .collection('compagnies')
+          .doc(compagnieId)
+          .get();
+
+      if (!compagnieDoc.exists) {
+        return {
+          'isActive': false,
+          'reason': 'company_not_found',
+          'message': '🚫 Votre compagnie n\'existe plus dans le système.\n\n'
+                    'Contactez le super administrateur.',
+        };
+      }
+
+      final compagnieData = compagnieDoc.data()!;
+      final compagnieStatut = compagnieData['statut'];
+
+      if (compagnieStatut == 'inactif' || compagnieStatut == 'suspendu') {
+        return {
+          'isActive': false,
+          'reason': 'company_disabled',
+          'message': '🚫 Votre compagnie a été ${compagnieStatut == 'suspendu' ? 'suspendue' : 'désactivée'}.\n\n'
+                    'Contactez le super administrateur pour plus d\'informations.',
+        };
+      }
+
+      return {'isActive': true};
+    } catch (e) {
+      debugPrint('[AUTH_SERVICE] ❌ Erreur vérification admin compagnie: $e');
+      return {
+        'isActive': false,
+        'reason': 'check_error',
+        'message': '🚫 Erreur lors de la vérification de votre compagnie.\n\n'
+                  'Veuillez réessayer.',
+      };
+    }
+  }
+
+  /// 🏪 Vérifier le statut d'un admin agence
+  static Future<Map<String, dynamic>> _checkAdminAgenceStatus(Map<String, dynamic> userData) async {
+    try {
+      final agenceId = userData['agenceId'];
+      final compagnieId = userData['compagnieId'];
+
+      if (agenceId == null || compagnieId == null) {
+        return {
+          'isActive': false,
+          'reason': 'no_agency',
+          'message': '🚫 Aucune agence associée à votre compte.\n\n'
+                    'Contactez votre admin compagnie.',
+        };
+      }
+
+      // Vérifier d'abord la compagnie
+      final compagnieStatus = await _checkAdminCompagnieStatus(userData);
+      if (!compagnieStatus['isActive']) {
+        return compagnieStatus;
+      }
+
+      // Vérifier le statut de l'agence
+      final agenceDoc = await _firestore
+          .collection('agences')
+          .doc(agenceId)
+          .get();
+
+      if (!agenceDoc.exists) {
+        return {
+          'isActive': false,
+          'reason': 'agency_not_found',
+          'message': '🚫 Votre agence n\'existe plus dans le système.\n\n'
+                    'Contactez votre admin compagnie.',
+        };
+      }
+
+      final agenceData = agenceDoc.data()!;
+      final agenceActive = agenceData['isActive'];
+
+      if (agenceActive == false) {
+        return {
+          'isActive': false,
+          'reason': 'agency_disabled',
+          'message': '🚫 Votre agence a été désactivée.\n\n'
+                    'Contactez votre admin compagnie pour plus d\'informations.',
+        };
+      }
+
+      return {'isActive': true};
+    } catch (e) {
+      debugPrint('[AUTH_SERVICE] ❌ Erreur vérification admin agence: $e');
+      return {
+        'isActive': false,
+        'reason': 'check_error',
+        'message': '🚫 Erreur lors de la vérification de votre agence.\n\n'
+                  'Veuillez réessayer.',
+      };
+    }
+  }
+
+  /// 👨‍💼 Vérifier le statut d'un agent
+  static Future<Map<String, dynamic>> _checkAgentStatus(Map<String, dynamic> userData) async {
+    // Même vérification que l'admin agence
+    return await _checkAdminAgenceStatus(userData);
+  }
+
+  /// 👨‍🔧 Vérifier le statut d'un expert
+  static Future<Map<String, dynamic>> _checkExpertStatus(Map<String, dynamic> userData) async {
+    try {
+      final compagniesAssociees = userData['compagniesAssociees'] as List?;
+
+      if (compagniesAssociees == null || compagniesAssociees.isEmpty) {
+        return {
+          'isActive': false,
+          'reason': 'no_companies',
+          'message': '🚫 Aucune compagnie associée à votre compte d\'expert.\n\n'
+                    'Contactez le super administrateur.',
+        };
+      }
+
+      // Vérifier qu'au moins une compagnie est active
+      bool hasActiveCompany = false;
+      for (String compagnieId in compagniesAssociees) {
+        try {
+          final compagnieDoc = await _firestore
+              .collection('compagnies')
+              .doc(compagnieId)
+              .get();
+
+          if (compagnieDoc.exists) {
+            final compagnieData = compagnieDoc.data()!;
+            if (compagnieData['statut'] == 'actif') {
+              hasActiveCompany = true;
+              break;
+            }
+          }
+        } catch (e) {
+          debugPrint('[AUTH_SERVICE] ⚠️ Erreur vérification compagnie $compagnieId: $e');
+        }
+      }
+
+      if (!hasActiveCompany) {
+        return {
+          'isActive': false,
+          'reason': 'no_active_companies',
+          'message': '🚫 Aucune de vos compagnies associées n\'est active.\n\n'
+                    'Contactez le super administrateur.',
+        };
+      }
+
+      return {'isActive': true};
+    } catch (e) {
+      debugPrint('[AUTH_SERVICE] ❌ Erreur vérification expert: $e');
+      return {
+        'isActive': false,
+        'reason': 'check_error',
+        'message': '🚫 Erreur lors de la vérification de votre statut d\'expert.\n\n'
+                  'Veuillez réessayer.',
+      };
+    }
+  }
+
+  /// 🚗 Vérifier le statut d'un conducteur
+  static Future<Map<String, dynamic>> _checkConducteurStatus(Map<String, dynamic> userData) async {
+    // Les conducteurs sont généralement toujours autorisés s'ils sont actifs
+    return {'isActive': true};
+  }
+
   /// 👥 Créer un utilisateur avec rôle
   static Future<String?> createUserWithRole({
     required String email,

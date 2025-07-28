@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
@@ -14,6 +16,10 @@ import 'features/auth/screens/login_screen.dart';
 import 'features/conducteur/presentation/screens/conducteur_dashboard_screen.dart';
 import 'features/agent/presentation/screens/agent_dashboard_screen.dart';
 import 'features/expert/presentation/screens/expert_dashboard_screen.dart';
+import 'features/admin_compagnie/presentation/screens/admin_compagnie_dashboard.dart';
+import 'features/admin_agence/screens/admin_agence_dashboard.dart';
+import 'features/super_admin/screens/super_admin_dashboard_new.dart';
+import 'debug/check_admin_account.dart';
 import 'features/admin/widgets/global_emergency_fab.dart';
 
 /// 🚀 Point d'entrée principal de l'application Constat Tunisie
@@ -41,6 +47,18 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     debugPrint('[CONSTAT_APP] ✅ Firebase initialized successfully');
+
+    // 🔧 Désactiver reCAPTCHA en développement pour éviter les erreurs SSL
+    if (kDebugMode) {
+      try {
+        await FirebaseAuth.instance.setSettings(
+          appVerificationDisabledForTesting: true,
+        );
+        debugPrint('[CONSTAT_APP] ✅ reCAPTCHA désactivé pour le développement');
+      } catch (e) {
+        debugPrint('[CONSTAT_APP] ⚠️ Impossible de désactiver reCAPTCHA: $e');
+      }
+    }
 
     // Initialiser le super admin par défaut
     await AuthService.initializeSuperAdmin();
@@ -73,21 +91,9 @@ class ConstatTunisieApp extends StatelessWidget {
         '/conducteur-dashboard': (context) => const ConducteurDashboardScreen(),
         '/agent-dashboard': (context) => const AgentDashboardScreen(),
         '/expert-dashboard': (context) => const ExpertDashboardScreen(),
-        '/admin-agence-dashboard': (context) => const Scaffold(
-          body: Center(
-            child: Text('Dashboard Admin Agence - En développement'),
-          ),
-        ),
-        '/admin-compagnie-dashboard': (context) => const Scaffold(
-          body: Center(
-            child: Text('Dashboard Admin Compagnie - En développement'),
-          ),
-        ),
-        '/super-admin-dashboard': (context) => const Scaffold(
-          body: Center(
-            child: Text('Dashboard Super Admin - En développement'),
-          ),
-        ),
+        '/admin-agence-dashboard': (context) => const AdminAgenceDashboard(),
+        '/admin-compagnie-dashboard': (context) => const AdminCompagnieDashboard(),
+        '/super-admin-dashboard': (context) => const SuperAdminDashboardNew(),
       },
       builder: (context, child) {
         return Stack(

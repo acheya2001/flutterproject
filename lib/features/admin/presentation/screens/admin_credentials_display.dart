@@ -321,10 +321,14 @@ class AdminCredentialsDisplay extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           const Text(
+            '🔐 CONNEXION AUTOMATIQUE :\n'
+            '• L\'admin peut se connecter immédiatement avec ces identifiants\n'
+            '• Le système créera automatiquement son compte sécurisé\n'
+            '• Accès direct au dashboard de sa compagnie\n\n'
+            '📋 INSTRUCTIONS :\n'
             '• Transmettez ces identifiants à l\'administrateur concerné\n'
-            '• L\'admin devra changer son mot de passe lors de la première connexion\n'
             '• Conservez ces informations en lieu sûr\n'
-            '• L\'admin aura accès au dashboard de sa compagnie uniquement',
+            '• L\'admin aura accès uniquement aux données de sa compagnie',
             style: TextStyle(
               fontSize: 14,
               color: Color(0xFF92400E),

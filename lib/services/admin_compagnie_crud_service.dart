@@ -238,9 +238,23 @@ class AdminCompagnieCrudService {
     }
   }
 
-  /// 🔒 Désactiver un admin compagnie
+  /// 🔒 Désactiver un admin compagnie et libérer la compagnie
   static Future<bool> deactivateAdminCompagnie(String adminId) async {
     try {
+      debugPrint('[ADMIN_COMPAGNIE_CRUD] 🔒 Désactivation admin: $adminId');
+
+      // 1. Récupérer les données de l'admin pour connaître sa compagnie
+      final adminDoc = await _firestore.collection(_usersCollection).doc(adminId).get();
+
+      if (!adminDoc.exists) {
+        debugPrint('[ADMIN_COMPAGNIE_CRUD] ❌ Admin non trouvé: $adminId');
+        return false;
+      }
+
+      final adminData = adminDoc.data()!;
+      final compagnieId = adminData['compagnieId'] as String?;
+
+      // 2. Désactiver l'admin
       await _firestore.collection(_usersCollection).doc(adminId).update({
         'status': 'inactif',
         'isActive': false,
@@ -248,7 +262,22 @@ class AdminCompagnieCrudService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      debugPrint('[ADMIN_COMPAGNIE_CRUD] ✅ Admin $adminId désactivé');
+      // 3. 🎯 LIBÉRER LA COMPAGNIE si elle était assignée
+      if (compagnieId != null && compagnieId.isNotEmpty) {
+        await _firestore.collection('compagnies').doc(compagnieId).update({
+          'adminCompagnieId': FieldValue.delete(),
+          'adminCompagnieNom': FieldValue.delete(),
+          'adminCompagnieEmail': FieldValue.delete(),
+          'adminAssignedAt': FieldValue.delete(),
+          'adminDeactivatedAt': FieldValue.serverTimestamp(),
+          'isAvailable': true, // Marquer comme disponible
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        debugPrint('[ADMIN_COMPAGNIE_CRUD] ✅ Compagnie $compagnieId libérée');
+      }
+
+      debugPrint('[ADMIN_COMPAGNIE_CRUD] ✅ Admin $adminId désactivé et compagnie libérée');
       return true;
     } catch (e) {
       debugPrint('[ADMIN_COMPAGNIE_CRUD] ❌ Erreur désactivation admin $adminId: $e');
@@ -256,9 +285,39 @@ class AdminCompagnieCrudService {
     }
   }
 
-  /// 🔓 Réactiver un admin compagnie
+  /// 🔓 Réactiver un admin compagnie et réassigner la compagnie
   static Future<bool> reactivateAdminCompagnie(String adminId) async {
     try {
+      debugPrint('[ADMIN_COMPAGNIE_CRUD] 🔓 Réactivation admin: $adminId');
+
+      // 1. Récupérer les données de l'admin
+      final adminDoc = await _firestore.collection(_usersCollection).doc(adminId).get();
+
+      if (!adminDoc.exists) {
+        debugPrint('[ADMIN_COMPAGNIE_CRUD] ❌ Admin non trouvé: $adminId');
+        return false;
+      }
+
+      final adminData = adminDoc.data()!;
+      final compagnieId = adminData['compagnieId'] as String?;
+
+      // 2. Vérifier si la compagnie est toujours disponible
+      if (compagnieId != null && compagnieId.isNotEmpty) {
+        final compagnieDoc = await _firestore.collection('compagnies').doc(compagnieId).get();
+
+        if (compagnieDoc.exists) {
+          final compagnieData = compagnieDoc.data()!;
+          final currentAdminId = compagnieData['adminCompagnieId'] as String?;
+
+          // Si la compagnie a déjà un autre admin actif, on ne peut pas réactiver
+          if (currentAdminId != null && currentAdminId != adminId) {
+            debugPrint('[ADMIN_COMPAGNIE_CRUD] ❌ Compagnie déjà occupée par un autre admin');
+            return false;
+          }
+        }
+      }
+
+      // 3. Réactiver l'admin
       await _firestore.collection(_usersCollection).doc(adminId).update({
         'status': 'actif',
         'isActive': true,
@@ -266,7 +325,24 @@ class AdminCompagnieCrudService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      debugPrint('[ADMIN_COMPAGNIE_CRUD] ✅ Admin $adminId réactivé');
+      // 4. 🎯 RÉASSIGNER LA COMPAGNIE
+      if (compagnieId != null && compagnieId.isNotEmpty) {
+        final adminDisplayName = adminData['displayName'] ?? '${adminData['prenom']} ${adminData['nom']}';
+
+        await _firestore.collection('compagnies').doc(compagnieId).update({
+          'adminCompagnieId': adminId,
+          'adminCompagnieNom': adminDisplayName,
+          'adminCompagnieEmail': adminData['email'],
+          'adminAssignedAt': FieldValue.serverTimestamp(),
+          'adminDeactivatedAt': FieldValue.delete(),
+          'isAvailable': false, // Marquer comme occupée
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        debugPrint('[ADMIN_COMPAGNIE_CRUD] ✅ Compagnie $compagnieId réassignée');
+      }
+
+      debugPrint('[ADMIN_COMPAGNIE_CRUD] ✅ Admin $adminId réactivé et compagnie réassignée');
       return true;
     } catch (e) {
       debugPrint('[ADMIN_COMPAGNIE_CRUD] ❌ Erreur réactivation admin $adminId: $e');

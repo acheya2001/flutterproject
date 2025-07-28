@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../models/insurance_company.dart';
 import '../../../../services/insurance_company_service.dart';
+import '../../../../services/direct_admin_sync_service.dart';
 import 'company_form_screen.dart';
 import 'company_details_screen.dart';
 import 'super_admin_company_form.dart';
@@ -792,22 +793,54 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
               company.id,
               newStatus,
             );
+
+            // 🔄 SYNCHRONISATION AUTOMATIQUE ADMIN
+            debugPrint('');
+            debugPrint('🔄 ========== SYNCHRONISATION AUTOMATIQUE ==========');
+            debugPrint('🏢 Compagnie: ${company.nom}');
+            debugPrint('🆔 CompagnieId: ${company.id}');
+            debugPrint('📊 Nouveau statut: $newStatus');
+            debugPrint('🔄 Appel synchronisation directe...');
+
+            try {
+              final syncResult = await DirectAdminSyncService.syncCompanyToAdmin(
+                compagnieId: company.id,
+                newStatus: newStatus == 'active',
+              );
+
+              debugPrint('📊 RÉSULTAT SYNCHRONISATION:');
+              debugPrint('✅ Success: ${syncResult['success']}');
+              debugPrint('👥 Admins synchronisés: ${syncResult['adminsUpdated']}');
+              debugPrint('📝 Message: ${syncResult['message']}');
+              debugPrint('🔄 ========== FIN SYNCHRONISATION ==========');
+              debugPrint('');
+
+            } catch (syncError) {
+              debugPrint('❌ ERREUR SYNCHRONISATION: $syncError');
+            }
+
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Compagnie ${actionText}e avec succès'),
+                  content: Text('Compagnie ${actionText}e avec succès + Admin synchronisé'),
                   backgroundColor: Colors.green,
                 ),
               );
             }
           } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Erreur: $e'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+            debugPrint('❌ Erreur toggle company status: $e');
+            // Vérifier si le widget est encore monté ET si le context est valide
+            if (mounted && context.mounted) {
+              try {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erreur: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } catch (scaffoldError) {
+                debugPrint('❌ Erreur ScaffoldMessenger: $scaffoldError');
+              }
             }
           }
         },
