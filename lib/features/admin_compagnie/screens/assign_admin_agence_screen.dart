@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/admin_agence_management_service.dart';
+import 'create_admin_agence_screen.dart';
 
 /// 🔗 Écran d'affectation d'un admin existant à une agence
 class AssignAdminAgenceScreen extends StatefulWidget {
@@ -215,6 +216,82 @@ class _AssignAdminAgenceScreenState extends State<AssignAdminAgenceScreen> {
 
   /// 👥 Carte liste des admins
   Widget _buildAdminsListCard() {
+    return Column(
+      children: [
+        // Options d'affectation
+        _buildAssignmentOptions(),
+        const SizedBox(height: 20),
+
+        // Liste des admins disponibles (si il y en a)
+        if (_availableAdmins.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF667EEA).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.people_rounded,
+                        color: Color(0xFF667EEA),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Admins Agence Disponibles',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1F2937),
+                            ),
+                          ),
+                          Text(
+                            '${_availableAdmins.length} admin(s) disponible(s)',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                ...(_availableAdmins.map((admin) => _buildAdminCard(admin))),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// 🎯 Options d'affectation
+  Widget _buildAssignmentOptions() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -236,22 +313,22 @@ class _AssignAdminAgenceScreenState extends State<AssignAdminAgenceScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF667EEA).withOpacity(0.1),
+                  color: const Color(0xFF10B981).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
-                  Icons.people_rounded,
-                  color: Color(0xFF667EEA),
+                  Icons.assignment_ind_rounded,
+                  color: Color(0xFF10B981),
                   size: 24,
                 ),
               ),
               const SizedBox(width: 16),
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Admins Agence Disponibles',
+                    Text(
+                      'Options d\'Affectation',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -259,10 +336,10 @@ class _AssignAdminAgenceScreenState extends State<AssignAdminAgenceScreen> {
                       ),
                     ),
                     Text(
-                      '${_availableAdmins.length} admin(s) disponible(s)',
+                      'Choisissez comment affecter un admin à cette agence',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.grey.shade600,
+                        color: Colors.grey,
                       ),
                     ),
                   ],
@@ -271,11 +348,87 @@ class _AssignAdminAgenceScreenState extends State<AssignAdminAgenceScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          
-          if (_availableAdmins.isEmpty) ...[
-            _buildEmptyState(),
+
+          // Option 1: Créer un nouvel admin
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ElevatedButton.icon(
+              onPressed: () => _navigateToCreateAdmin(),
+              icon: const Icon(Icons.person_add_rounded, size: 20),
+              label: const Text(
+                'Créer un Nouvel Admin Agence',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF667EEA),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+            ),
+          ),
+
+          // Option 2: Choisir parmi les disponibles (si il y en a)
+          if (_availableAdmins.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  // Scroll vers la liste des admins disponibles
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Consultez la liste des admins disponibles ci-dessous'),
+                      backgroundColor: Color(0xFF10B981),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.people_alt_rounded, size: 20),
+                label: Text(
+                  'Choisir Parmi les Admins Disponibles (${_availableAdmins.length})',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF10B981),
+                  side: const BorderSide(color: Color(0xFF10B981), width: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
           ] else ...[
-            ...(_availableAdmins.map((admin) => _buildAdminCard(admin))),
+            // Message informatif si aucun admin disponible
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange.shade600, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Aucun admin agence disponible dans votre compagnie',
+                      style: TextStyle(
+                        color: Colors.orange.shade700,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ],
       ),
@@ -318,10 +471,7 @@ class _AssignAdminAgenceScreenState extends State<AssignAdminAgenceScreen> {
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Naviguer vers la création d'admin
-            },
+            onPressed: () => _navigateToCreateAdmin(),
             icon: const Icon(Icons.person_add_rounded),
             label: const Text('Créer un nouvel admin'),
             style: ElevatedButton.styleFrom(
@@ -528,6 +678,26 @@ class _AssignAdminAgenceScreenState extends State<AssignAdminAgenceScreen> {
       );
     } finally {
       setState(() => _isAssigning = false);
+    }
+  }
+
+  /// 🆕 Naviguer vers la création d'un nouvel admin agence
+  Future<void> _navigateToCreateAdmin() async {
+    // Fermer l'écran actuel d'abord
+    Navigator.pop(context);
+
+    // Naviguer vers l'écran de création d'admin agence
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateAdminAgenceScreen(userData: widget.userData),
+      ),
+    );
+
+    // Si un admin a été créé avec succès, retourner le résultat
+    if (result != null && result['success'] == true) {
+      // Retourner le résultat à l'écran parent pour qu'il puisse recharger les données
+      Navigator.pop(context, result);
     }
   }
 }

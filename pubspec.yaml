@@ -37,7 +37,7 @@ dependencies:
   # Autres dépendances
   uuid: ^4.0.0
   
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.5.3
   flutter_native_splash: ^2.3.10
   lottie: ^3.0.0
   cached_network_image: ^3.3.0

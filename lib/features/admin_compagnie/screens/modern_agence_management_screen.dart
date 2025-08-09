@@ -427,31 +427,68 @@ class _ModernAgenceManagementScreenState extends State<ModernAgenceManagementScr
     ValueChanged<String?> onChanged,
   ) {
     return Container(
-      height: 35,
+      height: 36,
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
-          hint: Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          style: const TextStyle(fontSize: 12, color: Colors.black87),
-          items: options.map((option) => DropdownMenuItem(
-            value: option,
-            child: Text(
-              option,
-              style: const TextStyle(fontSize: 12),
-              overflow: TextOverflow.ellipsis,
-            ),
-          )).toList(),
+          style: const TextStyle(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w500),
+          selectedItemBuilder: (context) {
+            return options.map((option) {
+              // Affichage simplifié pour éviter l'overflow
+              String displayText;
+              if (option == 'Tous') {
+                if (label == 'Statut') {
+                  displayText = 'Tous statuts';
+                } else if (label == 'Admin') {
+                  displayText = 'Tous admins';
+                } else {
+                  displayText = 'Tous gouv.';
+                }
+              } else {
+                displayText = option;
+              }
+
+              return Container(
+                height: 36,
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  displayText,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList();
+          },
+          items: options.map((option) {
+            return DropdownMenuItem(
+              value: option,
+              child: Container(
+                height: 32,
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  option,
+                  style: const TextStyle(fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            );
+          }).toList(),
           onChanged: onChanged,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
         ),
       ),
     );
@@ -649,14 +686,13 @@ class _ModernAgenceManagementScreenState extends State<ModernAgenceManagementScr
     }
   }
 
-  /// 👨‍💼 Créer un nouvel admin pour une agence (option alternative)
+  /// 👨‍💼 Créer un nouvel admin pour une agence (redirection vers le formulaire principal)
   void _createAdminForAgence(Map<String, dynamic> agence) async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CreateAdminAgenceAutoScreen(
+        builder: (context) => CreateAdminAgenceScreen(
           userData: widget.userData,
-          agenceData: agence,
         ),
       ),
     );
@@ -1049,6 +1085,42 @@ class _ModernAgenceManagementScreenState extends State<ModernAgenceManagementScr
   /// 🔄 Effectuer le changement de statut
   Future<void> _performStatusChange(Map<String, dynamic> agence, bool newStatus, String? reason) async {
     try {
+      // Si on désactive l'agence et qu'elle a un admin, proposer de le retirer
+      if (!newStatus && agence['hasAdminAgence'] == true) {
+        final shouldRemoveAdmin = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Admin Agence Détecté'),
+            content: const Text(
+              'Cette agence a un admin assigné. Voulez-vous également retirer l\'admin lors de la désactivation de l\'agence ?'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Garder l\'admin'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Retirer l\'admin'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldRemoveAdmin == true) {
+          // Retirer l'admin d'abord
+          final adminData = agence['adminAgence'];
+          if (adminData != null) {
+            await AdminAgenceManagementService.removeAdminFromAgence(
+              adminId: adminData['id'],
+              agenceId: agence['id'],
+              reason: 'Admin retiré lors de la désactivation de l\'agence',
+            );
+          }
+        }
+      }
+
       final result = await AdminAgenceManagementService.toggleAgenceStatus(
         agenceId: agence['id'],
         newStatus: newStatus,
@@ -1065,6 +1137,11 @@ class _ModernAgenceManagementScreenState extends State<ModernAgenceManagementScr
           ),
         );
         await _loadAgences();
+
+        // Si l'agence est réactivée et n'a plus d'admin, proposer d'en affecter un nouveau
+        if (newStatus && agence['hasAdminAgence'] != true) {
+          _showAssignAdminDialog(agence);
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1285,35 +1362,19 @@ class _ModernAgenceManagementScreenState extends State<ModernAgenceManagementScr
 
     return Column(
       children: [
-        // Première ligne : Détails et Modifier
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => _showAgenceDetails(agence),
-                icon: const Icon(Icons.visibility_rounded, size: 16),
-                label: const Text('Détails', style: TextStyle(fontSize: 12)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF059669),
-                  side: const BorderSide(color: Color(0xFF059669)),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                ),
-              ),
+        // Première ligne : Détails uniquement (suppression du bouton Modifier)
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _showAgenceDetails(agence),
+            icon: const Icon(Icons.visibility_rounded, size: 16),
+            label: const Text('Voir Détails', style: TextStyle(fontSize: 12)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF059669),
+              side: const BorderSide(color: Color(0xFF059669)),
+              padding: const EdgeInsets.symmetric(vertical: 8),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () => _showEditAgenceDialog(agence),
-                icon: const Icon(Icons.edit_rounded, size: 16),
-                label: const Text('Modifier', style: TextStyle(fontSize: 12)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
         const SizedBox(height: 8),
 
@@ -1333,43 +1394,50 @@ class _ModernAgenceManagementScreenState extends State<ModernAgenceManagementScr
             ),
           ),
         ] else ...[
-          Row(
+          Column(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _manageAdminAgence(agence),
-                  icon: const Icon(Icons.manage_accounts_rounded, size: 16),
-                  label: const Text('Gérer', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.blue,
-                    side: const BorderSide(color: Colors.blue),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+              // Première sous-ligne : Gérer et Reset MDP
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _manageAdminAgence(agence),
+                      icon: const Icon(Icons.manage_accounts_rounded, size: 16),
+                      label: const Text('Gérer', style: TextStyle(fontSize: 11)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.blue,
+                        side: const BorderSide(color: Colors.blue),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _resetAdminPassword(agence),
-                  icon: const Icon(Icons.lock_reset_rounded, size: 16),
-                  label: const Text('Reset MDP', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.orange,
-                    side: const BorderSide(color: Colors.orange),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _resetAdminPassword(agence),
+                      icon: const Icon(Icons.lock_reset_rounded, size: 16),
+                      label: const Text('Reset', style: TextStyle(fontSize: 11)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.orange,
+                        side: const BorderSide(color: Colors.orange),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
+              const SizedBox(height: 6),
+              // Deuxième sous-ligne : Retirer Admin
+              SizedBox(
+                width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () => _removeAdminFromAgence(agence),
                   icon: const Icon(Icons.person_remove_rounded, size: 16),
-                  label: const Text('Retirer', style: TextStyle(fontSize: 12)),
+                  label: const Text('Retirer Admin', style: TextStyle(fontSize: 11)),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red,
                     side: const BorderSide(color: Colors.red),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
                   ),
                 ),
               ),
@@ -1389,7 +1457,7 @@ class _ModernAgenceManagementScreenState extends State<ModernAgenceManagementScr
               size: 16,
             ),
             label: Text(
-              agence['isActive'] != false ? 'Désactiver Agence' : 'Activer Agence',
+              agence['isActive'] != false ? 'Désactiver' : 'Activer',
               style: const TextStyle(fontSize: 12),
             ),
             style: OutlinedButton.styleFrom(
@@ -1560,47 +1628,291 @@ class _ModernAgenceManagementScreenState extends State<ModernAgenceManagementScr
     );
   }
 
-  /// 👁️ Afficher les détails de l'admin
+  /// 👁️ Afficher les détails de l'admin avec interface moderne
   void _showAdminDetails(Map<String, dynamic> adminData) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${adminData['prenom']} ${adminData['nom']}'),
-        content: SingleChildScrollView(
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.height * 0.8,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white, Colors.grey.shade50],
+            ),
+          ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildDetailRow('Email', adminData['email']),
-              _buildDetailRow('Téléphone', adminData['telephone']),
-              _buildDetailRow('CIN', adminData['cin']),
-              _buildDetailRow('Agence', adminData['agenceNom']),
-              _buildDetailRow('Compagnie', adminData['compagnieNom']),
-              _buildDetailRow('Statut', adminData['isActive'] == true ? 'Actif' : 'Inactif'),
-              _buildDetailRow('Rôle', adminData['role']),
-              if (adminData['createdAt'] != null)
-                _buildDetailRow('Créé le', adminData['createdAt'].toDate().toString().split(' ')[0]),
+              // En-tête moderne avec gradient
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [const Color(0xFF059669), const Color(0xFF10B981)],
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Avatar avec initiales
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${adminData['prenom']?[0] ?? ''}${adminData['nom']?[0] ?? ''}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+
+                    // Nom et titre
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${adminData['prenom'] ?? ''} ${adminData['nom'] ?? ''}',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Admin Agence',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Statut
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: adminData['isActive'] == true ? Colors.green : Colors.red,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        adminData['isActive'] == true ? 'ACTIF' : 'INACTIF',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 16),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Contenu avec sections
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Informations personnelles
+                      _buildModernDetailSection(
+                        'Informations Personnelles',
+                        Icons.person_rounded,
+                        const Color(0xFF3B82F6),
+                        [
+                          _buildModernDetailRow('Prénom', adminData['prenom'] ?? 'Non défini'),
+                          _buildModernDetailRow('Nom', adminData['nom'] ?? 'Non défini'),
+                          _buildModernDetailRow('Email', adminData['email'] ?? 'Non défini'),
+                          _buildModernDetailRow('Téléphone', adminData['telephone'] ?? 'Non défini'),
+                          _buildModernDetailRow('CIN', adminData['cin'] ?? 'Non défini'),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Informations professionnelles
+                      _buildModernDetailSection(
+                        'Informations Professionnelles',
+                        Icons.work_rounded,
+                        const Color(0xFF059669),
+                        [
+                          _buildModernDetailRow('Agence', adminData['agenceNom'] ?? 'Non définie'),
+                          _buildModernDetailRow('Compagnie', adminData['compagnieNom'] ?? 'Non définie'),
+                          _buildModernDetailRow('Rôle', adminData['role'] ?? 'Non défini'),
+                          _buildModernDetailRow('Statut', adminData['isActive'] == true ? 'Actif' : 'Inactif'),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Historique
+                      if (adminData['createdAt'] != null)
+                        _buildModernDetailSection(
+                          'Historique',
+                          Icons.history_rounded,
+                          const Color(0xFFF59E0B),
+                          [
+                            _buildModernDetailRow('Date de création', adminData['createdAt'].toDate().toString().split(' ')[0]),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Actions en bas
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Fermer'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
+      ),
+    );
+  }
+
+  /// 📋 Section de détails moderne
+  Widget _buildModernDetailSection(String title, IconData icon, Color color, List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Ouvrir l'écran de modification
-            },
-            child: const Text('Modifier'),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(children: children),
           ),
         ],
       ),
     );
   }
 
-  /// 📝 Ligne de détail
+  /// 📄 Ligne de détail moderne
+  Widget _buildModernDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF1F2937),
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📝 Ligne de détail (ancienne version)
   Widget _buildDetailRow(String label, String? value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),

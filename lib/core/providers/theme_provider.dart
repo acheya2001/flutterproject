@@ -1,2 +1,0 @@
-// lib/core/providers/theme_provider.dart
-import 'package:flutter/material.dart';import 'package:shared_preferences/shared_preferences.dart';    final isDark = prefs.getBool('is_dark_theme';    await prefs.setBool('is_dark_theme';}

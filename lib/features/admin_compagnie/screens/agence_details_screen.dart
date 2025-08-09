@@ -32,19 +32,18 @@ class _AgenceDetailsScreenState extends State<AgenceDetailsScreen> {
     setState(() => _isLoading = true);
     
     try {
-      // Charger l'admin agence s'il existe
-      if (widget.agenceData['hasAdminAgence'] == true) {
-        final adminSnapshot = await FirebaseFirestore.instance
-            .collection('users')
-            .where('role', isEqualTo: 'admin_agence')
-            .where('agenceId', isEqualTo: widget.agenceData['id'])
-            .limit(1)
-            .get();
-        
-        if (adminSnapshot.docs.isNotEmpty) {
-          _adminAgence = adminSnapshot.docs.first.data();
-          _adminAgence!['id'] = adminSnapshot.docs.first.id;
-        }
+      // Charger l'admin agence s'il existe ET est actif
+      final adminSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin_agence')
+          .where('agenceId', isEqualTo: widget.agenceData['id'])
+          .where('isActive', isEqualTo: true) // Seulement les admins actifs
+          .limit(1)
+          .get();
+
+      if (adminSnapshot.docs.isNotEmpty) {
+        _adminAgence = adminSnapshot.docs.first.data();
+        _adminAgence!['id'] = adminSnapshot.docs.first.id;
       }
       
       // Charger les agents de l'agence
@@ -86,13 +85,14 @@ class _AgenceDetailsScreenState extends State<AgenceDetailsScreen> {
           color: Colors.white,
           fontSize: 18,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
       backgroundColor: Colors.transparent,
       elevation: 0,
       flexibleSpace: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+            colors: [Color(0xFF059669), Color(0xFF10B981)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -490,29 +490,38 @@ class _AgenceDetailsScreenState extends State<AgenceDetailsScreen> {
   /// 📝 Ligne de détail
   Widget _buildDetailRow(IconData icon, String label, String? value) {
     if (value == null || value.isEmpty) return const SizedBox.shrink();
-    
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: Colors.grey.shade600),
-          const SizedBox(width: 12),
-          Text(
-            '$label: ',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
+          Row(
+            children: [
+              Icon(icon, size: 16, color: Colors.grey.shade600),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
-          Expanded(
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 24),
             child: Text(
               value,
               style: const TextStyle(
                 fontSize: 14,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
                 color: Color(0xFF1F2937),
               ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
             ),
           ),
         ],

@@ -81,8 +81,10 @@ class AdminAgenceManagementService {
         'hasAdminAgence': false,
         'adminAgenceId': FieldValue.delete(),
         'adminAgenceEmail': FieldValue.delete(),
+        'adminAgence': FieldValue.delete(), // Supprimer les données de l'admin
         'statut': 'libre',
         'dateRetraitAdmin': FieldValue.serverTimestamp(),
+        'retraitAdminReason': reason,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -125,15 +127,56 @@ class AdminAgenceManagementService {
         updateData['reactivatedAt'] = FieldValue.serverTimestamp();
       }
 
+      // 1. Récupérer les infos de l'admin pour trouver son agence
+      final adminDoc = await _firestore.collection('users').doc(adminId).get();
+      if (!adminDoc.exists) {
+        return {
+          'success': false,
+          'message': 'Admin agence non trouvé',
+        };
+      }
+
+      final adminData = adminDoc.data()!;
+      final agenceId = adminData['agenceId'];
+
+      // 2. Mettre à jour l'admin
       await _firestore.collection('users').doc(adminId).update(updateData);
+
+      // 3. Mettre à jour l'agence selon le statut de l'admin
+      if (agenceId != null) {
+        final agenceUpdateData = <String, dynamic>{
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        if (!newStatus) {
+          // Admin désactivé → agence devient libre
+          agenceUpdateData['hasAdminAgence'] = false;
+          agenceUpdateData['statut'] = 'libre';
+          agenceUpdateData['adminAgenceId'] = FieldValue.delete();
+          agenceUpdateData['adminAgenceEmail'] = FieldValue.delete();
+          agenceUpdateData['adminAgence'] = FieldValue.delete();
+          agenceUpdateData['adminLibereAt'] = FieldValue.serverTimestamp();
+          agenceUpdateData['adminLibereReason'] = reason ?? 'Admin agence désactivé';
+        } else {
+          // Admin réactivé → agence devient occupée
+          agenceUpdateData['hasAdminAgence'] = true;
+          agenceUpdateData['statut'] = 'occupé';
+          agenceUpdateData['adminAgenceId'] = adminId;
+          agenceUpdateData['adminReaffecteAt'] = FieldValue.serverTimestamp();
+        }
+
+        await _firestore.collection('agences').doc(agenceId).update(agenceUpdateData);
+
+        debugPrint('[ADMIN_AGENCE_MANAGEMENT] ✅ Agence mise à jour: ${agenceUpdateData['statut']}');
+      }
 
       debugPrint('[ADMIN_AGENCE_MANAGEMENT] ✅ Statut admin modifié');
 
       return {
         'success': true,
-        'message': newStatus 
-            ? 'Admin activé avec succès' 
-            : 'Admin désactivé avec succès',
+        'message': newStatus
+            ? 'Admin agence activé et agence réaffectée'
+            : 'Admin agence désactivé et agence libérée',
       };
 
     } catch (e) {

@@ -83,34 +83,92 @@ class AdminCompagnieAgenceService {
     String? email,
     String? createdByEmail,
   }) async {
-    try {
-      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 👨‍💼 Création admin agence pour: $agenceNom');
+    debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🚀 DÉBUT création admin agence');
+    debugPrint('[ADMIN_COMPAGNIE_AGENCE] 📋 Paramètres reçus:');
+    debugPrint('[ADMIN_COMPAGNIE_AGENCE] - agenceId: $agenceId');
+    debugPrint('[ADMIN_COMPAGNIE_AGENCE] - agenceNom: $agenceNom');
+    debugPrint('[ADMIN_COMPAGNIE_AGENCE] - compagnieId: $compagnieId');
+    debugPrint('[ADMIN_COMPAGNIE_AGENCE] - compagnieNom: $compagnieNom');
+    debugPrint('[ADMIN_COMPAGNIE_AGENCE] - prenom: $prenom');
+    debugPrint('[ADMIN_COMPAGNIE_AGENCE] - nom: $nom');
+    debugPrint('[ADMIN_COMPAGNIE_AGENCE] - telephone: $telephone');
 
-      // Vérifier si l'agence a déjà un admin
+    try {
+      // Validation des paramètres d'entrée
+      if (agenceId.isEmpty || agenceNom.isEmpty || compagnieId.isEmpty ||
+          compagnieNom.isEmpty || prenom.isEmpty || nom.isEmpty) {
+        debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Paramètres manquants détectés');
+        throw Exception('Paramètres manquants pour la création de l\'admin agence');
+      }
+
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Validation paramètres OK');
+
+      // Vérifier si l'agence a déjà un admin (vérification robuste)
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🔍 Vérification agence existante...');
       final agenceDoc = await _firestore.collection('agences').doc(agenceId).get();
       if (!agenceDoc.exists) {
+        debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Agence non trouvée: $agenceId');
         return {
           'success': false,
           'error': 'Agence non trouvée',
+          'message': 'L\'agence spécifiée n\'existe pas',
         };
       }
 
       final agenceData = agenceDoc.data()!;
-      if (agenceData['hasAdminAgence'] == true) {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 📋 Données agence: hasAdminAgence=${agenceData['hasAdminAgence']}');
+
+      // Vérification robuste : vérifier s'il y a vraiment un admin actif pour cette agence
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🔍 Vérification admin réel dans la collection users...');
+      final existingAdminQuery = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'admin_agence')
+          .where('agenceId', isEqualTo: agenceId)
+          .where('isActive', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      final hasRealAdmin = existingAdminQuery.docs.isNotEmpty;
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 📋 Admin réel trouvé: $hasRealAdmin');
+
+      if (hasRealAdmin) {
+        debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Agence a déjà un admin actif');
         return {
           'success': false,
-          'error': 'Cette agence a déjà un admin agence',
+          'error': 'Cette agence a déjà un admin agence actif',
+          'message': 'Cette agence a déjà un admin agence actif assigné',
         };
       }
 
-      // Générer l'email si non fourni
-      final finalEmail = email ?? _generateAdminAgenceEmail(prenom, nom, agenceNom);
-      
-      // Générer un mot de passe
-      final password = _generatePassword();
+      // Si le flag hasAdminAgence est true mais qu'il n'y a pas d'admin réel, corriger les données
+      if (agenceData['hasAdminAgence'] == true && !hasRealAdmin) {
+        debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🔧 Correction des données incohérentes de l\'agence...');
+        await _firestore.collection('agences').doc(agenceId).update({
+          'hasAdminAgence': false,
+          'adminAgenceId': FieldValue.delete(),
+          'adminAgenceEmail': FieldValue.delete(),
+          'adminAgence': FieldValue.delete(),
+          'statut': 'libre',
+          'correctedAt': FieldValue.serverTimestamp(),
+        });
+        debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Données agence corrigées');
+      }
 
-      // Générer un UID unique
-      final uid = _generateUID();
+      // Générer l'email si non fourni
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 📧 Génération email...');
+      final finalEmail = email ?? _generateAdminAgenceEmail(prenom, nom, agenceNom);
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Email généré: $finalEmail');
+
+      // Générer un mot de passe
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🔑 Génération mot de passe...');
+      final password = _generatePassword();
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Mot de passe généré');
+
+      // Créer une référence de document pour auto-générer l'ID
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🆔 Génération référence document...');
+      final docRef = _firestore.collection('users').doc();
+      final uid = docRef.id;
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ UID généré: $uid');
 
       // Données de l'admin agence avec métadonnées de création
       final adminData = {
@@ -119,6 +177,7 @@ class AdminCompagnieAgenceService {
         'password': password,
         'prenom': prenom,
         'nom': nom,
+        'displayName': '$prenom $nom',
         'telephone': telephone,
         'role': 'admin_agence',
         'agenceId': agenceId,
@@ -140,9 +199,12 @@ class AdminCompagnieAgenceService {
       };
 
       // Créer l'admin agence dans Firestore
-      await _firestore.collection('users').doc(uid).set(adminData);
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 💾 Création document admin dans Firestore...');
+      await docRef.set(adminData);
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Document admin créé avec succès');
 
       // Mettre à jour l'agence pour indiquer qu'elle a un admin (statut occupé)
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🔄 Mise à jour agence...');
       await _firestore.collection('agences').doc(agenceId).update({
         'hasAdminAgence': true,
         'adminAgenceId': uid,
@@ -151,6 +213,7 @@ class AdminCompagnieAgenceService {
         'dateAffectationAdmin': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Agence mise à jour avec succès');
 
       debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Admin agence créé: $finalEmail');
 
@@ -163,12 +226,25 @@ class AdminCompagnieAgenceService {
         'message': 'Admin agence créé avec succès',
       };
 
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur création admin agence: $e');
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 📍 Stack trace: $stackTrace');
+
+      // Analyser le type d'erreur pour donner un message plus précis
+      String errorMessage = 'Erreur lors de la création de l\'admin agence';
+      if (e.toString().contains('permission')) {
+        errorMessage = 'Permissions insuffisantes pour créer l\'admin agence';
+      } else if (e.toString().contains('network')) {
+        errorMessage = 'Erreur de connexion. Vérifiez votre connexion internet';
+      } else if (e.toString().contains('email')) {
+        errorMessage = 'Erreur avec l\'adresse email générée';
+      }
+
       return {
         'success': false,
         'error': e.toString(),
-        'message': 'Erreur lors de la création de l\'admin agence',
+        'message': errorMessage,
+        'details': 'Erreur technique: ${e.toString()}',
       };
     }
   }
@@ -258,10 +334,30 @@ class AdminCompagnieAgenceService {
   }
 
   static String _generateAdminAgenceEmail(String prenom, String nom, String agenceNom) {
-    final prenomClean = prenom.toLowerCase().replaceAll(' ', '');
-    final nomClean = nom.toLowerCase().replaceAll(' ', '');
-    final agenceClean = agenceNom.toLowerCase().replaceAll(' ', '').replaceAll('agence', '');
-    return '$prenomClean.$nomClean.$agenceClean@assuretn.tn';
+    try {
+      final prenomClean = prenom.toLowerCase()
+          .replaceAll(' ', '')
+          .replaceAll(RegExp(r'[^a-z0-9]'), ''); // Supprimer caractères spéciaux
+      final nomClean = nom.toLowerCase()
+          .replaceAll(' ', '')
+          .replaceAll(RegExp(r'[^a-z0-9]'), ''); // Supprimer caractères spéciaux
+      final agenceClean = agenceNom.toLowerCase()
+          .replaceAll(' ', '')
+          .replaceAll('agence', '')
+          .replaceAll(RegExp(r'[^a-z0-9]'), '') // Supprimer caractères spéciaux
+          .trim();
+
+      // S'assurer qu'aucun champ n'est vide
+      final prenomFinal = prenomClean.isEmpty ? 'admin' : prenomClean;
+      final nomFinal = nomClean.isEmpty ? 'user' : nomClean;
+      final agenceFinal = agenceClean.isEmpty ? 'agence' : agenceClean;
+
+      return '$prenomFinal.$nomFinal.$agenceFinal@assuretn.tn';
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur génération email: $e');
+      // Email de fallback
+      return 'admin.${DateTime.now().millisecondsSinceEpoch}@assuretn.tn';
+    }
   }
 
   static String _generatePassword() {
@@ -296,16 +392,19 @@ class AdminCompagnieAgenceService {
         final agenceData = doc.data();
         agenceData['id'] = doc.id;
 
-        // Vérifier s'il y a un admin agence associé
+        // Vérifier s'il y a un admin agence associé ET ACTIF
         final adminQuery = await _firestore
             .collection('users')
             .where('role', isEqualTo: 'admin_agence')
             .where('agenceId', isEqualTo: doc.id)
+            .where('isActive', isEqualTo: true) // Seulement les admins actifs
             .limit(1)
             .get();
 
-        agenceData['hasAdminAgence'] = adminQuery.docs.isNotEmpty;
-        if (adminQuery.docs.isNotEmpty) {
+        final hasActiveAdmin = adminQuery.docs.isNotEmpty;
+        agenceData['hasAdminAgence'] = hasActiveAdmin;
+
+        if (hasActiveAdmin) {
           final adminData = adminQuery.docs.first.data();
           agenceData['adminAgence'] = {
             'id': adminQuery.docs.first.id,
@@ -313,7 +412,16 @@ class AdminCompagnieAgenceService {
             'prenom': adminData['prenom'],
             'email': adminData['email'],
             'telephone': adminData['telephone'],
+            'cin': adminData['cin'],
+            'isActive': adminData['isActive'],
           };
+          agenceData['adminAgenceId'] = adminQuery.docs.first.id;
+          agenceData['adminAgenceEmail'] = adminData['email'];
+        } else {
+          // S'assurer que les champs admin sont supprimés si pas d'admin actif
+          agenceData['adminAgence'] = null;
+          agenceData['adminAgenceId'] = null;
+          agenceData['adminAgenceEmail'] = null;
         }
 
         agences.add(agenceData);
@@ -412,30 +520,29 @@ class AdminCompagnieAgenceService {
     }
   }
 
-  /// 🗑️ Supprimer un admin agence et libérer l'agence
+  /// 🗑️ Retirer un admin d'une agence (sans supprimer le compte)
   static Future<Map<String, dynamic>> deleteAdminAgence(String adminId, String agenceId) async {
     try {
-      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🗑️ Suppression admin agence: $adminId');
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🗑️ Retrait admin de l\'agence: $adminId');
 
-      // Supprimer l'admin agence
-      await _firestore.collection('users').doc(adminId).delete();
-
-      // Libérer l'agence (retirer l'affectation)
-      await _firestore.collection('agences').doc(agenceId).update({
-        'hasAdminAgence': false,
-        'adminAgenceId': FieldValue.delete(),
-        'adminAgenceEmail': FieldValue.delete(),
-        'statut': 'libre',
-        'dateLiberation': FieldValue.serverTimestamp(),
+      // Retirer l'assignation à l'agence (garder l'admin dans la liste)
+      await _firestore.collection('users').doc(adminId).update({
+        'agenceId': null,
+        'agenceNom': null,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Admin supprimé et agence libérée');
-      return {'success': true, 'message': 'Admin supprimé et agence libérée avec succès'};
-
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Admin retiré de l\'agence avec succès');
+      return {
+        'success': true,
+        'message': 'Administrateur retiré de l\'agence avec succès'
+      };
     } catch (e) {
-      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur suppression admin: $e');
-      return {'success': false, 'message': 'Erreur lors de la suppression: $e'};
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur retrait admin agence: $e');
+      return {
+        'success': false,
+        'error': 'Erreur lors du retrait: $e'
+      };
     }
   }
 
@@ -487,6 +594,264 @@ class AdminCompagnieAgenceService {
     } catch (e) {
       debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur affectation: $e');
       return {'success': false, 'message': 'Erreur lors de l\'affectation: $e'};
+    }
+  }
+
+  /// 🗑️ Supprimer une agence et tous ses éléments associés
+  static Future<Map<String, dynamic>> deleteAgence(String agenceId) async {
+    try {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🗑️ Suppression agence: $agenceId');
+
+      // Récupérer l'agence pour vérifier son existence
+      final agenceDoc = await _firestore.collection('agences').doc(agenceId).get();
+      if (!agenceDoc.exists) {
+        return {'success': false, 'message': 'Agence non trouvée'};
+      }
+
+      final agenceData = agenceDoc.data()!;
+      final agenceNom = agenceData['nom'] ?? 'Agence inconnue';
+
+      // 1. Supprimer tous les admins agence de cette agence
+      final adminsQuery = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'admin_agence')
+          .where('agenceId', isEqualTo: agenceId)
+          .get();
+
+      for (var adminDoc in adminsQuery.docs) {
+        await adminDoc.reference.delete();
+        debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Admin agence supprimé: ${adminDoc.id}');
+      }
+
+      // 2. Supprimer tous les agents de cette agence
+      final agentsQuery = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'agent')
+          .where('agenceId', isEqualTo: agenceId)
+          .get();
+
+      for (var agentDoc in agentsQuery.docs) {
+        await agentDoc.reference.delete();
+        debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Agent supprimé: ${agentDoc.id}');
+      }
+
+      // 3. Supprimer l'agence elle-même
+      await _firestore.collection('agences').doc(agenceId).delete();
+
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Agence "$agenceNom" supprimée avec succès');
+      return {
+        'success': true,
+        'message': 'Agence "$agenceNom" et tous ses éléments associés supprimés avec succès'
+      };
+
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur suppression agence: $e');
+      return {
+        'success': false,
+        'message': 'Erreur lors de la suppression de l\'agence: $e'
+      };
+    }
+  }
+
+  /// ✏️ Modifier une agence
+  static Future<Map<String, dynamic>> updateAgence({
+    required String agenceId,
+    required String nom,
+    required String adresse,
+    required String telephone,
+    required String gouvernorat,
+    required String emailContact,
+    String? description,
+  }) async {
+    try {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✏️ Modification agence: $agenceId');
+
+      // Vérifier que l'agence existe
+      final agenceDoc = await _firestore.collection('agences').doc(agenceId).get();
+      if (!agenceDoc.exists) {
+        return {'success': false, 'message': 'Agence non trouvée'};
+      }
+
+      // Données à mettre à jour
+      final updateData = {
+        'nom': nom,
+        'adresse': adresse,
+        'telephone': telephone,
+        'gouvernorat': gouvernorat,
+        'emailContact': emailContact,
+        'description': description ?? '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Mettre à jour l'agence
+      await _firestore.collection('agences').doc(agenceId).update(updateData);
+
+      // Mettre à jour le nom de l'agence dans tous les utilisateurs associés
+      final usersQuery = await _firestore
+          .collection('users')
+          .where('agenceId', isEqualTo: agenceId)
+          .get();
+
+      for (var userDoc in usersQuery.docs) {
+        await userDoc.reference.update({
+          'agenceNom': nom,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Agence modifiée avec succès');
+      return {
+        'success': true,
+        'message': 'Agence modifiée avec succès'
+      };
+
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur modification agence: $e');
+      return {
+        'success': false,
+        'message': 'Erreur lors de la modification: $e'
+      };
+    }
+  }
+
+  /// 🔄 Changer le statut d'une agence
+  static Future<Map<String, dynamic>> toggleAgenceStatus(
+    String agenceId,
+    bool isActive,
+  ) async {
+    try {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🔄 Changement statut agence: $agenceId -> $isActive');
+
+      // Vérifier que l'agence existe
+      final agenceDoc = await _firestore.collection('agences').doc(agenceId).get();
+      if (!agenceDoc.exists) {
+        return {'success': false, 'message': 'Agence non trouvée'};
+      }
+
+      // Mettre à jour le statut
+      await _firestore.collection('agences').doc(agenceId).update({
+        'isActive': isActive,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Statut agence modifié avec succès');
+      return {
+        'success': true,
+        'message': isActive
+            ? 'Agence réactivée avec succès'
+            : 'Agence désactivée avec succès'
+      };
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur changement statut agence: $e');
+      return {
+        'success': false,
+        'message': 'Erreur lors du changement de statut: $e'
+      };
+    }
+  }
+
+  /// 🔗 Assigner un admin existant à une agence
+  static Future<Map<String, dynamic>> assignAdminToAgence(
+    String adminId,
+    String agenceId,
+  ) async {
+    try {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🔗 Assignation admin: $adminId -> agence: $agenceId');
+
+      // Vérifier que l'admin existe et n'est pas déjà assigné
+      final adminDoc = await _firestore.collection('users').doc(adminId).get();
+      if (!adminDoc.exists) {
+        return {'success': false, 'error': 'Administrateur non trouvé'};
+      }
+
+      final adminData = adminDoc.data()!;
+      if (adminData['agenceId'] != null && adminData['agenceId'].isNotEmpty) {
+        return {'success': false, 'error': 'Cet administrateur est déjà assigné à une agence'};
+      }
+
+      // Vérifier que l'agence existe
+      final agenceDoc = await _firestore.collection('agences').doc(agenceId).get();
+      if (!agenceDoc.exists) {
+        return {'success': false, 'error': 'Agence non trouvée'};
+      }
+
+      final agenceData = agenceDoc.data()!;
+
+      // Mettre à jour l'admin avec l'agenceId
+      await _firestore.collection('users').doc(adminId).update({
+        'agenceId': agenceId,
+        'agenceNom': agenceData['nom'],
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Admin assigné avec succès');
+      return {
+        'success': true,
+        'message': 'Administrateur assigné avec succès à l\'agence'
+      };
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur assignation admin: $e');
+      return {
+        'success': false,
+        'error': 'Erreur lors de l\'assignation: $e'
+      };
+    }
+  }
+
+  /// 🔐 Réinitialiser le mot de passe d'un admin agence
+  static Future<Map<String, dynamic>> resetAdminPassword(String adminId, String newPassword) async {
+    try {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 🔐 Réinitialisation mot de passe admin: $adminId');
+
+      // Mettre à jour le mot de passe dans Firestore
+      await _firestore.collection('users').doc(adminId).update({
+        'password': newPassword,
+        'mustChangePassword': true, // Forcer le changement à la prochaine connexion
+        'passwordResetAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Mot de passe réinitialisé avec succès');
+      return {
+        'success': true,
+        'message': 'Mot de passe réinitialisé avec succès'
+      };
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur réinitialisation mot de passe: $e');
+      return {
+        'success': false,
+        'message': 'Erreur lors de la réinitialisation du mot de passe: $e'
+      };
+    }
+  }
+
+  /// 📧 Envoyer un email
+  static Future<Map<String, dynamic>> sendEmail(Map<String, dynamic> emailData) async {
+    try {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] 📧 Envoi email à: ${emailData['to']}');
+
+      // Ajouter l'email à la collection pour traitement par Cloud Function
+      await _firestore.collection('mail').add({
+        'to': emailData['to'],
+        'message': {
+          'subject': emailData['subject'],
+          'html': emailData['html'],
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ✅ Email ajouté à la queue d\'envoi');
+      return {
+        'success': true,
+        'message': 'Email envoyé avec succès'
+      };
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_AGENCE] ❌ Erreur envoi email: $e');
+      return {
+        'success': false,
+        'message': 'Erreur lors de l\'envoi de l\'email: $e'
+      };
     }
   }
 

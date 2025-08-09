@@ -1,67 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../services/admin_agence_service.dart';
-import '../../../services/admin_agence_diagnostic_service.dart';
-import 'agence_info_screen.dart';
-import 'agents_management_screen.dart';
+import '../../../services/agent_service.dart';
+import 'contrats_screen.dart';
+import 'vehicules_screen.dart';
+import 'conducteurs_screen.dart';
+import 'sinistres_screen.dart';
 
-/// 🏢 Dashboard Admin Agence - Version Moderne
-class AdminAgenceDashboard extends StatefulWidget {
-  final Map<String, dynamic>? userData;
+/// 🏢 Dashboard principal pour Agent
+class AgentDashboard extends StatefulWidget {
+  final Map<String, dynamic> userData;
 
-  const AdminAgenceDashboard({
+  const AgentDashboard({
     Key? key,
-    this.userData,
+    required this.userData,
   }) : super(key: key);
 
   @override
-  State<AdminAgenceDashboard> createState() => _AdminAgenceDashboardState();
+  State<AgentDashboard> createState() => _AgentDashboardState();
 }
 
-class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
+class _AgentDashboardState extends State<AgentDashboard> {
   int _selectedIndex = 0;
-  Map<String, dynamic>? _agenceData;
+  Map<String, dynamic>? _agentInfo;
   Map<String, dynamic> _stats = {};
-  List<Map<String, dynamic>> _agents = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadAllData();
+    _loadDashboardData();
   }
 
-  /// 📊 Charger toutes les données
-  Future<void> _loadAllData() async {
+  /// 📊 Charger les données du dashboard
+  Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
 
     try {
-      debugPrint('[ADMIN_AGENCE_DASHBOARD] 🔄 Début chargement données...');
-      debugPrint('[ADMIN_AGENCE_DASHBOARD] 👤 UserData: ${widget.userData}');
-
-      // Charger les informations de l'agence
-      final agenceInfo = await AdminAgenceService.getAgenceInfo(widget.userData!['uid']);
-
-      if (agenceInfo != null) {
-        debugPrint('[ADMIN_AGENCE_DASHBOARD] ✅ Agence trouvée: ${agenceInfo['nom']}');
-        _agenceData = agenceInfo;
-
+      // Charger les informations de l'agent
+      final agentInfo = await AgentService.getAgentInfo(widget.userData['uid']);
+      
+      if (agentInfo != null) {
+        _agentInfo = agentInfo;
+        
         // Charger les statistiques
-        final stats = await AdminAgenceService.getAgenceStats(agenceInfo['id']);
+        final stats = await AgentService.getAgentStats(agentInfo['id']);
         _stats = stats;
-        debugPrint('[ADMIN_AGENCE_DASHBOARD] 📊 Stats chargées: $stats');
-
-        // Charger les agents
-        final agents = await AdminAgenceService.getAgentsOfAgence(agenceInfo['id']);
-        _agents = agents;
-        debugPrint('[ADMIN_AGENCE_DASHBOARD] 👥 ${agents.length} agents chargés');
-      } else {
-        debugPrint('[ADMIN_AGENCE_DASHBOARD] ❌ Aucune agence trouvée pour cet admin');
       }
 
-    } catch (e, stackTrace) {
-      debugPrint('[ADMIN_AGENCE_DASHBOARD] ❌ Erreur chargement données: $e');
-      debugPrint('[ADMIN_AGENCE_DASHBOARD] 📍 StackTrace: $stackTrace');
+    } catch (e) {
+      debugPrint('[AGENT_DASHBOARD] ❌ Erreur chargement données: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -80,7 +67,7 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF10B981), Color(0xFF059669)],
+          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -107,7 +94,7 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
 
   /// 📱 Contenu principal
   Widget _buildMainContent() {
-    if (_agenceData == null) {
+    if (_agentInfo == null) {
       return _buildErrorScreen();
     }
 
@@ -115,14 +102,24 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
       case 0:
         return _buildHomeScreen();
       case 1:
-        return AgenceInfoScreen(
-          agenceData: _agenceData!,
-          onAgenceUpdated: _loadAllData,
+        return ContratsScreen(
+          agentData: _agentInfo!,
+          userData: widget.userData,
         );
       case 2:
-        return AgentsManagementScreen(
-          agenceData: _agenceData!,
-          userData: widget.userData!,
+        return VehiculesScreen(
+          agentData: _agentInfo!,
+          userData: widget.userData,
+        );
+      case 3:
+        return ConducteursScreen(
+          agentData: _agentInfo!,
+          userData: widget.userData,
+        );
+      case 4:
+        return SinistresScreen(
+          agentData: _agentInfo!,
+          userData: widget.userData,
         );
       default:
         return _buildHomeScreen();
@@ -134,142 +131,49 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.business_center_outlined,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              color: Colors.white,
+              size: 64,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Erreur de Configuration',
+              style: TextStyle(
                 color: Colors.white,
-                size: 80,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
               ),
-              const SizedBox(height: 30),
-              const Text(
-                'Configuration Agence Manquante',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Impossible de charger vos informations.',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
               ),
-              const SizedBox(height: 15),
-              Text(
-                'Votre compte admin agence n\'est pas encore associé à une agence.',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 16,
-                ),
-                textAlign: TextAlign.center,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 30),
+            ElevatedButton.icon(
+              onPressed: _showLogoutDialog,
+              icon: const Icon(Icons.logout),
+              label: const Text('Se Déconnecter'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF667EEA),
               ),
-              const SizedBox(height: 30),
-
-              // Informations de débogage
-              Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Informations du compte :',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Email: ${widget.userData?['email'] ?? 'Non défini'}',
-                      style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14),
-                    ),
-                    Text(
-                      'Rôle: ${widget.userData?['role'] ?? 'Non défini'}',
-                      style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14),
-                    ),
-                    Text(
-                      'UID: ${widget.userData?['uid'] ?? 'Non défini'}',
-                      style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              // Actions
-              Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _repairConfiguration,
-                      icon: const Icon(Icons.build),
-                      label: const Text('Réparer Configuration'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFFEF4444),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _loadAllData,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Réessayer'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _showDiagnosticReport,
-                      icon: const Icon(Icons.info_outline),
-                      label: const Text('Rapport Diagnostic'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _showLogoutDialog,
-                      icon: const Icon(Icons.logout),
-                      label: const Text('Se Déconnecter'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -280,7 +184,7 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF10B981), Color(0xFF059669)],
+          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -288,7 +192,7 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
       child: SafeArea(
         child: Column(
           children: [
-            // Header avec informations de l'agence
+            // Header avec informations de l'agent
             _buildHeader(),
             
             // Contenu principal avec statistiques
@@ -328,7 +232,7 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
     );
   }
 
-  /// 📋 Header avec informations de l'agence
+  /// 📋 Header avec informations de l'agent
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -342,7 +246,7 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Bonjour ${widget.userData!['prenom']} !',
+                      'Bonjour ${widget.userData['prenom']} !',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
@@ -351,15 +255,15 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      _agenceData!['nom'] ?? 'Agence',
+                      'Agent - ${_agentInfo!['agenceInfo']?['nom'] ?? 'Agence'}',
                       style: const TextStyle(
                         color: Colors.white70,
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     Text(
-                      _agenceData!['compagnieInfo']?['nom'] ?? 'Compagnie',
+                      _agentInfo!['compagnieInfo']?['nom'] ?? 'Compagnie',
                       style: const TextStyle(
                         color: Colors.white60,
                         fontSize: 14,
@@ -397,23 +301,49 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
           ),
         ),
         const SizedBox(height: 15),
+        
+        // Première ligne
         Row(
           children: [
             Expanded(
               child: _buildStatCard(
-                'Total Agents',
-                '${_stats['totalAgents'] ?? 0}',
-                Icons.people_rounded,
-                const Color(0xFF10B981),
+                'Contrats',
+                '${_stats['totalContrats'] ?? 0}',
+                Icons.description_rounded,
+                const Color(0xFF667EEA),
               ),
             ),
             const SizedBox(width: 15),
             Expanded(
               child: _buildStatCard(
-                'Agents Actifs',
-                '${_stats['activeAgents'] ?? 0}',
-                Icons.person_rounded,
-                const Color(0xFF059669),
+                'Véhicules',
+                '${_stats['totalVehicules'] ?? 0}',
+                Icons.directions_car_rounded,
+                const Color(0xFF10B981),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
+        
+        // Deuxième ligne
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Conducteurs',
+                '${_stats['totalConducteurs'] ?? 0}',
+                Icons.people_rounded,
+                const Color(0xFFF59E0B),
+              ),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: _buildStatCard(
+                'Sinistres',
+                '${_stats['totalSinistres'] ?? 0}',
+                Icons.warning_rounded,
+                const Color(0xFFEF4444),
               ),
             ),
           ],
@@ -476,23 +406,49 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
           ),
         ),
         const SizedBox(height: 15),
+        
+        // Première ligne
         Row(
           children: [
             Expanded(
               child: _buildActionCard(
-                'Ajouter Agent',
-                Icons.person_add_rounded,
+                'Nouveau Contrat',
+                Icons.add_circle_rounded,
                 const Color(0xFF667EEA),
-                () => setState(() => _selectedIndex = 2),
+                () => setState(() => _selectedIndex = 1),
               ),
             ),
             const SizedBox(width: 15),
             Expanded(
               child: _buildActionCard(
-                'Modifier Agence',
-                Icons.edit_rounded,
+                'Ajouter Véhicule',
+                Icons.directions_car_rounded,
                 const Color(0xFF10B981),
-                () => setState(() => _selectedIndex = 1),
+                () => setState(() => _selectedIndex = 2),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
+        
+        // Deuxième ligne
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                'Nouveau Conducteur',
+                Icons.person_add_rounded,
+                const Color(0xFFF59E0B),
+                () => setState(() => _selectedIndex = 3),
+              ),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: _buildActionCard(
+                'Déclarer Sinistre',
+                Icons.report_problem_rounded,
+                const Color(0xFFEF4444),
+                () => setState(() => _selectedIndex = 4),
               ),
             ),
           ],
@@ -533,18 +489,8 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
 
   /// 📝 Dernières activités
   Widget _buildRecentActivities() {
-    final recentActionsRaw = _stats['recentActions'] ?? [];
-    final recentActions = <Map<String, dynamic>>[];
-
-    // Convertir en sécurité
-    if (recentActionsRaw is List) {
-      for (final item in recentActionsRaw) {
-        if (item is Map<String, dynamic>) {
-          recentActions.add(item);
-        }
-      }
-    }
-
+    final recentActivities = _stats['recentActivities'] as List<Map<String, dynamic>>? ?? [];
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -557,7 +503,7 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
           ),
         ),
         const SizedBox(height: 15),
-        if (recentActions.isEmpty) ...[
+        if (recentActivities.isEmpty) ...[
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -575,14 +521,31 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
             ),
           ),
         ] else ...[
-          ...recentActions.take(3).map((action) => _buildActivityItem(action)),
+          ...recentActivities.take(3).map((activity) => _buildActivityItem(activity)),
         ],
       ],
     );
   }
 
   /// 📋 Item d'activité
-  Widget _buildActivityItem(Map<String, dynamic> action) {
+  Widget _buildActivityItem(Map<String, dynamic> activity) {
+    IconData activityIcon;
+    Color activityColor;
+    
+    switch (activity['icon']) {
+      case 'contract':
+        activityIcon = Icons.description_rounded;
+        activityColor = const Color(0xFF667EEA);
+        break;
+      case 'car':
+        activityIcon = Icons.directions_car_rounded;
+        activityColor = const Color(0xFF10B981);
+        break;
+      default:
+        activityIcon = Icons.circle_rounded;
+        activityColor = Colors.grey;
+    }
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(15),
@@ -596,12 +559,12 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withOpacity(0.1),
+              color: activityColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(
-              Icons.person_add_rounded,
-              color: Color(0xFF10B981),
+            child: Icon(
+              activityIcon,
+              color: activityColor,
               size: 20,
             ),
           ),
@@ -611,11 +574,19 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  action['description'] ?? '',
+                  activity['title'] ?? '',
                   style: const TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color: Color(0xFF1F2937),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  activity['description'] ?? '',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -640,7 +611,7 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
       currentIndex: _selectedIndex,
       onTap: (index) => setState(() => _selectedIndex = index),
       type: BottomNavigationBarType.fixed,
-      selectedItemColor: const Color(0xFF10B981),
+      selectedItemColor: const Color(0xFF667EEA),
       unselectedItemColor: Colors.grey,
       items: const [
         BottomNavigationBarItem(
@@ -648,12 +619,20 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
           label: 'Accueil',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.business_rounded),
-          label: 'Mon Agence',
+          icon: Icon(Icons.description_rounded),
+          label: 'Contrats',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.directions_car_rounded),
+          label: 'Véhicules',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.people_rounded),
-          label: 'Agents',
+          label: 'Conducteurs',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.warning_rounded),
+          label: 'Sinistres',
         ),
       ],
     );
@@ -693,99 +672,5 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
         ],
       ),
     );
-  }
-
-  /// 🔧 Réparer la configuration automatiquement
-  Future<void> _repairConfiguration() async {
-    try {
-      // Afficher un dialogue de chargement
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 20),
-              Text('Réparation en cours...'),
-            ],
-          ),
-        ),
-      );
-
-      final success = await AdminAgenceDiagnosticService.repairAdminAgence(widget.userData!['uid']);
-
-      if (mounted) Navigator.pop(context); // Fermer le dialogue de chargement
-
-      if (success) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Configuration réparée avec succès !'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-        // Recharger les données
-        await _loadAllData();
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('❌ Impossible de réparer automatiquement'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) Navigator.pop(context); // Fermer le dialogue de chargement
-      debugPrint('[ADMIN_AGENCE_DASHBOARD] ❌ Erreur réparation: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  /// 📊 Afficher le rapport de diagnostic
-  Future<void> _showDiagnosticReport() async {
-    try {
-      final report = await AdminAgenceDiagnosticService.getDiagnosticReport(widget.userData!['uid']);
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.blue),
-                SizedBox(width: 8),
-                Text('Rapport de Diagnostic'),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Text(
-                report,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Fermer'),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('[ADMIN_AGENCE_DASHBOARD] ❌ Erreur rapport: $e');
-    }
   }
 }

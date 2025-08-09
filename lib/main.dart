@@ -14,11 +14,12 @@ import 'features/splash/presentation/screens/splash_screen.dart';
 import 'features/auth/presentation/screens/user_type_selection_screen_elegant.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/conducteur/presentation/screens/conducteur_dashboard_screen.dart';
+import 'features/conducteur/presentation/screens/conducteur_registration_screen.dart';
 import 'features/agent/presentation/screens/agent_dashboard_screen.dart';
 import 'features/expert/presentation/screens/expert_dashboard_screen.dart';
 import 'features/admin_compagnie/presentation/screens/admin_compagnie_dashboard.dart';
 import 'features/admin_agence/screens/admin_agence_dashboard.dart';
-import 'features/super_admin/screens/super_admin_dashboard_new.dart';
+import 'features/admin/screens/super_admin_dashboard.dart';
 import 'debug/check_admin_account.dart';
 import 'features/admin/widgets/global_emergency_fab.dart';
 
@@ -89,11 +90,13 @@ class ConstatTunisieApp extends StatelessWidget {
       routes: {
         '/user-type-selection': (context) => const UserTypeSelectionScreenElegant(),
         '/conducteur-dashboard': (context) => const ConducteurDashboardScreen(),
+        '/conducteur-registration': (context) => const ConducteurRegistrationScreen(),
+        '/login': (context) => const LoginScreen(userType: 'driver'),
         '/agent-dashboard': (context) => const AgentDashboardScreen(),
         '/expert-dashboard': (context) => const ExpertDashboardScreen(),
         '/admin-agence-dashboard': (context) => const AdminAgenceDashboard(),
         '/admin-compagnie-dashboard': (context) => const AdminCompagnieDashboard(),
-        '/super-admin-dashboard': (context) => const SuperAdminDashboardNew(),
+        '/super-admin-dashboard': (context) => const SuperAdminDashboard(),
       },
       builder: (context, child) {
         return Stack(

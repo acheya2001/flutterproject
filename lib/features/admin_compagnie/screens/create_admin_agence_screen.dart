@@ -555,22 +555,41 @@ class _CreateAdminAgenceScreenState extends State<CreateAdminAgenceScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // Vérifier que tous les champs requis sont présents
+      final compagnieId = widget.userData['compagnieId'];
+      final compagnieNom = widget.userData['compagnieNom'];
+      final createdByEmail = widget.userData['email'];
+
+      if (compagnieId == null || compagnieNom == null || createdByEmail == null) {
+        throw Exception('Données utilisateur incomplètes. Veuillez vous reconnecter.');
+      }
+
+      if (_selectedAgenceId == null) {
+        throw Exception('Veuillez sélectionner une agence.');
+      }
+
       // Trouver l'agence sélectionnée
       final selectedAgence = _agencesNonAffectees.firstWhere(
         (agence) => agence['id'] == _selectedAgenceId,
+        orElse: () => throw Exception('Agence sélectionnée non trouvée.'),
       );
+
+      final agenceNom = selectedAgence['nom'];
+      if (agenceNom == null) {
+        throw Exception('Nom de l\'agence non défini.');
+      }
 
       // Créer l'admin agence avec email généré automatiquement
       final result = await AdminCompagnieAgenceService.createAdminAgence(
         agenceId: _selectedAgenceId!,
-        agenceNom: selectedAgence['nom'],
-        compagnieId: widget.userData['compagnieId'],
-        compagnieNom: widget.userData['compagnieNom'],
-        prenom: _prenomController.text,
-        nom: _nomController.text,
-        telephone: _telephoneController.text,
+        agenceNom: agenceNom,
+        compagnieId: compagnieId,
+        compagnieNom: compagnieNom,
+        prenom: _prenomController.text.trim(),
+        nom: _nomController.text.trim(),
+        telephone: _telephoneController.text.trim(),
         email: _generateEmailPreview(), // Email généré automatiquement
-        createdByEmail: widget.userData['email'],
+        createdByEmail: createdByEmail,
       );
 
       if (!mounted) return;
@@ -581,18 +600,18 @@ class _CreateAdminAgenceScreenState extends State<CreateAdminAgenceScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => AdminAgenceCredentialsDisplay(
-              email: result['email'],
-              password: result['password'],
-              agenceName: selectedAgence['nom'],
-              adminName: result['displayName'],
-              companyName: widget.userData['compagnieNom'],
+              email: result['email'] ?? 'Email non défini',
+              password: result['password'] ?? 'Mot de passe non défini',
+              agenceName: agenceNom,
+              adminName: result['displayName'] ?? 'Admin non défini',
+              companyName: compagnieNom,
             ),
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message']),
+            content: Text(result['message'] ?? 'Erreur lors de la création'),
             backgroundColor: Colors.red,
           ),
         );
@@ -619,18 +638,31 @@ class _CreateAdminAgenceScreenState extends State<CreateAdminAgenceScreen> {
       return 'Email généré automatiquement...';
     }
 
+    // Vérifier que les données de la compagnie sont disponibles
+    final compagnieNom = widget.userData['compagnieNom'];
+    if (compagnieNom == null) {
+      return 'Email généré automatiquement...';
+    }
+
     final selectedAgence = _agencesNonAffectees.firstWhere(
       (agence) => agence['id'] == _selectedAgenceId,
       orElse: () => {'nom': 'agence'},
     );
 
+    final agenceNomValue = selectedAgence['nom'];
+    if (agenceNomValue == null) {
+      return 'Email généré automatiquement...';
+    }
+
     final prenom = _prenomController.text.toLowerCase().replaceAll(' ', '');
     final nom = _nomController.text.toLowerCase().replaceAll(' ', '');
-    final agenceNom = selectedAgence['nom'].toString().toLowerCase()
+    final agenceNom = agenceNomValue.toString().toLowerCase()
         .replaceAll(' ', '')
         .replaceAll('agence', '')
         .trim();
 
-    return '$prenom.$nom.$agenceNom@${widget.userData['compagnieNom'].toString().toLowerCase().replaceAll(' ', '')}.tn';
+    final compagnieNomClean = compagnieNom.toString().toLowerCase().replaceAll(' ', '');
+
+    return '$prenom.$nom.$agenceNom@$compagnieNomClean.tn';
   }
 }

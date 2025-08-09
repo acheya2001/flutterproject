@@ -270,14 +270,14 @@ class UserTypeSelectionScreen extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                // Accès admin discret (sans couleur rouge/orange)
+                // Accès admin discret
                 GestureDetector(
                   onTap: () => _handleSuperAdminAccess(context),
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    child: Icon(
+                    child: const Icon(
                       Icons.admin_panel_settings_outlined,
-                      color: const Color(0xFF94A3B8), // Gris discret
+                      color: Color(0xFF94A3B8),
                       size: 20,
                     ),
                   ),

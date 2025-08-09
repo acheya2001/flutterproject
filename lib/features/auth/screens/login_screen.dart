@@ -5,8 +5,11 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/services/navigation_service.dart';
 import '../../../services/admin_compagnie_auth_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/conducteur_workaround_service.dart';
 import '../../admin_compagnie/screens/admin_compagnie_dashboard.dart';
+import '../../admin_agence/screens/modern_admin_agence_dashboard.dart';
 import '../../../debug/check_admin_account.dart';
+import '../../conducteur/presentation/screens/conducteur_registration_screen.dart';
 
 /// 🔐 Écran de connexion pour tous les types d'utilisateurs
 class LoginScreen extends StatefulWidget {
@@ -97,40 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SafeArea(
           child: Stack(
             children: [
-              // Bouton debug en haut à droite
-              Positioned(
-                top: 10,
-                right: 10,
-                child: IconButton(
-                  onPressed: () {
-                    print('🐛 Bouton debug cliqué !');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('🐛 Debug activé ! Vérification du compte...'),
-                        backgroundColor: Colors.orange,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
 
-                    // Naviguer vers l'écran de debug
-                    Future.delayed(const Duration(milliseconds: 500), () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const CheckAdminAccountScreen(),
-                        ),
-                      );
-                    });
-                  },
-                  icon: const Icon(Icons.bug_report_rounded),
-                  tooltip: 'Debug Account',
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.red.withOpacity(0.2),
-                    foregroundColor: Colors.red,
-                    padding: const EdgeInsets.all(12),
-                  ),
-                ),
-              ),
 
               // Contenu principal
               SingleChildScrollView(
@@ -300,22 +270,44 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
 
-                      // Bouton de test debug
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _testDebugFunction,
-                        icon: const Icon(Icons.bug_report_rounded),
-                        label: const Text('🔧 Test Debug'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.orange,
-                          side: const BorderSide(color: Colors.orange),
-                        ),
-                      ),
+
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 32),
+
+                // Lien d'inscription pour conducteurs
+                if (widget.userType == 'driver')
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Pas encore de compte ? ',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ConducteurRegistrationScreen(),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            'S\'inscrire',
+                            style: TextStyle(
+                              color: _userTypeColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                 // Retour
                 TextButton.icon(
@@ -404,6 +396,16 @@ class _LoginScreenState extends State<LoginScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => AdminCompagnieDashboard(
+                userData: result['userData'],
+              ),
+            ),
+          );
+        } else if (userRole == 'admin_agence') {
+          // Redirection spéciale pour admin agence avec données
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ModernAdminAgenceDashboard(
                 userData: result['userData'],
               ),
             ),
@@ -584,72 +586,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// 🔧 Test de la fonction debug
-  void _testDebugFunction() async {
-    print('🔧 Test debug démarré...');
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('🔧 Test debug en cours...'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-
-    try {
-      // Test 1: Vérifier les permissions Firestore
-      print('Test 1: Permissions Firestore...');
-      final testQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .limit(1)
-          .get();
-
-      print('✅ Permissions Firestore OK (${testQuery.docs.length} docs)');
-
-      // Test 2: Rechercher le compte spécifique
-      print('Test 2: Recherche du compte...');
-      final userQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .where('email', isEqualTo: 'sila.aaaa@comarassurances.com')
-          .get();
-
-      if (userQuery.docs.isNotEmpty) {
-        final userData = userQuery.docs.first.data();
-        print('✅ Compte trouvé: ${userData['role']} - Actif: ${userData['isActive']}');
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Compte trouvé ! Rôle: ${userData['role']}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        print('❌ Compte non trouvé');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Compte non trouvé dans Firestore'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-
-      // Naviguer vers l'écran de debug
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const CheckAdminAccountScreen(),
-        ),
-      );
-
-    } catch (e) {
-      print('❌ Erreur test debug: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Erreur: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
 
   /// 🔐 Effectuer la connexion Firebase réelle
   Future<Map<String, dynamic>> _performFirebaseLogin() async {
@@ -659,20 +596,71 @@ class _LoginScreenState extends State<LoginScreen> {
 
       print('[LOGIN] 🔐 Tentative de connexion pour: $email');
 
+      // 🚗 CONNEXION SPÉCIALE POUR LES CONDUCTEURS (Service hybride)
+      if (widget.userType == 'driver') {
+        print('[LOGIN] 🚗 Mode conducteur détecté, utilisation service hybride...');
+        try {
+          final result = await ConducteurWorkaroundService.connecterConducteurHybride(
+            email: email,
+            password: password,
+          );
+
+          if (result['success'] == true) {
+            print('[LOGIN] ✅ Connexion conducteur réussie (mode: ${result['mode'] ?? 'firebase'})');
+            return result;
+          } else {
+            print('[LOGIN] ❌ Échec connexion conducteur: ${result['error']}');
+            return result;
+          }
+        } catch (e) {
+          print('[LOGIN] ❌ Erreur connexion conducteur: $e');
+          return {
+            'success': false,
+            'error': 'Erreur de connexion conducteur: $e',
+          };
+        }
+      }
+
       // 🎯 VÉRIFICATION DIRECTE DANS FIRESTORE (CONTOURNEMENT SSL)
       print('[LOGIN] 🔍 Vérification directe Firestore...');
 
       try {
+        // Chercher d'abord dans la collection 'users'
         final userQuery = await FirebaseFirestore.instance
             .collection('users')
             .where('email', isEqualTo: email)
             .limit(1)
             .get();
 
+        Map<String, dynamic>? userData;
+        String? userDocId;
+        String? userRole;
+
         if (userQuery.docs.isNotEmpty) {
           final userDoc = userQuery.docs.first;
-          final userData = userDoc.data();
+          userData = userDoc.data();
+          userDocId = userDoc.id;
+          userRole = userData['role'];
+          print('[LOGIN] 👤 Utilisateur trouvé dans collection "users"');
+        } else {
+          // Si pas trouvé dans 'users', chercher dans 'conducteurs'
+          print('[LOGIN] 🔍 Recherche dans collection "conducteurs"...');
+          final conducteurQuery = await FirebaseFirestore.instance
+              .collection('conducteurs')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
 
+          if (conducteurQuery.docs.isNotEmpty) {
+            final conducteurDoc = conducteurQuery.docs.first;
+            userData = conducteurDoc.data();
+            userDocId = conducteurDoc.id;
+            userRole = 'conducteur';
+            print('[LOGIN] 🚗 Conducteur trouvé dans collection "conducteurs"');
+          }
+        }
+
+        if (userData != null && userDocId != null) {
           // Vérifier le mot de passe
           final storedPassword = userData['password'] ??
                                 userData['temporaryPassword'] ??
@@ -699,7 +687,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
             // Créer un objet utilisateur simulé (sans Firebase Auth)
             final fakeUser = {
-              'uid': userDoc.id,
+              'uid': userDocId,
               'email': email,
               'displayName': '${userData['prenom']} ${userData['nom']}',
             };
@@ -708,7 +696,7 @@ class _LoginScreenState extends State<LoginScreen> {
               'success': true,
               'user': fakeUser,
               'userData': userData,
-              'role': userData['role'],
+              'role': userRole,
               'message': 'Connexion réussie (mode direct)',
               'directMode': true,
             };
@@ -744,20 +732,39 @@ class _LoginScreenState extends State<LoginScreen> {
       print('[LOGIN] ✅ Connexion Firebase Auth réussie: ${user.uid}');
 
       // Récupérer les données utilisateur depuis Firestore
-      final userDoc = await FirebaseFirestore.instance
+      // Chercher d'abord dans 'users', puis dans 'conducteurs'
+      DocumentSnapshot? userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
 
-      if (!userDoc.exists) {
+      Map<String, dynamic>? userData;
+      String? userRole;
+
+      if (userDoc.exists) {
+        userData = userDoc.data() as Map<String, dynamic>;
+        userRole = userData['role'] as String?;
+        print('[LOGIN] 👤 Données trouvées dans collection "users"');
+      } else {
+        // Chercher dans la collection 'conducteurs'
+        userDoc = await FirebaseFirestore.instance
+            .collection('conducteurs')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          userData = userDoc.data() as Map<String, dynamic>;
+          userRole = 'conducteur';
+          print('[LOGIN] 🚗 Données trouvées dans collection "conducteurs"');
+        }
+      }
+
+      if (userData == null) {
         return {
           'success': false,
           'error': 'Données utilisateur non trouvées dans Firestore',
         };
       }
-
-      final userData = userDoc.data()!;
-      final userRole = userData['role'] as String?;
 
       if (userRole == null || userRole.isEmpty) {
         return {
