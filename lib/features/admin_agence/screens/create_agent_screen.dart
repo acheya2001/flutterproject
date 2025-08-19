@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../services/admin_agence_service.dart';
+import '../../../services/agent_email_service.dart';
 import '../../../core/theme/form_styles.dart';
 import 'agent_credentials_display.dart';
 
@@ -26,53 +28,17 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
   final _adresseController = TextEditingController();
 
   bool _isLoading = false;
-  String _generatedEmail = '';
-  String _generatedPassword = '';
 
   @override
   void initState() {
     super.initState();
-    // Écouter les changements de prénom et nom pour générer l'email
-    _prenomController.addListener(_generateEmailAndPassword);
-    _nomController.addListener(_generateEmailAndPassword);
+    // Plus besoin de génération automatique d'email
   }
 
-  /// 🔄 Générer automatiquement email et mot de passe
-  void _generateEmailAndPassword() {
-    final prenom = _prenomController.text.trim();
-    final nom = _nomController.text.trim();
 
-    if (prenom.isNotEmpty && nom.isNotEmpty) {
-      // Générer email : prenom.nom.agence@compagnie.tn
-      final agenceNom = widget.agenceData['nom']?.toString().replaceAll(' ', '').toLowerCase() ?? 'agence';
-      final compagnieNom = widget.agenceData['compagnieNom']?.toString().replaceAll(' ', '').toLowerCase() ?? 'assurance';
-
-      _generatedEmail = '${prenom.toLowerCase()}.${nom.toLowerCase()}.$agenceNom@$compagnieNom.tn';
-
-      // Générer mot de passe aléatoire de 8 caractères
-      _generatedPassword = _generateRandomPassword();
-
-      // Mettre à jour le champ email
-      _emailController.text = _generatedEmail;
-
-      setState(() {});
-
-      debugPrint('[CREATE_AGENT] 📧 Email généré: $_generatedEmail');
-      debugPrint('[CREATE_AGENT] 🔑 Mot de passe généré: $_generatedPassword');
-    }
-  }
-
-  /// 🔑 Générer un mot de passe aléatoire
-  String _generateRandomPassword() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    final random = DateTime.now().millisecondsSinceEpoch;
-    return String.fromCharCodes(Iterable.generate(8, (_) => chars.codeUnitAt(random % chars.length)));
-  }
 
   @override
   void dispose() {
-    _prenomController.removeListener(_generateEmailAndPassword);
-    _nomController.removeListener(_generateEmailAndPassword);
     _prenomController.dispose();
     _nomController.dispose();
     _emailController.dispose();
@@ -344,8 +310,8 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
           ),
           const SizedBox(height: 16),
           
-          // Email généré automatiquement
-          _buildGeneratedEmailField(),
+          // Email professionnel (obligatoire et réel)
+          _buildRealEmailField(),
           const SizedBox(height: 16),
           
           // Téléphone
@@ -380,120 +346,106 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
           ),
           
           const SizedBox(height: 20),
-          
-          // Mot de passe généré automatiquement
-          _buildGeneratedPasswordField(),
-        ],
-      ),
-    );
-  }
 
-  /// 📧 Champ email généré automatiquement
-  Widget _buildGeneratedEmailField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Email (généré automatiquement)',
-          style: FormStyles.getLabelStyle(),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.green.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.green.shade200),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.email_rounded, color: Colors.green.shade600, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _generatedEmail.isEmpty ? 'Saisissez le prénom et nom pour générer l\'email' : _generatedEmail,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: _generatedEmail.isEmpty ? Colors.grey.shade600 : Colors.green.shade800,
-                  ),
-                ),
-              ),
-              if (_generatedEmail.isNotEmpty)
-                Icon(Icons.check_circle, color: Colors.green.shade600, size: 20),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 🔑 Champ mot de passe généré automatiquement
-  Widget _buildGeneratedPasswordField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Mot de passe (généré automatiquement)',
-          style: FormStyles.getLabelStyle(),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.orange.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.orange.shade200),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.lock_rounded, color: Colors.orange.shade600, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _generatedPassword.isEmpty ? 'Sera généré automatiquement' : _generatedPassword,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: _generatedPassword.isEmpty ? Colors.grey.shade600 : Colors.orange.shade800,
-                    fontFamily: 'monospace', // Police monospace pour le mot de passe
-                  ),
-                ),
-              ),
-              if (_generatedPassword.isNotEmpty)
-                Icon(Icons.visibility_off, color: Colors.orange.shade600, size: 20),
-            ],
-          ),
-        ),
-        if (_generatedPassword.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          // Note sur la génération automatique du mot de passe
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.blue.shade200),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.blue.shade600, size: 16),
-                const SizedBox(width: 8),
+                Icon(Icons.info, color: Colors.blue.shade600),
+                const SizedBox(width: 12),
                 const Expanded(
                   child: Text(
-                    'Ce mot de passe sera envoyé à l\'agent par email',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF1F2937),
-                    ),
+                    'Un mot de passe sécurisé sera généré automatiquement et envoyé par email à l\'agent.',
+                    style: TextStyle(fontSize: 14),
                   ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 📧 Champ email professionnel réel (obligatoire)
+  Widget _buildRealEmailField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Email professionnel *',
+          style: FormStyles.getLabelStyle(),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _emailController,
+          decoration: InputDecoration(
+            hintText: 'agent@exemple.com',
+            prefixIcon: const Icon(Icons.email_rounded),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
+            ),
+            helperText: 'Email réel requis pour recevoir les identifiants',
+            helperStyle: TextStyle(color: Colors.grey.shade600),
+          ),
+          keyboardType: TextInputType.emailAddress,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'L\'email est obligatoire';
+            }
+            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+              return 'Format d\'email invalide';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info, color: Colors.blue.shade600, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'L\'agent recevra automatiquement un email avec ses identifiants de connexion',
+                  style: TextStyle(
+                    color: Colors.blue.shade700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
+
+
 
   /// 📝 Champ de texte
   Widget _buildTextField({
@@ -548,57 +500,71 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
     );
   }
 
-  /// ➕ Créer l'agent
+  /// ➕ Créer l'agent avec envoi d'email automatique
   Future<void> _createAgent() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Vérifier que l'email est réel (pas généré automatiquement)
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Veuillez saisir un email réel et valide'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
-      final result = await AdminAgenceService.createAgent(
-        agenceId: widget.agenceData['id'],
-        agenceNom: widget.agenceData['nom'],
-        compagnieId: widget.agenceData['compagnieId'],
-        compagnieNom: widget.agenceData['compagnieNom'],
-        prenom: _prenomController.text.trim(),
+      // Utiliser le service principal corrigé
+      final result = await AgentEmailService.createAgentWithEmail(
+        email: email,
         nom: _nomController.text.trim(),
-        email: _emailController.text.trim(),
+        prenom: _prenomController.text.trim(),
         telephone: _telephoneController.text.trim(),
-        cin: _cinController.text.trim().isEmpty ? null : _cinController.text.trim(),
-        adresse: _adresseController.text.trim().isEmpty ? null : _adresseController.text.trim(),
+        agenceId: widget.agenceData['id'],
+        compagnieId: widget.agenceData['compagnieId'],
+        adminAgenceId: widget.agenceData['adminId'] ?? '',
       );
 
       if (!mounted) return;
 
-      if (result['success']) {
-        // Naviguer vers l'écran d'affichage des identifiants
-        Navigator.pushReplacement(
-          context,
+      if (result['success'] == true) {
+        // Succès - Naviguer vers l'écran de résultat élégant
+        Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => AgentCredentialsDisplay(
-              email: result['email'],
-              password: result['password'],
-              codeAgent: result['codeAgent'] ?? 'AG${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}',
-              agentName: result['displayName'],
-              agenceName: widget.agenceData['nom'],
-              companyName: widget.agenceData['compagnieInfo']?['nom'] ?? 'Compagnie',
+              email: email,
+              password: result['password'] ?? '',
+              codeAgent: result['agentId'] ?? '',
+              agentName: '${_prenomController.text} ${_nomController.text}',
+              agenceName: widget.agenceData['nom'] ?? 'Agence',
+              companyName: widget.agenceData['compagnieNom'] ?? 'Compagnie',
             ),
           ),
         );
+
+
+        _cinController.clear();
+        _adresseController.clear();
       } else {
+        // Erreur
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message']),
+            content: Text('❌ ${result['message'] ?? 'Erreur inconnue'}'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erreur: $e'),
+          content: Text('❌ Erreur: $e'),
           backgroundColor: Colors.red,
         ),
       );

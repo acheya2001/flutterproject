@@ -56,7 +56,7 @@ class AgentService {
       // Compter les contrats créés par cet agent
       final contratsQuery = await _firestore
           .collection('contrats')
-          .where('createdBy', isEqualTo: agentId)
+          .where('agentId', isEqualTo: agentId)  // Utiliser agentId au lieu de createdBy
           .get();
 
       final totalContrats = contratsQuery.docs.length;
@@ -124,15 +124,24 @@ class AgentService {
     try {
       List<Map<String, dynamic>> activities = [];
 
-      // Derniers contrats créés
+      // Derniers contrats créés - SANS orderBy pour éviter l'erreur d'index
       final contratsQuery = await _firestore
           .collection('contrats')
-          .where('createdBy', isEqualTo: agentId)
-          .orderBy('createdAt', descending: true)
-          .limit(3)
+          .where('agentId', isEqualTo: agentId)  // Utiliser agentId au lieu de createdBy
           .get();
 
-      for (var doc in contratsQuery.docs) {
+      // Trier en mémoire et limiter à 3
+      final sortedDocs = contratsQuery.docs.toList();
+      sortedDocs.sort((a, b) {
+        final aDate = a.data()['createdAt'] as Timestamp?;
+        final bDate = b.data()['createdAt'] as Timestamp?;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return bDate.compareTo(aDate);
+      });
+
+      for (var doc in sortedDocs.take(3)) {
         final data = doc.data();
         activities.add({
           'type': 'contrat_created',
@@ -183,10 +192,10 @@ class AgentService {
     try {
       debugPrint('[AGENT] 📋 Récupération contrats agent: $agentId');
 
+      // Requête simplifiée pour éviter l'index composite
       final contratsQuery = await _firestore
           .collection('contrats')
           .where('createdBy', isEqualTo: agentId)
-          .orderBy('createdAt', descending: true)
           .get();
 
       List<Map<String, dynamic>> contrats = [];
@@ -196,7 +205,17 @@ class AgentService {
         contrats.add(contratData);
       }
 
-      debugPrint('[AGENT] ✅ ${contrats.length} contrats récupérés');
+      // Trier côté client par date de création (plus récent en premier)
+      contrats.sort((a, b) {
+        final aDate = a['createdAt'] as Timestamp?;
+        final bDate = b['createdAt'] as Timestamp?;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return bDate.compareTo(aDate);
+      });
+
+      debugPrint('[AGENT] ✅ ${contrats.length} contrats récupérés et triés');
       return contrats;
 
     } catch (e) {

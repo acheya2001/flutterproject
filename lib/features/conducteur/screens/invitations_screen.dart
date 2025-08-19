@@ -1,1 +1,49 @@
-import 'package:flutter/material.dart';import 'package:flutter_riverpod/flutter_riverpod.dart';import '../../../core/widgets/custom_app_bar.dart';import '../../../core/services/session_service.dart';import '../../auth/providers/auth_provider.dart';import '../../constat/providers/session_provider.dart';import '../../constat/models/session_constat_model.dart';import '../../constat/models/conducteur_session_info.dart';import '../widgets/session_invitation_card.dart';import '../widgets/modern_join_session_dialog.dart';import 'conducteur_declaration_screen.dart';          id: 'session_1';          sessionCode: 'ABC123';          lieuAccident: 'Avenue Habib Bourguiba, Tunis';          createdBy: 'other_user';          invitationsSent: ['creator@test.com';          validationStatus: {'A': true, 'B';            'A';              position: 'A';              userId: 'other_user';              email: 'creator@test.com';            'B';              position: 'B';          id: 'session_2';          sessionCode: 'XYZ789';          lieuAccident: 'Route de Sfax, Sousse';          createdBy: 'another_user';          invitationsSent: ['creator2@test.com', 'userb@test.com';          validationStatus: {'A': true, 'B': true, 'C';            'A';              position: 'A';              userId: 'another_user';              email: 'creator2@test.com';            'B';              position: 'B';              userId: 'user_b';              email: 'userb@test.com';            'C';              position: 'C';      debugPrint('[InvitationsScreen] Erreur chargement invitations: $e';        throw Exception('Utilisateur non connecté';        throw Exception('Position non trouvée dans la session';      // Naviguer vers l';            content: Text('Erreur: $e';        title: 'Mes Invitations';                              content: Text('Fonctionnalité de partage bientôt disponible';        label: const Text('Rejoindre avec code';              'Aucune invitation';              'Vous n\'avez pas encore reçu d\'invitation à des sessions collaboratives.';                'Rejoindre avec un code';
+import 'package:flutter/material.dart';
+import '../../../core/widgets/custom_app_bar.dart';
+
+class InvitationsScreen extends StatefulWidget {
+  const InvitationsScreen({super.key});
+
+  @override
+  State<InvitationsScreen> createState() => _InvitationsScreenState();
+}
+
+class _InvitationsScreenState extends State<InvitationsScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: const CustomAppBar(
+        title: 'Invitations',
+      ),
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.mail_outline,
+              size: 64,
+              color: Colors.grey,
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Aucune invitation',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Vos invitations apparaîtront ici',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

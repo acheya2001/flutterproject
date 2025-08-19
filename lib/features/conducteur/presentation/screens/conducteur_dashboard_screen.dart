@@ -300,6 +300,20 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
 
           const SizedBox(height: 24),
 
+          // Section Constat Collaboratif
+          const Text(
+            'Constat Collaboratif',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildCollaborativeActions(),
+
+          const SizedBox(height: 24),
+
           // Mes véhicules
           const Text(
             'Mes Véhicules',
@@ -311,6 +325,8 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
           ),
           const SizedBox(height: 16),
           _buildVehicleSection(),
+
+          const SizedBox(height: 24),
 
           const SizedBox(height: 24),
 
@@ -433,8 +449,7 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
                 subtitle: 'Créer un nouveau constat',
                 color: const Color(0xFFDC2626),
                 onTap: () {
-                  // TODO: Navigation vers déclaration d'accident
-                  _showComingSoon('Déclaration d\'accident');
+                  Navigator.pushNamed(context, '/constat/selection');
                 },
               ),
             ),
@@ -446,8 +461,7 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
                 subtitle: 'Enregistrer un nouveau véhicule',
                 color: const Color(0xFF059669),
                 onTap: () {
-                  // TODO: Navigation vers ajout véhicule
-                  _showComingSoon('Ajout de véhicule');
+                  Navigator.pushNamed(context, '/conducteur/add-vehicle');
                 },
               ),
             ),
@@ -463,8 +477,7 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
                 subtitle: 'Consulter l\'historique',
                 color: const Color(0xFF2563EB),
                 onTap: () {
-                  // TODO: Navigation vers historique
-                  _showComingSoon('Historique des constats');
+                  Navigator.pushNamed(context, '/conducteur/accidents');
                 },
               ),
             ),
@@ -478,6 +491,69 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
                 onTap: () {
                   // TODO: Navigation vers assistance
                   _showComingSoon('Assistance');
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 🤝 Actions collaboratives
+  Widget _buildCollaborativeActions() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.group_add,
+                title: 'Créer Session',
+                subtitle: 'Inviter d\'autres conducteurs',
+                color: const Color(0xFF8B5CF6),
+                onTap: () {
+                  Navigator.pushNamed(context, '/professional/session');
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.login,
+                title: 'Rejoindre Session',
+                subtitle: 'Entrer un code de session',
+                color: const Color(0xFF06B6D4),
+                onTap: () {
+                  Navigator.pushNamed(context, '/join/session');
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.email,
+                title: 'Mes Invitations',
+                subtitle: 'Sessions reçues par email',
+                color: const Color(0xFFEC4899),
+                onTap: () {
+                  Navigator.pushNamed(context, '/conducteur/invitations');
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.smart_toy,
+                title: 'IA Analyse',
+                subtitle: 'Reconstruction d\'accident',
+                color: const Color(0xFFF59E0B),
+                onTap: () {
+                  Navigator.pushNamed(context, '/constat/ai-demo');
                 },
               ),
             ),
@@ -590,7 +666,7 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () {
-                _showComingSoon('Ajout de véhicule');
+                Navigator.pushNamed(context, '/conducteur/add-vehicle');
               },
               icon: const Icon(Icons.add),
               label: const Text('Ajouter mon premier véhicule'),
@@ -686,10 +762,13 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
             ),
             child: const Text('Déconnecter'),
           ),
+
         ],
       ),
     );
   }
+
+
 
   /// 🔜 Message "Bientôt disponible"
   void _showComingSoon(String feature) {

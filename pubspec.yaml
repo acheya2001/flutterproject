@@ -10,6 +10,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+  # Pour les alternatives de stockage
+  crypto: ^3.0.3
+  image_picker: ^1.0.4
   flutter_localizations:
     sdk: flutter
 
@@ -34,8 +38,12 @@ dependencies:
   # Signature électronique - AJOUT NÉCESSAIRE
   signature: ^5.4.0
 
+  # Upload d'images - AJOUT NÉCESSAIRE
+  permission_handler: ^11.0.1
+  flutter_image_compress: ^2.1.0
+
   # Autres dépendances
-  uuid: ^4.0.0
+  uuid: ^4.2.1
   
   shared_preferences: ^2.5.3
   flutter_native_splash: ^2.3.10
@@ -57,13 +65,11 @@ dependencies:
   
   logger: ^1.4.0
   flutter_cache_manager: ^3.3.1
-  path_provider: ^2.1.0
+  path_provider: ^2.1.5
   provider: ^6.0.0
   
   # Rétrograder google_fonts pour être compatible
-  google_fonts: ^4.0.4
-  
-  image_picker: ^1.0.4
+  google_fonts: ^6.3.0
   url_launcher: ^6.3.2
   connectivity_plus: ^4.0.2
   flutter_launcher_icons: ^0.13.1
@@ -72,7 +78,7 @@ dependencies:
 
   geolocator: ^10.1.0
   google_maps_flutter: ^2.5.0
-  pdf: ^3.10.4
+  pdf: ^3.11.3
   share_plus: ^7.1.0
   photo_view: ^0.14.0
   flutter_signature_pad: ^3.0.1
@@ -91,8 +97,6 @@ dependencies:
   # Utiliser une alternative à image_cropper
   crop_your_image: ^0.7.5
   
-  permission_handler: ^11.0.0
-  
   # Ajout des dépendances manquantes pour la sérialisation JSON
   json_annotation: ^4.8.1
   
@@ -103,6 +107,9 @@ dependencies:
   # Dépendances pour les fonctionnalités de constat
   flutter_tts: ^3.8.3
   record: ^5.0.1
+
+  # Dépendances pour le constat collaboratif
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

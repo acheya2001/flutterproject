@@ -460,6 +460,35 @@ class AdminAgenceService {
     }
   }
 
+  /// 👥 Récupérer la liste des agents d'une agence
+  static Future<List<Map<String, dynamic>>> getAgenceAgents(String agenceId) async {
+    try {
+      debugPrint('[ADMIN_AGENCE] 👥 Récupération agents pour agence: $agenceId');
+
+      final agentsQuery = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'agent')
+          .where('agenceId', isEqualTo: agenceId)
+          .where('statut', isEqualTo: 'actif')
+          .get();
+
+      final agents = <Map<String, dynamic>>[];
+
+      for (final doc in agentsQuery.docs) {
+        final agentData = doc.data();
+        agentData['id'] = doc.id;
+        agents.add(agentData);
+      }
+
+      debugPrint('[ADMIN_AGENCE] ✅ ${agents.length} agents trouvés pour agence $agenceId');
+      return agents;
+
+    } catch (e) {
+      debugPrint('[ADMIN_AGENCE] ❌ Erreur récupération agents: $e');
+      return [];
+    }
+  }
+
   /// 🔑 Générer un mot de passe automatique
   static String _generatePassword() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

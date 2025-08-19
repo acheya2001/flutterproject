@@ -260,18 +260,20 @@ class AgentCredentialsDisplay extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => _copyToClipboard(value),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF059669),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Icon(
-                      Icons.copy_rounded,
-                      color: Colors.white,
-                      size: 16,
+                Builder(
+                  builder: (context) => GestureDetector(
+                    onTap: () => _copyToClipboardSimple(value, context),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF059669),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(
+                        Icons.copy_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -335,10 +337,11 @@ class AgentCredentialsDisplay extends StatelessWidget {
   Widget _buildActionButtons(BuildContext context) {
     return Column(
       children: [
+        // Bouton principal - Copier tous les identifiants
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () => _copyAllCredentials(),
+            onPressed: () => _copyAllCredentials(context),
             icon: const Icon(Icons.copy_all_rounded),
             label: const Text('Copier tous les identifiants'),
             style: ElevatedButton.styleFrom(
@@ -352,6 +355,27 @@ class AgentCredentialsDisplay extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+
+        // Bouton secondaire - Copier juste email/mot de passe
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _copySimpleCredentials(context),
+            icon: const Icon(Icons.key_rounded),
+            label: const Text('Copier Email + Mot de passe'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0369A1),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Bouton retour
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
@@ -371,13 +395,38 @@ class AgentCredentialsDisplay extends StatelessWidget {
     );
   }
 
-  void _copyToClipboard(String text) {
+  void _copyToClipboardSimple(String text, BuildContext context) {
     Clipboard.setData(ClipboardData(text: text));
+    // Afficher un feedback visuel
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Text('Copié !'),
+          ],
+        ),
+        backgroundColor: const Color(0xFF059669),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
   }
 
-  void _copyAllCredentials() {
-    final credentials = '''
-Agent - $agenceName
+  void _copySimpleCredentials(BuildContext context) {
+    final simpleCredentials = '''Email: $email
+Mot de passe: $password''';
+
+    Clipboard.setData(ClipboardData(text: simpleCredentials));
+    _showCopyFeedback(context, 'Identifiants de connexion copiés !');
+  }
+
+  void _copyAllCredentials(BuildContext context) {
+    final credentials = '''Agent - $agenceName
 
 👤 Nom: $agentName
 🏷️ Code Agent: $codeAgent
@@ -390,9 +439,29 @@ Instructions:
 - Se connecter avec ces identifiants
 - Accès à l'application mobile agent
 - Créer et gérer les constats d'accidents
-- Changer le mot de passe après la première connexion (recommandé)
-''';
-    
+- Changer le mot de passe après la première connexion (recommandé)''';
+
     Clipboard.setData(ClipboardData(text: credentials));
+    _showCopyFeedback(context, 'Tous les identifiants copiés !');
+  }
+
+  void _showCopyFeedback(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Text(message),
+          ],
+        ),
+        backgroundColor: const Color(0xFF059669),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
   }
 }

@@ -1,0 +1,26 @@
+// Règles Firebase Storage pour les véhicules
+// À copier dans Firebase Console > Storage > Rules
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Règles pour les images de véhicules
+    match /vehicules/{type}/{fileName} {
+      // Permettre la lecture et l'écriture pour les utilisateurs authentifiés
+      allow read, write: if request.auth != null
+                      && request.auth.uid != null
+                      && fileName.matches('.*' + request.auth.uid + '.*');
+      
+      // Limiter la taille des fichiers à 10MB
+      allow write: if request.resource.size < 10 * 1024 * 1024;
+      
+      // Autoriser seulement les images
+      allow write: if request.resource.contentType.matches('image/.*');
+    }
+    
+    // Règle générale pour les autres fichiers (plus restrictive)
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

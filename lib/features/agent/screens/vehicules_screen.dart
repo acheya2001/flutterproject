@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../services/agent_service.dart';
+import 'add_vehicle_agent_screen.dart';
 
 /// 🚗 Écran de gestion des véhicules
 class VehiculesScreen extends StatefulWidget {
@@ -75,13 +76,7 @@ class _VehiculesScreenState extends State<VehiculesScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addVehicule,
-        backgroundColor: const Color(0xFF10B981),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Ajouter Véhicule'),
-      ),
+
     );
   }
 
@@ -157,13 +152,46 @@ class _VehiculesScreenState extends State<VehiculesScreen> {
       return _buildEmptyState();
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: _vehicules.length,
-      itemBuilder: (context, index) {
-        final vehicule = _vehicules[index];
-        return _buildVehiculeCard(vehicule);
-      },
+    return Column(
+      children: [
+        // Bouton de création de véhicule - toujours visible
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+          child: ElevatedButton.icon(
+            onPressed: _addVehicule,
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text(
+              'Ajouter un Nouveau Véhicule',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+            ),
+          ),
+        ),
+
+        // Liste des véhicules
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: _vehicules.length,
+            itemBuilder: (context, index) {
+              final vehicule = _vehicules[index];
+              return _buildVehiculeCard(vehicule);
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -302,14 +330,28 @@ class _VehiculesScreenState extends State<VehiculesScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 30),
-          ElevatedButton.icon(
-            onPressed: _addVehicule,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Ajouter un Véhicule'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            child: ElevatedButton.icon(
+              onPressed: _addVehicule,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text(
+                'Ajouter votre Premier Véhicule',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
             ),
           ),
         ],
@@ -318,12 +360,16 @@ class _VehiculesScreenState extends State<VehiculesScreen> {
   }
 
   /// ➕ Ajouter un véhicule
-  void _addVehicule() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Ajout de véhicule - À implémenter'),
-        backgroundColor: Colors.blue,
+  void _addVehicule() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AddVehicleAgentScreen(),
       ),
     );
+
+    if (result == true) {
+      _loadVehicules(); // Recharger la liste
+    }
   }
 }

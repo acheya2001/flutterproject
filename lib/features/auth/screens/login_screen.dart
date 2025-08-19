@@ -4,10 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/navigation_service.dart';
 import '../../../services/admin_compagnie_auth_service.dart';
+import '../../../services/agent_auth_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/conducteur_workaround_service.dart';
 import '../../admin_compagnie/screens/admin_compagnie_dashboard.dart';
 import '../../admin_agence/screens/modern_admin_agence_dashboard.dart';
+import '../../agent/screens/agent_dashboard_screen.dart';
 import '../../../debug/check_admin_account.dart';
 import '../../conducteur/presentation/screens/conducteur_registration_screen.dart';
 
@@ -410,6 +412,14 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           );
+        } else if (userRole == 'agent') {
+          // Redirection spéciale pour agent avec données
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AgentDashboardScreen(),
+            ),
+          );
         } else {
           NavigationService.redirectToDashboard(userRole);
         }
@@ -619,6 +629,42 @@ class _LoginScreenState extends State<LoginScreen> {
             'error': 'Erreur de connexion conducteur: $e',
           };
         }
+      }
+
+      // 🔧 CONNEXION SPÉCIALE POUR LES AGENTS (Service avec création différée)
+      // Vérifier d'abord si c'est un agent
+      try {
+        final agentQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .where('role', isEqualTo: 'agent')
+            .limit(1)
+            .get();
+
+        if (agentQuery.docs.isNotEmpty) {
+          print('[LOGIN] 🔧 Agent détecté, utilisation service spécialisé...');
+          final result = await AgentAuthService.loginAgent(
+            email: email,
+            password: password,
+          );
+
+          if (result['success'] == true) {
+            print('[LOGIN] ✅ Connexion agent réussie');
+            return {
+              'success': true,
+              'user': result['user'],
+              'userData': result['userData'],
+              'role': 'agent',
+              'message': result['message'],
+              'directMode': false,
+            };
+          } else {
+            print('[LOGIN] ❌ Échec connexion agent: ${result['error']}');
+            return result;
+          }
+        }
+      } catch (e) {
+        print('[LOGIN] ⚠️ Erreur vérification agent: $e');
       }
 
       // 🎯 VÉRIFICATION DIRECTE DANS FIRESTORE (CONTOURNEMENT SSL)

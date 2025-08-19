@@ -105,13 +105,7 @@ class _AgentsManagementScreenState extends State<AgentsManagementScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createNewAgent,
-        backgroundColor: const Color(0xFF10B981),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.person_add_rounded),
-        label: const Text('Nouvel Agent'),
-      ),
+
     );
   }
 
@@ -187,10 +181,37 @@ class _AgentsManagementScreenState extends State<AgentsManagementScreen> {
       children: [
         // Barre de recherche et filtres
         _buildSearchAndFilters(),
-        
+
+        // Bouton de création d'agent - toujours visible
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          child: ElevatedButton.icon(
+            onPressed: _createNewAgent,
+            icon: const Icon(Icons.person_add_rounded, size: 20),
+            label: const Text(
+              'Créer un Nouvel Agent',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
         // Liste des agents
         Expanded(
-          child: _filteredAgents.isEmpty ? _buildEmptyState() : _buildAgentsList(),
+          child: _filteredAgents.isEmpty ? _buildEmptyStateSimple() : _buildAgentsList(),
         ),
       ],
     );
@@ -467,8 +488,10 @@ class _AgentsManagementScreenState extends State<AgentsManagementScreen> {
     );
   }
 
-  /// 📭 État vide
-  Widget _buildEmptyState() {
+
+
+  /// 📭 État vide simplifié (sans bouton)
+  Widget _buildEmptyStateSimple() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -493,26 +516,13 @@ class _AgentsManagementScreenState extends State<AgentsManagementScreen> {
           Text(
             _searchQuery.isNotEmpty || _statusFilter != 'all'
                 ? 'Essayez de modifier vos critères de recherche'
-                : 'Commencez par créer votre premier agent',
+                : 'Utilisez le bouton ci-dessus pour créer votre premier agent',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey.shade500,
             ),
             textAlign: TextAlign.center,
           ),
-          if (_searchQuery.isEmpty && _statusFilter == 'all') ...[
-            const SizedBox(height: 30),
-            ElevatedButton.icon(
-              onPressed: _createNewAgent,
-              icon: const Icon(Icons.person_add_rounded),
-              label: const Text('Créer un Agent'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF10B981),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-            ),
-          ],
         ],
       ),
     );

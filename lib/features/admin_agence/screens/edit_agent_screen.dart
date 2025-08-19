@@ -19,11 +19,13 @@ class _EditAgentScreenState extends State<EditAgentScreen> {
   final _formKey = GlobalKey<FormState>();
   final _prenomController = TextEditingController();
   final _nomController = TextEditingController();
+  final _emailController = TextEditingController();
   final _telephoneController = TextEditingController();
   final _cinController = TextEditingController();
   final _adresseController = TextEditingController();
-  
+
   bool _isLoading = false;
+  bool _isActive = true;
 
   @override
   void initState() {
@@ -35,15 +37,18 @@ class _EditAgentScreenState extends State<EditAgentScreen> {
   void _loadAgentData() {
     _prenomController.text = widget.agentData['prenom'] ?? '';
     _nomController.text = widget.agentData['nom'] ?? '';
+    _emailController.text = widget.agentData['email'] ?? '';
     _telephoneController.text = widget.agentData['telephone'] ?? '';
     _cinController.text = widget.agentData['cin'] ?? '';
     _adresseController.text = widget.agentData['adresse'] ?? '';
+    _isActive = widget.agentData['isActive'] ?? true;
   }
 
   @override
   void dispose() {
     _prenomController.dispose();
     _nomController.dispose();
+    _emailController.dispose();
     _telephoneController.dispose();
     _cinController.dispose();
     _adresseController.dispose();
@@ -123,6 +128,24 @@ class _EditAgentScreenState extends State<EditAgentScreen> {
                   },
                 ),
                 FormStyles.fieldSpacing,
+
+                FormStyles.buildTextFormField(
+                  labelText: 'Email',
+                  controller: _emailController,
+                  prefixIcon: Icons.email_rounded,
+                  keyboardType: TextInputType.emailAddress,
+                  isRequired: true,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'L\'email est requis';
+                    }
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                      return 'Format d\'email invalide';
+                    }
+                    return null;
+                  },
+                ),
+                FormStyles.fieldSpacing,
                 
                 FormStyles.buildTextFormField(
                   labelText: 'Téléphone',
@@ -155,9 +178,73 @@ class _EditAgentScreenState extends State<EditAgentScreen> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 30),
-            
+
+            // Section statut
+            FormStyles.buildFormSection(
+              title: 'Statut de l\'Agent',
+              icon: Icons.toggle_on_rounded,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _isActive ? Colors.green.shade50 : Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _isActive ? Colors.green.shade200 : Colors.red.shade200,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isActive ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                        color: _isActive ? Colors.green.shade600 : Colors.red.shade600,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isActive ? 'Agent Actif' : 'Agent Inactif',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: _isActive ? Colors.green.shade700 : Colors.red.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _isActive
+                                  ? 'L\'agent peut se connecter et créer des constats'
+                                  : 'L\'agent ne peut pas se connecter',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: _isActive ? Colors.green.shade600 : Colors.red.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _isActive,
+                        onChanged: (value) {
+                          setState(() {
+                            _isActive = value;
+                          });
+                        },
+                        activeColor: Colors.green.shade600,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 30),
+
             // Boutons d'action
             _buildActionButtons(),
           ],
@@ -274,9 +361,11 @@ class _EditAgentScreenState extends State<EditAgentScreen> {
         'prenom': _prenomController.text.trim(),
         'nom': _nomController.text.trim(),
         'displayName': '${_prenomController.text.trim()} ${_nomController.text.trim()}',
+        'email': _emailController.text.trim(),
         'telephone': _telephoneController.text.trim(),
         'cin': _cinController.text.trim().isEmpty ? null : _cinController.text.trim(),
         'adresse': _adresseController.text.trim().isEmpty ? null : _adresseController.text.trim(),
+        'isActive': _isActive,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 

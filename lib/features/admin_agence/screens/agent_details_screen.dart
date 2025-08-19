@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../services/admin_agence_service.dart';
+import 'edit_agent_screen.dart';
 
 /// 👁️ Écran de détails d'un agent
 class AgentDetailsScreen extends StatefulWidget {
@@ -426,14 +427,18 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
   }
 
   /// ✏️ Modifier l'agent
-  void _editAgent() {
-    // TODO: Implémenter l'édition d'agent
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Modification d\'agent - À implémenter'),
-        backgroundColor: Colors.blue,
+  void _editAgent() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditAgentScreen(agentData: _agentData),
       ),
     );
+
+    if (result == true) {
+      // Retourner à l'écran précédent avec indication de mise à jour
+      Navigator.pop(context, true);
+    }
   }
 
   /// 🔄 Changer le statut
