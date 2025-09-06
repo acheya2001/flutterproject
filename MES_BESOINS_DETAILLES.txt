@@ -1,0 +1,127 @@
+MES BESOINS DÉTAILLÉS
+1. Processus Actuel et Problèmes
+
+Actuellement, un conducteur peut ajouter un véhicule dans l’application.
+
+Mais après cette étape, le processus de gestion par l’agent et l’admin n’est pas encore clair ni automatisé.
+
+Le suivi du contrat, du paiement et des documents reste manuel (papiers physiques).
+
+Problème : pas de digitalisation complète → lenteur, erreurs, pas de traçabilité.
+
+2. Processus Idéal Souhaité
+Étape 1 : Ajout véhicule par le conducteur
+
+Conducteur ajoute un véhicule via un formulaire (avec carte grise, immatriculation, infos véhicule).
+
+Deux choix :
+
+Nouvelle demande de contrat (à traiter par agent/admin).
+
+Ajout d’un véhicule déjà assuré (vérification simple par l’agent).
+
+Étape 2 : Traitement par l’agence
+
+Admin agence reçoit une notification d’un nouveau véhicule.
+
+Admin peut approuver et affecter un agent.
+
+Agent crée un contrat (ou valide assurance déjà existante).
+
+Véhicule passe du statut “En attente” → “Assuré”.
+
+Étape 3 : Remise des documents au conducteur
+
+Contrat numérique généré (PDF).
+
+Quittance (preuve de paiement) numérique.
+
+Carte verte numérique (avec QR code scannable par la police).
+
+Tous envoyés via application + email/SMS.
+
+Étape 4 : Renouvellement
+
+Notification automatique avant échéance.
+
+Conducteur peut renouveler via app (paiement digital ou confirmation de paiement agence).
+
+Nouveau contrat généré automatiquement.
+
+Étape 5 : Constat collaboratif
+
+Un conducteur impliqué dans un accident peut initier un constat digital.
+
+Il peut inviter 1 ou plusieurs conducteurs (inscrits ou non).
+
+Chaque conducteur remplit sa partie → l’autre peut la voir mais pas la modifier (anti-fraude).
+
+Constat signé numériquement → transmis automatiquement aux agences concernées.
+
+3. Rôles des Utilisateurs
+
+👤 Conducteur :
+
+Créer un compte et gérer ses véhicules.
+
+Demander un nouveau contrat ou ajouter un véhicule déjà assuré.
+
+Télécharger ses documents (contrat, quittance, carte verte).
+
+Initier et participer à un constat collaboratif.
+
+👨‍💼 Agent :
+
+Traiter les demandes de contrats.
+
+Créer et gérer les contrats.
+
+Valider les véhicules déjà assurés.
+
+Vérifier les paiements.
+
+🏢 Admin agence :
+
+Gérer les agents de son agence.
+
+Affecter les demandes aux agents.
+
+Superviser les contrats et statistiques.
+
+Générer rapports BI (véhicules assurés, contrats actifs, sinistres traités, etc.).
+
+4. Écrans Existants à Utiliser/Améliorer
+
+Formulaire ajout véhicule (déjà existant).
+
+Tableau de bord conducteur (à améliorer avec liste véhicules + statut).
+
+Tableau de bord agent/admin (à développer avec cartes véhicules et contrats).
+
+5. Intégrations Nécessaires
+
+Paiements : module digital (optionnel) + saisie manuelle paiement agence.
+
+Notifications : push mobile + SMS + email.
+
+Documents : génération automatique PDF (contrat, quittance, carte verte).
+
+QR Code : pour la carte verte (contrôle police).
+
+6. Fonctionnalités Spéciales
+
+Constat collaboratif digital (multi-conducteurs).
+
+Gestion des conducteurs non inscrits (invitation par lien/session unique).
+
+Statistiques BI pour chaque agence.
+
+7. Cas Particuliers à Gérer
+
+Conducteur non inscrit → peut participer à un constat via invitation sans compte.
+
+Conducteur non propriétaire du véhicule → préciser le vrai propriétaire dans le formulaire.
+
+Plusieurs véhicules impliqués dans un constat.
+
+Véhicule ajouté mais contrat refusé → statut “Rejeté” et notification.

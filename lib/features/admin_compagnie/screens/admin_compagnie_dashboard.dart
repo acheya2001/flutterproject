@@ -7,6 +7,8 @@ import 'create_agence_only_screen.dart';
 import 'create_admin_agence_screen.dart';
 import 'unified_agences_management_screen.dart';
 import 'agents_by_agence_screen.dart';
+import 'compagnies_overview_screen.dart';
+import 'modern_statistics_screen.dart';
 
 /// 🏢 Dashboard Admin Compagnie
 class AdminCompagnieDashboard extends StatefulWidget {
@@ -37,7 +39,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadAllData();
   }
 
@@ -70,6 +72,16 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
   /// 📊 Obtenir le nombre d'agents pour une agence
   int _getAgentsCountForAgence(String agenceId) {
     return _agents.where((agent) => agent['agenceId'] == agenceId).length;
+  }
+
+  /// 📊 Obtenir le nombre de constats pour une agence
+  int _getConstatsCountForAgence(String agenceId) {
+    return _constats.where((constat) => constat['agenceId'] == agenceId).length;
+  }
+
+  /// 📊 Obtenir le nombre d'experts pour une agence
+  int _getExpertsCountForAgence(String agenceId) {
+    return _experts.where((expert) => expert['agenceId'] == agenceId).length;
   }
 
   /// 📊 Charger les données de la compagnie
@@ -234,7 +246,8 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
       if (compagnieId == null) return;
 
       final agentsQuery = await FirebaseFirestore.instance
-          .collection('agents_assurance')
+          .collection('users')
+          .where('role', isEqualTo: 'agent')
           .where('compagnieId', isEqualTo: compagnieId)
           .where('isActive', isEqualTo: true)
           .get();
@@ -316,6 +329,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
             Tab(icon: Icon(Icons.dashboard_rounded), text: 'Tableau de bord'),
             Tab(icon: Icon(Icons.business_rounded), text: 'Agences'),
             Tab(icon: Icon(Icons.admin_panel_settings_rounded), text: 'Admins Agences'),
+            Tab(icon: Icon(Icons.analytics_rounded), text: 'Ma Compagnie'),
             Tab(icon: Icon(Icons.settings_rounded), text: 'Paramètres'),
           ],
         ),
@@ -326,6 +340,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
           _buildTableauDeBord(),
           _buildUnifiedGestionAgences(),
           _buildGestionAdminsAgences(),
+          _buildStatistiquesCompagnies(),
           _buildParametresCompagnie(),
         ],
       ),
@@ -815,7 +830,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
                           color: Color(0xFFE2E8F0),
                         ),
                         Expanded(
-                          child: _buildModernStatItem('0', 'Constats', Icons.description_outlined, Color(0xFFEC4899)),
+                          child: _buildModernStatItem('${_getConstatsCountForAgence(agence['id'])}', 'Constats', Icons.description_outlined, Color(0xFFEC4899)),
                         ),
                         Container(
                           width: 1,
@@ -823,7 +838,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
                           color: Color(0xFFE2E8F0),
                         ),
                         Expanded(
-                          child: _buildModernStatItem('0', 'Experts', Icons.engineering_outlined, Color(0xFFF59E0B)),
+                          child: _buildModernStatItem('${_getExpertsCountForAgence(agence['id'])}', 'Experts', Icons.engineering_outlined, Color(0xFFF59E0B)),
                         ),
                       ],
                     ),
@@ -1916,7 +1931,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('📍 ${agence['gouvernorat'] ?? 'Gouvernorat non défini'}'),
-                Text('👥 ${agence['nombreAgents'] ?? 0} agents'),
+                Text('👥 ${_getAgentsCountForAgence(agence['id'])} agents'),
                 Row(
                   children: [
                     Container(
@@ -3028,11 +3043,11 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
                         children: [
                           Row(
                             children: [
-                              Expanded(child: _buildStatCard('Agents', '0', Icons.people_outline, Color(0xFF3B82F6))),
+                              Expanded(child: _buildStatCard('Agents', '${_getAgentsCountForAgence(agence['id'])}', Icons.people_outline, Color(0xFF3B82F6))),
                               SizedBox(width: 12),
-                              Expanded(child: _buildStatCard('Constats', '0', Icons.description_outlined, Color(0xFFEC4899))),
+                              Expanded(child: _buildStatCard('Constats', '${_getConstatsCountForAgence(agence['id'])}', Icons.description_outlined, Color(0xFFEC4899))),
                               SizedBox(width: 12),
-                              Expanded(child: _buildStatCard('Experts', '0', Icons.engineering_outlined, Color(0xFFF59E0B))),
+                              Expanded(child: _buildStatCard('Experts', '${_getExpertsCountForAgence(agence['id'])}', Icons.engineering_outlined, Color(0xFFF59E0B))),
                             ],
                           ),
                         ],
@@ -5173,7 +5188,21 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
     }
   }
 
-  /// ⚙️ Paramètres de la compagnie - Onglet 4
+  /// 📊 Statistiques de ma compagnie - Onglet 4
+  Widget _buildStatistiquesCompagnies() {
+    if (_compagnieData == null) {
+      return const Center(
+        child: Text(
+          'Données de compagnie non disponibles',
+          style: TextStyle(fontSize: 16, color: Colors.grey),
+        ),
+      );
+    }
+
+    return ModernStatisticsScreen(compagnieData: _compagnieData!);
+  }
+
+  /// ⚙️ Paramètres de la compagnie - Onglet 5
   Widget _buildParametresCompagnie() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),

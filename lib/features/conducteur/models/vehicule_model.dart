@@ -50,6 +50,7 @@ class Vehicule {
   final DateTime? dateFinAssurance;
   final DateTime? dateDerniereAssurance;
   final String? typeAssurance; // au tiers, tous risques, etc.
+  final String? statutAssurance; // non_assure, en_attente_validation, assure, expire
 
   // État du compte
   final String etatCompte; // Actif, Suspendu
@@ -103,6 +104,7 @@ class Vehicule {
     this.dateFinAssurance,
     this.dateDerniereAssurance,
     this.typeAssurance,
+    this.statutAssurance,
     this.etatCompte = 'Actif',
     this.dateProchainControle,
     this.controleValide = true,
@@ -155,6 +157,7 @@ class Vehicule {
       dateFinAssurance: (data['dateFinAssurance'] as Timestamp?)?.toDate(),
       dateDerniereAssurance: (data['dateDerniereAssurance'] as Timestamp?)?.toDate(),
       typeAssurance: data['typeAssurance'],
+      statutAssurance: data['statutAssurance'],
       etatCompte: data['etatCompte'] ?? 'Actif',
       dateProchainControle: (data['dateProchainControle'] as Timestamp?)?.toDate(),
       controleValide: data['controleValide'] ?? true,
@@ -205,6 +208,7 @@ class Vehicule {
       'dateFinAssurance': dateFinAssurance != null ? Timestamp.fromDate(dateFinAssurance!) : null,
       'dateDerniereAssurance': dateDerniereAssurance != null ? Timestamp.fromDate(dateDerniereAssurance!) : null,
       'typeAssurance': typeAssurance,
+      'statutAssurance': statutAssurance,
       'etatCompte': etatCompte,
       'dateProchainControle': dateProchainControle != null ? Timestamp.fromDate(dateProchainControle!) : null,
       'controleValide': controleValide,
@@ -255,6 +259,7 @@ class Vehicule {
     DateTime? dateFinAssurance,
     DateTime? dateDerniereAssurance,
     String? typeAssurance,
+    String? statutAssurance,
     String? etatCompte,
     DateTime? dateProchainControle,
     bool? controleValide,
@@ -300,6 +305,7 @@ class Vehicule {
       dateFinAssurance: dateFinAssurance ?? this.dateFinAssurance,
       dateDerniereAssurance: dateDerniereAssurance ?? this.dateDerniereAssurance,
       typeAssurance: typeAssurance ?? this.typeAssurance,
+      statutAssurance: statutAssurance ?? this.statutAssurance,
       etatCompte: etatCompte ?? this.etatCompte,
       dateProchainControle: dateProchainControle ?? this.dateProchainControle,
       controleValide: controleValide ?? this.controleValide,

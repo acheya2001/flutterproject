@@ -1,1 +1,0 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';import 'collaborative_session_provider.dart';/// l'intégrer dans l';/// 🎯 Provider pour l';/// Permet d';/// avoir besoin d';/// Permet d'afficher le statut de la session dans l';/// sans avoir besoin d';/// 🔄 Provider pour l';/// Permet d';/// Permet d';

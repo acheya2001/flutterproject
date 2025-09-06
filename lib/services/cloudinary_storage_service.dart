@@ -5,34 +5,60 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/config/app_config.dart';
+import '../core/services/logging_service.dart';
+import '../core/exceptions/app_exceptions.dart';
 
-/// 🌐 Service de stockage Cloudinary (GRATUIT - 25GB/mois)
+/// 🌐 Service de stockage Cloudinary sécurisé (GRATUIT - 25GB/mois)
 class CloudinaryStorageService {
-  // Configuration Cloudinary (GRATUIT)
-  static const String _cloudName = 'dgw530dou'; 
-  static const String _apiKey = '238965196817439'; 
-  static const String _apiSecret = 'UEjPyY-6993xQnAhz8RCvgMYYLM'; 
-  static const String _uploadUrl = 'https://api.cloudinary.com/v1_1/$_cloudName/image/upload';
+  static const String _tag = 'CloudinaryStorage';
 
-  /// 📤 Upload d'image vers Cloudinary
+  /// 📤 Upload d'image vers Cloudinary avec gestion d'erreurs robuste
   static Future<String?> uploadImage({
     required File imageFile,
     required String folder,
     String? publicId,
   }) async {
+    final stopwatch = Stopwatch()..start();
+    
     try {
-      debugPrint('🌐 Upload Cloudinary: ${imageFile.path}');
+      // Vérifier la configuration
+      if (!AppConfig.isInitialized) {
+        throw const StorageException(
+          'Configuration non initialisée',
+          code: 'config-not-initialized',
+        );
+      }
+
+      // Vérifier que le fichier existe
+      if (!await imageFile.exists()) {
+        throw StorageException(
+          'Fichier non trouvé: ${imageFile.path}',
+          code: 'file-not-found',
+        );
+      }
+
+      // Vérifier la taille du fichier (limite: 10MB)
+      final fileSize = await imageFile.length();
+      if (fileSize > 10 * 1024 * 1024) {
+        throw const StorageException(
+          'Fichier trop volumineux (max: 10MB)',
+          code: 'file-too-large',
+        );
+      }
+
+      LoggingService.storage(_tag, 'upload_start', fileName: imageFile.path.split('/').last, fileSize: fileSize);
 
       // Générer signature et timestamp
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       final signature = _generateSignature(timestamp, folder, publicId);
 
       // Préparer la requête multipart
-      final request = http.MultipartRequest('POST', Uri.parse(_uploadUrl));
+      final request = http.MultipartRequest('POST', Uri.parse(AppConfig.cloudinaryUploadUrl));
       
       // Ajouter les paramètres
       request.fields.addAll({
-        'api_key': _apiKey,
+        'api_key': AppConfig.cloudinaryApiKey,
         'timestamp': timestamp,
         'signature': signature,
         'folder': folder,
@@ -47,24 +73,51 @@ class CloudinaryStorageService {
         await http.MultipartFile.fromPath('file', imageFile.path),
       );
 
-      // Envoyer la requête
-      final response = await request.send();
+      // Envoyer la requête avec timeout
+      final response = await request.send().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw const StorageException(
+          'Timeout lors de l\'upload',
+          code: 'upload-timeout',
+        ),
+      );
+
       final responseData = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(responseData);
         final imageUrl = jsonResponse['secure_url'] as String;
         
-        debugPrint('✅ Image uploadée: $imageUrl');
+        stopwatch.stop();
+        LoggingService.performance(_tag, 'upload_success', stopwatch.elapsed, {
+          'file_size': fileSize,
+          'folder': folder,
+        });
+        LoggingService.storage(_tag, 'upload_complete', fileName: imageFile.path.split('/').last, success: true);
+        
         return imageUrl;
       } else {
-        debugPrint('❌ Erreur Cloudinary: ${response.statusCode}');
-        debugPrint('Response: $responseData');
-        return null;
+        throw StorageException(
+          'Erreur HTTP ${response.statusCode}',
+          code: 'http-error-${response.statusCode}',
+          originalError: responseData,
+        );
       }
-    } catch (e) {
-      debugPrint('❌ Erreur upload Cloudinary: $e');
-      return null;
+    } on StorageException {
+      rethrow;
+    } catch (e, stackTrace) {
+      stopwatch.stop();
+      final exception = StorageException(
+        'Erreur upload Cloudinary: $e',
+        code: 'upload-failed',
+        originalError: e,
+        stackTrace: stackTrace,
+      );
+      
+      LoggingService.exception(_tag, exception, stackTrace);
+      LoggingService.storage(_tag, 'upload_failed', fileName: imageFile.path.split('/').last, success: false);
+      
+      throw exception;
     }
   }
 
@@ -83,7 +136,7 @@ class CloudinaryStorageService {
         .join('&');
 
     // Ajouter le secret
-    final stringToSign = '$paramString$_apiSecret';
+    final stringToSign = '$paramString${AppConfig.cloudinaryApiSecret}';
 
     // Générer SHA1
     final bytes = utf8.encode(stringToSign);
@@ -92,35 +145,59 @@ class CloudinaryStorageService {
     return digest.toString();
   }
 
-  /// 🗑️ Supprimer une image de Cloudinary
+  /// 🗑️ Supprimer une image de Cloudinary avec gestion d'erreurs
   static Future<bool> deleteImage(String publicId) async {
     try {
+      LoggingService.storage(_tag, 'delete_start', fileName: publicId);
+
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       final signature = _generateDeleteSignature(timestamp, publicId);
 
       final response = await http.post(
-        Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/image/destroy'),
+        Uri.parse(AppConfig.cloudinaryDestroyUrl),
         body: {
-          'api_key': _apiKey,
+          'api_key': AppConfig.cloudinaryApiKey,
           'timestamp': timestamp,
           'signature': signature,
           'public_id': publicId,
         },
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw const StorageException(
+          'Timeout lors de la suppression',
+          code: 'delete-timeout',
+        ),
       );
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        return jsonResponse['result'] == 'ok';
+        final success = jsonResponse['result'] == 'ok';
+        
+        LoggingService.storage(_tag, 'delete_complete', fileName: publicId, success: success);
+        return success;
+      } else {
+        throw StorageException(
+          'Erreur HTTP ${response.statusCode}',
+          code: 'http-error-${response.statusCode}',
+        );
       }
-      return false;
-    } catch (e) {
-      debugPrint('❌ Erreur suppression Cloudinary: $e');
-      return false;
+    } catch (e, stackTrace) {
+      final exception = StorageException(
+        'Erreur suppression Cloudinary: $e',
+        code: 'delete-failed',
+        originalError: e,
+        stackTrace: stackTrace,
+      );
+      
+      LoggingService.exception(_tag, exception, stackTrace);
+      LoggingService.storage(_tag, 'delete_failed', fileName: publicId, success: false);
+      
+      throw exception;
     }
   }
 
   static String _generateDeleteSignature(String timestamp, String publicId) {
-    final stringToSign = 'public_id=$publicId&timestamp=$timestamp$_apiSecret';
+    final stringToSign = 'public_id=$publicId&timestamp=$timestamp${AppConfig.cloudinaryApiSecret}';
     final bytes = utf8.encode(stringToSign);
     final digest = sha1.convert(bytes);
     return digest.toString();
@@ -177,9 +254,11 @@ class LocalStorageService {
   }
 }
 
-/// 🔄 Service hybride intelligent
+/// 🔄 Service hybride intelligent avec gestion d'erreurs robuste
 class HybridStorageService {
-  /// 📤 Upload intelligent avec fallback
+  static const String _tag = 'HybridStorage';
+
+  /// 📤 Upload intelligent avec fallback et gestion d'erreurs
   static Future<Map<String, dynamic>> uploadImage({
     required File imageFile,
     required String vehiculeId,
@@ -189,53 +268,82 @@ class HybridStorageService {
     final fileName = '${type}_${DateTime.now().millisecondsSinceEpoch}.jpg';
     
     try {
-      // Tentative Cloudinary d'abord
-      debugPrint('🌐 Tentative upload Cloudinary...');
-      final cloudinaryUrl = await CloudinaryStorageService.uploadImage(
-        imageFile: imageFile,
-        folder: folder,
-        publicId: '${vehiculeId}_$type',
-      );
+      LoggingService.storage(_tag, 'hybrid_upload_start', fileName: fileName);
 
-      if (cloudinaryUrl != null) {
-        return {
-          'success': true,
-          'url': cloudinaryUrl,
-          'storage': 'cloudinary',
-          'message': 'Image uploadée sur Cloudinary',
-        };
+      // Tentative Cloudinary d'abord
+      try {
+        LoggingService.info(_tag, 'Tentative upload Cloudinary pour $type');
+        final cloudinaryUrl = await CloudinaryStorageService.uploadImage(
+          imageFile: imageFile,
+          folder: folder,
+          publicId: '${vehiculeId}_$type',
+        );
+
+        if (cloudinaryUrl != null) {
+          LoggingService.storage(_tag, 'cloudinary_upload_success', fileName: fileName, success: true);
+          return {
+            'success': true,
+            'url': cloudinaryUrl,
+            'storage': 'cloudinary',
+            'message': 'Image uploadée sur Cloudinary',
+          };
+        }
+      } on StorageException catch (e) {
+        LoggingService.warning(_tag, 'Cloudinary upload failed, trying local fallback: ${e.message}');
+        // Continue vers le fallback local
       }
 
       // Fallback vers stockage local
-      debugPrint('💾 Fallback vers stockage local...');
-      final localPath = await LocalStorageService.saveImageLocally(
-        imageFile: imageFile,
-        folder: folder,
-        fileName: fileName,
-      );
+      LoggingService.info(_tag, 'Fallback vers stockage local pour $type');
+      try {
+        final localPath = await LocalStorageService.saveImageLocally(
+          imageFile: imageFile,
+          folder: folder,
+          fileName: fileName,
+        );
 
-      if (localPath != null) {
-        // Marquer pour upload ultérieur
-        await _markForLaterUpload(vehiculeId, type, localPath);
-        
-        return {
-          'success': true,
-          'url': localPath,
-          'storage': 'local',
-          'message': 'Image sauvée localement (sera uploadée plus tard)',
-        };
+        if (localPath != null) {
+          // Marquer pour upload ultérieur
+          await _markForLaterUpload(vehiculeId, type, localPath);
+          
+          LoggingService.storage(_tag, 'local_storage_success', fileName: fileName, success: true);
+          return {
+            'success': true,
+            'url': localPath,
+            'storage': 'local',
+            'message': 'Image sauvée localement (sera uploadée plus tard)',
+          };
+        }
+      } catch (e) {
+        LoggingService.error(_tag, 'Local storage failed: $e');
       }
 
+      // Échec complet
+      const exception = StorageException(
+        'Échec de sauvegarde sur tous les services',
+        code: 'all-storage-failed',
+      );
+      LoggingService.exception(_tag, exception);
+      
       return {
         'success': false,
-        'message': 'Échec de sauvegarde',
+        'message': exception.userMessage,
+        'error': exception.message,
       };
-    } catch (e) {
-      debugPrint('❌ Erreur upload hybride: $e');
+    } catch (e, stackTrace) {
+      final exception = StorageException(
+        'Erreur upload hybride: $e',
+        code: 'hybrid-upload-failed',
+        originalError: e,
+        stackTrace: stackTrace,
+      );
+      
+      LoggingService.exception(_tag, exception, stackTrace);
+      
       return {
         'success': false,
-        'error': e.toString(),
-        'message': 'Erreur lors de l\'upload',
+        'error': exception.message,
+        'message': exception.userMessage,
       };
     }
   }

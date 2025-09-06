@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/vehicule_model.dart';
 import '../../../services/cloudinary_storage_service.dart';
+import '../../../services/vehicle_tracking_service.dart';
 import '../../../services/notification_service.dart';
 
 /// 🚗 Service pour gérer les véhicules dans Firestore
@@ -100,6 +101,14 @@ class VehiculeService {
       print('🔍 [AFFECTATION] Véhicule sauvé - agenceAssuranceId: "${vehiculeMap['agenceAssuranceId']}"');
       print('🔍 [AFFECTATION] Véhicule sauvé - compagnieAssuranceId: "${vehiculeMap['compagnieAssuranceId']}"');
       print('🔍 [AFFECTATION] Véhicule sauvé - etatCompte: "${vehiculeMap['etatCompte']}"');
+
+      // 📊 Créer le suivi de statut pour le conducteur
+      await VehicleTrackingService.createVehicleTracking(
+        vehicleId: docRef.id,
+        conducteurId: currentUser.uid,
+        agenceId: vehiculeToSave.agenceAssuranceId,
+        agenceNom: vehiculeToSave.agenceAssuranceNom,
+      );
 
       // 🔔 Notifier l'agent de l'agence (maintenant toujours définie)
       await _notifyAgentNewVehicle(

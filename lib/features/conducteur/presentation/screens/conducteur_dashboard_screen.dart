@@ -5,6 +5,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../services/conducteur_workaround_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../../../../conducteur/screens/accident_declaration_screen.dart';
+import '../../../sinistre/screens/sinistre_choix_rapide_screen.dart';
 
 /// 🚗 Dashboard moderne du conducteur
 class ConducteurDashboardScreen extends StatefulWidget {
@@ -449,7 +451,12 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
                 subtitle: 'Créer un nouveau constat',
                 color: const Color(0xFFDC2626),
                 onTap: () {
-                  Navigator.pushNamed(context, '/constat/selection');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SinistreChoixRapideScreen(),
+                    ),
+                  );
                 },
               ),
             ),
@@ -548,12 +555,12 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: _buildActionCard(
-                icon: Icons.smart_toy,
-                title: 'IA Analyse',
-                subtitle: 'Reconstruction d\'accident',
-                color: const Color(0xFFF59E0B),
+                icon: Icons.description,
+                title: 'Constat Officiel',
+                subtitle: 'Formulaire conforme',
+                color: const Color(0xFF8B5CF6),
                 onTap: () {
-                  Navigator.pushNamed(context, '/constat/ai-demo');
+                  Navigator.pushNamed(context, '/constat/demo');
                 },
               ),
             ),

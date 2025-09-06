@@ -1,265 +1,564 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
-/// 📊 Service de statistiques pour Admin Compagnie
+/// 📊 Service de statistiques spécifique pour Admin Compagnie
+/// Filtre toutes les données selon la compagnie de l'admin connecté
 class AdminCompagnieStatsService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// 📊 Récupérer les statistiques globales de la compagnie
-  static Future<Map<String, dynamic>> getCompagnieGlobalStats(String compagnieId) async {
+  /// 📊 Récupérer les statistiques complètes de la compagnie de l'admin
+  static Future<Map<String, dynamic>> getMyCompagnieStatistics(String compagnieId) async {
     try {
-      debugPrint('[ADMIN_COMPAGNIE_STATS] 📊 Récupération stats globales pour: $compagnieId');
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 📊 Récupération stats pour compagnie: $compagnieId');
 
-      // Récupérer toutes les agences
-      final agencesQuery = await _firestore
-          .collection('agences')
-          .where('compagnieId', isEqualTo: compagnieId)
-          .get();
-
-      int totalAgences = agencesQuery.docs.length;
-      int totalAgents = 0;
-      int totalActiveAgents = 0;
-      int totalAdminsAgence = 0;
-      List<Map<String, dynamic>> agencesDetails = [];
-
-      // Pour chaque agence, récupérer ses statistiques
-      for (var agenceDoc in agencesQuery.docs) {
-        final agenceData = agenceDoc.data();
-        agenceData['id'] = agenceDoc.id;
-
-        // Compter les agents de cette agence
-        final agentsQuery = await _firestore
-            .collection('users')
-            .where('role', isEqualTo: 'agent')
-            .where('agenceId', isEqualTo: agenceDoc.id)
-            .get();
-
-        final agenceAgents = agentsQuery.docs.length;
-        final agenceActiveAgents = agentsQuery.docs.where((doc) => doc.data()['isActive'] == true).length;
-
-        // Compter les admins de cette agence
-        final adminsQuery = await _firestore
-            .collection('users')
-            .where('role', isEqualTo: 'admin_agence')
-            .where('agenceId', isEqualTo: agenceDoc.id)
-            .get();
-
-        final agenceAdmins = adminsQuery.docs.length;
-
-        // Ajouter aux totaux
-        totalAgents += agenceAgents;
-        totalActiveAgents += agenceActiveAgents;
-        totalAdminsAgence += agenceAdmins;
-
-        // Ajouter les détails de l'agence
-        agencesDetails.add({
-          'id': agenceDoc.id,
-          'nom': agenceData['nom'],
-          'code': agenceData['code'],
-          'totalAgents': agenceAgents,
-          'activeAgents': agenceActiveAgents,
-          'inactiveAgents': agenceAgents - agenceActiveAgents,
-          'totalAdmins': agenceAdmins,
-          'adresse': agenceData['adresse'],
-          'telephone': agenceData['telephone'],
-          'email': agenceData['email'],
-        });
-
-        debugPrint('[ADMIN_COMPAGNIE_STATS] 🏢 Agence ${agenceData['nom']}: $agenceAgents agents, $agenceAdmins admins');
+      // Si compagnieId est vide, essayer de le détecter automatiquement
+      String actualCompagnieId = compagnieId;
+      if (compagnieId.isEmpty) {
+        actualCompagnieId = await _detectCompagnieId();
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 CompagnieId détecté automatiquement: $actualCompagnieId');
       }
 
-      final stats = {
-        'totalAgences': totalAgences,
-        'totalAgents': totalAgents,
-        'activeAgents': totalActiveAgents,
-        'inactiveAgents': totalAgents - totalActiveAgents,
-        'totalAdminsAgence': totalAdminsAgence,
-        'agencesDetails': agencesDetails,
-        'lastUpdate': DateTime.now().toIso8601String(),
+      final results = await Future.wait([
+        _getCompagnieOverview(actualCompagnieId),
+        _getAgencesStats(actualCompagnieId),
+        _getFinancialStats(actualCompagnieId),
+        _getAgentsStats(actualCompagnieId),
+        _getContractsStats(actualCompagnieId),
+      ]);
+
+      final statistics = {
+        'overview': results[0],
+        'agences': results[1],
+        'financial': results[2],
+        'agents': results[3],
+        'contracts': results[4],
+        'detectedCompagnieId': actualCompagnieId,
+        'lastUpdated': DateTime.now().toIso8601String(),
       };
 
-      debugPrint('[ADMIN_COMPAGNIE_STATS] ✅ Stats globales: $totalAgences agences, $totalAgents agents');
-      return stats;
+      debugPrint('[ADMIN_COMPAGNIE_STATS] ✅ Statistiques récupérées avec succès');
+      return statistics;
 
     } catch (e) {
-      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur récupération stats: $e');
-      return {
-        'totalAgences': 0,
-        'totalAgents': 0,
-        'activeAgents': 0,
-        'inactiveAgents': 0,
-        'totalAdminsAgence': 0,
-        'agencesDetails': [],
-        'lastUpdate': DateTime.now().toIso8601String(),
-        'error': e.toString(),
-      };
+      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur récupération statistiques: $e');
+      return _getEmptyStatistics();
     }
   }
 
-  /// 📊 Récupérer les statistiques d'une agence spécifique
-  static Future<Map<String, dynamic>> getAgenceDetailedStats(String agenceId) async {
+  /// 🔍 Détecter automatiquement le compagnieId basé sur les données existantes
+  static Future<String> _detectCompagnieId() async {
     try {
-      debugPrint('[ADMIN_COMPAGNIE_STATS] 📊 Stats détaillées pour agence: $agenceId');
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Détection automatique du compagnieId...');
 
-      // Récupérer les informations de l'agence
-      final agenceDoc = await _firestore.collection('agences').doc(agenceId).get();
-      if (!agenceDoc.exists) {
-        throw Exception('Agence non trouvée');
-      }
+      // 1. Chercher les agences avec le plus de données
+      final agencesSnapshot = await _firestore.collection('agences').get();
+      final compagnieStats = <String, int>{};
 
-      final agenceData = agenceDoc.data()!;
-
-      // Récupérer tous les agents
-      final agentsQuery = await _firestore
-          .collection('users')
-          .where('role', isEqualTo: 'agent')
-          .where('agenceId', isEqualTo: agenceId)
-          .get();
-
-      List<Map<String, dynamic>> agents = [];
-      int activeAgents = 0;
-
-      for (var doc in agentsQuery.docs) {
-        final agentData = doc.data();
-        agentData['uid'] = doc.id;
-        agents.add(agentData);
-
-        if (agentData['isActive'] == true) {
-          activeAgents++;
+      for (final doc in agencesSnapshot.docs) {
+        final data = doc.data();
+        final compagnieId = data['compagnieId'] as String?;
+        if (compagnieId != null && compagnieId.isNotEmpty) {
+          compagnieStats[compagnieId] = (compagnieStats[compagnieId] ?? 0) + 1;
         }
       }
 
-      // Récupérer les admins de l'agence
-      final adminsQuery = await _firestore
+      // 2. Chercher les agents pour confirmer
+      final agentsSnapshot = await _firestore
           .collection('users')
-          .where('role', isEqualTo: 'admin_agence')
-          .where('agenceId', isEqualTo: agenceId)
+          .where('role', isEqualTo: 'agent')
           .get();
 
-      List<Map<String, dynamic>> admins = [];
-      for (var doc in adminsQuery.docs) {
-        final adminData = doc.data();
-        adminData['uid'] = doc.id;
-        admins.add(adminData);
+      for (final doc in agentsSnapshot.docs) {
+        final data = doc.data();
+        final compagnieId = data['compagnieId'] as String?;
+        if (compagnieId != null && compagnieId.isNotEmpty) {
+          compagnieStats[compagnieId] = (compagnieStats[compagnieId] ?? 0) + 1;
+        }
       }
 
-      return {
-        'agenceInfo': agenceData,
-        'totalAgents': agents.length,
-        'activeAgents': activeAgents,
-        'inactiveAgents': agents.length - activeAgents,
-        'agents': agents,
-        'totalAdmins': admins.length,
-        'admins': admins,
-        'lastUpdate': DateTime.now().toIso8601String(),
-      };
+      // 3. Prendre le compagnieId avec le plus de données
+      if (compagnieStats.isNotEmpty) {
+        final bestCompagnieId = compagnieStats.entries
+            .reduce((a, b) => a.value > b.value ? a : b)
+            .key;
+
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🎯 CompagnieId détecté: $bestCompagnieId (${compagnieStats[bestCompagnieId]} éléments)');
+        return bestCompagnieId;
+      }
+
+      debugPrint('[ADMIN_COMPAGNIE_STATS] ⚠️ Aucun compagnieId détecté');
+      return '';
 
     } catch (e) {
-      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur stats agence $agenceId: $e');
-      return {
-        'error': e.toString(),
-        'totalAgents': 0,
-        'activeAgents': 0,
-        'inactiveAgents': 0,
-        'agents': [],
-        'totalAdmins': 0,
-        'admins': [],
-        'lastUpdate': DateTime.now().toIso8601String(),
-      };
+      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur détection compagnieId: $e');
+      return '';
     }
   }
 
-  /// 🔄 Stream pour synchronisation en temps réel des agences
-  static Stream<List<Map<String, dynamic>>> getAgencesStream(String compagnieId) {
-    return _firestore
-        .collection('agences')
-        .where('compagnieId', isEqualTo: compagnieId)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return data;
-      }).toList();
-    });
-  }
-
-  /// 👥 Stream pour synchronisation en temps réel des agents d'une agence
-  static Stream<List<Map<String, dynamic>>> getAgenceAgentsStream(String agenceId) {
-    return _firestore
-        .collection('users')
-        .where('role', isEqualTo: 'agent')
-        .where('agenceId', isEqualTo: agenceId)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['uid'] = doc.id;
-        return data;
-      }).toList();
-    });
-  }
-
-  /// 🔔 Créer une notification de changement
-  static Future<void> notifyStatsChange(String compagnieId, String type, Map<String, dynamic> data) async {
+  /// 🏢 Vue d'ensemble de la compagnie
+  static Future<Map<String, dynamic>> _getCompagnieOverview(String compagnieId) async {
     try {
-      await _firestore.collection('notifications_stats').add({
-        'compagnieId': compagnieId,
-        'type': type, // 'agent_created', 'agent_updated', 'agence_created', etc.
-        'data': data,
-        'timestamp': FieldValue.serverTimestamp(),
-        'read': false,
-      });
-      
-      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔔 Notification créée: $type');
-    } catch (e) {
-      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur notification: $e');
-    }
-  }
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Overview pour compagnie: $compagnieId');
 
-  /// 📈 Calculer les tendances (évolution sur 30 jours)
-  static Future<Map<String, dynamic>> getCompagnieTrends(String compagnieId) async {
-    try {
-      final now = DateTime.now();
-      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+      // Récupérer les données de la compagnie (essayer les deux collections)
+      Map<String, dynamic> compagnieData = {};
 
-      // Récupérer les agents créés dans les 30 derniers jours
-      final recentAgentsQuery = await _firestore
+      // Essayer d'abord 'compagnies_assurance'
+      var compagnieDoc = await _firestore.collection('compagnies_assurance').doc(compagnieId).get();
+      if (compagnieDoc.exists) {
+        compagnieData = compagnieDoc.data()!;
+        debugPrint('[ADMIN_COMPAGNIE_STATS] ✅ Compagnie trouvée dans "compagnies_assurance"');
+      } else {
+        // Essayer 'compagnies'
+        compagnieDoc = await _firestore.collection('compagnies').doc(compagnieId).get();
+        if (compagnieDoc.exists) {
+          compagnieData = compagnieDoc.data()!;
+          debugPrint('[ADMIN_COMPAGNIE_STATS] ✅ Compagnie trouvée dans "compagnies"');
+        } else {
+          debugPrint('[ADMIN_COMPAGNIE_STATS] ⚠️ Compagnie non trouvée dans aucune collection');
+        }
+      }
+
+      // Compter les agences (essayer plusieurs stratégies)
+      var agencesSnapshot = await _firestore
+          .collection('agences')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .get();
+
+      if (agencesSnapshot.docs.isEmpty) {
+        // Essayer avec la sous-collection
+        agencesSnapshot = await _firestore
+            .collection('compagnies_assurance')
+            .doc(compagnieId)
+            .collection('agences')
+            .get();
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Agences via sous-collection: ${agencesSnapshot.docs.length}');
+      } else {
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Agences via collection principale: ${agencesSnapshot.docs.length}');
+      }
+
+      // Compter les agents
+      final agentsSnapshot = await _firestore
           .collection('users')
           .where('role', isEqualTo: 'agent')
           .where('compagnieId', isEqualTo: compagnieId)
-          .where('createdAt', isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
           .get();
 
-      // Récupérer les agences créées dans les 30 derniers jours
-      final recentAgencesQuery = await _firestore
-          .collection('agences')
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Agents trouvés: ${agentsSnapshot.docs.length}');
+
+      // Compter les contrats
+      final contratsSnapshot = await _firestore
+          .collection('contrats')
           .where('compagnieId', isEqualTo: compagnieId)
-          .where('createdAt', isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
           .get();
 
-      return {
-        'newAgentsLast30Days': recentAgentsQuery.docs.length,
-        'newAgencesLast30Days': recentAgencesQuery.docs.length,
-        'growthRate': _calculateGrowthRate(recentAgentsQuery.docs.length),
-        'lastUpdate': DateTime.now().toIso8601String(),
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Contrats trouvés: ${contratsSnapshot.docs.length}');
+
+      // Compter les sinistres
+      final sinistresSnapshot = await _firestore
+          .collection('sinistres')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .get();
+
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Sinistres trouvés: ${sinistresSnapshot.docs.length}');
+
+      final result = {
+        'compagnieData': compagnieData,
+        'totalAgences': agencesSnapshot.docs.length,
+        'totalAgents': agentsSnapshot.docs.length,
+        'totalContrats': contratsSnapshot.docs.length,
+        'totalSinistres': sinistresSnapshot.docs.length,
       };
 
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 📊 Résultat overview: $result');
+      return result;
+
     } catch (e) {
-      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur tendances: $e');
+      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur overview: $e');
       return {
-        'newAgentsLast30Days': 0,
-        'newAgencesLast30Days': 0,
-        'growthRate': 0.0,
-        'lastUpdate': DateTime.now().toIso8601String(),
+        'compagnieData': {},
+        'totalAgences': 0,
+        'totalAgents': 0,
+        'totalContrats': 0,
+        'totalSinistres': 0,
       };
     }
   }
 
-  /// 📊 Calculer le taux de croissance
-  static double _calculateGrowthRate(int newItems) {
-    // Calcul simple du taux de croissance basé sur les nouveaux éléments
-    if (newItems == 0) return 0.0;
-    return (newItems / 30) * 100; // Pourcentage par jour
+  /// 🏢 Statistiques détaillées des agences
+  static Future<List<Map<String, dynamic>>> _getAgencesStats(String compagnieId) async {
+    try {
+      final agencesSnapshot = await _firestore
+          .collection('agences')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .get();
+
+      List<Map<String, dynamic>> agencesStats = [];
+
+      for (var agenceDoc in agencesSnapshot.docs) {
+        final agenceData = agenceDoc.data();
+        final agenceId = agenceDoc.id;
+
+        // Compter les agents de cette agence
+        final agentsSnapshot = await _firestore
+            .collection('users')
+            .where('role', isEqualTo: 'agent')
+            .where('agenceId', isEqualTo: agenceId)
+            .get();
+
+        // Compter les contrats de cette agence
+        final contratsSnapshot = await _firestore
+            .collection('contrats')
+            .where('agenceId', isEqualTo: agenceId)
+            .get();
+
+        // Calculer les primes totales
+        double totalPrimes = 0;
+        int contratsActifs = 0;
+        for (var contratDoc in contratsSnapshot.docs) {
+          final contratData = contratDoc.data();
+          final prime = (contratData['primeAnnuelle'] ?? contratData['primeAssurance'] ?? 0).toDouble();
+          totalPrimes += prime;
+          
+          final statut = contratData['statut']?.toString().toLowerCase() ?? '';
+          if (statut == 'actif') contratsActifs++;
+        }
+
+        // Vérifier s'il y a un admin agence
+        final adminAgenceSnapshot = await _firestore
+            .collection('users')
+            .where('role', isEqualTo: 'admin_agence')
+            .where('agenceId', isEqualTo: agenceId)
+            .where('isActive', isEqualTo: true)
+            .get();
+
+        agencesStats.add({
+          'id': agenceId,
+          'nom': agenceData['nom'] ?? 'Agence inconnue',
+          'ville': agenceData['ville'] ?? 'Ville inconnue',
+          'adresse': agenceData['adresse'] ?? '',
+          'telephone': agenceData['telephone'] ?? '',
+          'email': agenceData['email'] ?? '',
+          'totalAgents': agentsSnapshot.docs.length,
+          'totalContrats': contratsSnapshot.docs.length,
+          'contratsActifs': contratsActifs,
+          'totalPrimes': totalPrimes,
+          'hasAdminAgence': adminAgenceSnapshot.docs.isNotEmpty,
+          'adminAgenceNom': adminAgenceSnapshot.docs.isNotEmpty 
+              ? '${adminAgenceSnapshot.docs.first.data()['prenom']} ${adminAgenceSnapshot.docs.first.data()['nom']}'
+              : null,
+          'performanceScore': _calculateAgencePerformanceScore(
+            contratsSnapshot.docs.length,
+            contratsActifs,
+            agentsSnapshot.docs.length,
+          ),
+        });
+      }
+
+      // Trier par performance
+      agencesStats.sort((a, b) => (b['performanceScore'] as double).compareTo(a['performanceScore'] as double));
+
+      return agencesStats;
+
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur agences stats: $e');
+      return [];
+    }
+  }
+
+  /// 💰 Statistiques financières
+  static Future<Map<String, dynamic>> _getFinancialStats(String compagnieId) async {
+    try {
+      final now = DateTime.now();
+      final thisMonth = DateTime(now.year, now.month, 1);
+      final lastMonth = DateTime(now.year, now.month - 1, 1);
+      final thisYear = DateTime(now.year, 1, 1);
+
+      final contratsSnapshot = await _firestore
+          .collection('contrats')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .get();
+
+      double totalPrimes = 0;
+      double primesThisMonth = 0;
+      double primesLastMonth = 0;
+      double primesThisYear = 0;
+
+      for (var doc in contratsSnapshot.docs) {
+        final data = doc.data();
+        final prime = (data['primeAnnuelle'] ?? data['primeAssurance'] ?? 0).toDouble();
+        final dateCreation = (data['createdAt'] as Timestamp?)?.toDate() ?? 
+                           (data['dateDebut'] as Timestamp?)?.toDate();
+
+        totalPrimes += prime;
+
+        if (dateCreation != null) {
+          if (dateCreation.isAfter(thisYear)) {
+            primesThisYear += prime;
+          }
+          if (dateCreation.isAfter(thisMonth)) {
+            primesThisMonth += prime;
+          }
+          if (dateCreation.isAfter(lastMonth) && dateCreation.isBefore(thisMonth)) {
+            primesLastMonth += prime;
+          }
+        }
+      }
+
+      double financialGrowthRate = 0;
+      if (primesLastMonth > 0) {
+        financialGrowthRate = ((primesThisMonth - primesLastMonth) / primesLastMonth) * 100;
+      }
+
+      return {
+        'totalPrimes': totalPrimes,
+        'primesThisMonth': primesThisMonth,
+        'primesLastMonth': primesLastMonth,
+        'primesThisYear': primesThisYear,
+        'financialGrowthRate': financialGrowthRate,
+        'averagePrime': contratsSnapshot.docs.isNotEmpty ? totalPrimes / contratsSnapshot.docs.length : 0,
+      };
+
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur financial stats: $e');
+      return {
+        'totalPrimes': 0,
+        'primesThisMonth': 0,
+        'primesLastMonth': 0,
+        'primesThisYear': 0,
+        'financialGrowthRate': 0,
+        'averagePrime': 0,
+      };
+    }
+  }
+
+  /// 👥 Statistiques des agents
+  static Future<Map<String, dynamic>> _getAgentsStats(String compagnieId) async {
+    try {
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Recherche agents pour compagnie: $compagnieId');
+
+      // Rechercher les agents avec différentes stratégies
+      var agentsSnapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'agent')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .get();
+
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Agents trouvés avec compagnieId: ${agentsSnapshot.docs.length}');
+
+      // Si aucun agent trouvé, essayer sans compagnieId pour voir tous les agents
+      if (agentsSnapshot.docs.isEmpty) {
+        final allAgentsSnapshot = await _firestore
+            .collection('users')
+            .where('role', isEqualTo: 'agent')
+            .get();
+
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Total agents dans la base: ${allAgentsSnapshot.docs.length}');
+
+        // Afficher les compagnieId des agents existants
+        for (final doc in allAgentsSnapshot.docs) {
+          final data = doc.data();
+          debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Agent ${data['displayName']}: compagnieId=${data['compagnieId']}');
+        }
+      }
+
+      int totalAgents = agentsSnapshot.docs.length;
+      int activeAgents = 0;
+      List<Map<String, dynamic>> agentPerformance = [];
+
+      for (var agentDoc in agentsSnapshot.docs) {
+        final agentData = agentDoc.data();
+        final agentId = agentDoc.id;
+        final isActive = agentData['isActive'] ?? false;
+
+        if (isActive) activeAgents++;
+
+        // Compter les contrats de cet agent (vérifier les deux collections)
+        var agentContracts = await _firestore
+            .collection('contrats')
+            .where('agentId', isEqualTo: agentId)
+            .get();
+
+        // Si aucun contrat trouvé, essayer l'autre collection
+        if (agentContracts.docs.isEmpty) {
+          agentContracts = await _firestore
+              .collection('contrats_assurance')
+              .where('agentId', isEqualTo: agentId)
+              .get();
+        }
+
+        agentPerformance.add({
+          'agentId': agentId,
+          'nom': '${agentData['prenom']} ${agentData['nom']}',
+          'agenceId': agentData['agenceId'] ?? '',
+          'agenceNom': agentData['agenceNom'] ?? 'Agence inconnue',
+          'contractsCount': agentContracts.docs.length,
+          'isActive': isActive,
+        });
+      }
+
+      // Trier par performance
+      agentPerformance.sort((a, b) => (b['contractsCount'] as int).compareTo(a['contractsCount'] as int));
+
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 📊 Agents stats: total=$totalAgents, actifs=$activeAgents');
+
+      return {
+        'totalAgents': totalAgents,
+        'activeAgents': activeAgents,
+        'inactiveAgents': totalAgents - activeAgents,
+        'topPerformers': agentPerformance.take(5).toList(),
+        'allAgents': agentPerformance,
+      };
+
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur agents stats: $e');
+      return {
+        'totalAgents': 0,
+        'activeAgents': 0,
+        'inactiveAgents': 0,
+        'topPerformers': [],
+        'allAgents': [],
+      };
+    }
+  }
+
+  /// 📄 Statistiques des contrats
+  static Future<Map<String, dynamic>> _getContractsStats(String compagnieId) async {
+    try {
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Recherche contrats pour compagnie: $compagnieId');
+
+      // Rechercher dans les deux collections possibles
+      var contratsSnapshot = await _firestore
+          .collection('contrats')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .get();
+
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Contrats trouvés dans "contrats": ${contratsSnapshot.docs.length}');
+
+      // Si aucun contrat trouvé, essayer l'autre collection
+      if (contratsSnapshot.docs.isEmpty) {
+        contratsSnapshot = await _firestore
+            .collection('contrats_assurance')
+            .where('compagnieId', isEqualTo: compagnieId)
+            .get();
+
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Contrats trouvés dans "contrats_assurance": ${contratsSnapshot.docs.length}');
+      }
+
+      // Si toujours aucun contrat, vérifier tous les contrats pour debug
+      if (contratsSnapshot.docs.isEmpty) {
+        final allContratsSnapshot = await _firestore.collection('contrats').get();
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Total contrats dans "contrats": ${allContratsSnapshot.docs.length}');
+
+        for (final doc in allContratsSnapshot.docs.take(5)) {
+          final data = doc.data();
+          debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Contrat ${doc.id}: compagnieId=${data['compagnieId']}');
+        }
+      }
+
+      int total = contratsSnapshot.docs.length;
+      int actifs = 0;
+      int expires = 0;
+      int suspendus = 0;
+      int expiringThisMonth = 0;
+
+      final now = DateTime.now();
+      final endOfMonth = DateTime(now.year, now.month + 1, 0);
+
+      for (var doc in contratsSnapshot.docs) {
+        final data = doc.data();
+        final statut = data['statut']?.toString().toLowerCase() ?? '';
+        final dateFin = (data['dateFin'] as Timestamp?)?.toDate();
+
+        switch (statut) {
+          case 'actif':
+            actifs++;
+            if (dateFin != null && dateFin.isBefore(endOfMonth) && dateFin.isAfter(now)) {
+              expiringThisMonth++;
+            }
+            break;
+          case 'expiré':
+          case 'expire':
+            expires++;
+            break;
+          case 'suspendu':
+            suspendus++;
+            break;
+        }
+      }
+
+      double growthRate = total > 0 ? (actifs / total * 100) - 85 : 0;
+
+      return {
+        'total': total,
+        'actifs': actifs,
+        'expires': expires,
+        'suspendus': suspendus,
+        'expiringThisMonth': expiringThisMonth,
+        'growthRate': growthRate,
+        'activePercentage': total > 0 ? (actifs / total * 100) : 0,
+      };
+
+    } catch (e) {
+      debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur contracts stats: $e');
+      return {
+        'total': 0,
+        'actifs': 0,
+        'expires': 0,
+        'suspendus': 0,
+        'expiringThisMonth': 0,
+        'growthRate': 0,
+        'activePercentage': 0,
+      };
+    }
+  }
+
+  /// 📊 Calculer le score de performance d'une agence
+  static double _calculateAgencePerformanceScore(int totalContrats, int contratsActifs, int totalAgents) {
+    if (totalAgents == 0) return 0;
+
+    double contratsPerAgent = totalContrats / totalAgents;
+    double activeRate = totalContrats > 0 ? (contratsActifs / totalContrats) : 0;
+
+    return (contratsPerAgent * 0.6) + (activeRate * 40);
+  }
+
+  /// 📊 Statistiques vides par défaut
+  static Map<String, dynamic> _getEmptyStatistics() {
+    return {
+      'overview': {
+        'compagnieData': {},
+        'totalAgences': 0,
+        'totalAgents': 0,
+        'totalContrats': 0,
+        'totalSinistres': 0,
+      },
+      'agences': [],
+      'financial': {
+        'totalPrimes': 0,
+        'primesThisMonth': 0,
+        'primesLastMonth': 0,
+        'primesThisYear': 0,
+        'financialGrowthRate': 0,
+        'averagePrime': 0,
+      },
+      'agents': {
+        'totalAgents': 0,
+        'activeAgents': 0,
+        'inactiveAgents': 0,
+        'topPerformers': [],
+        'allAgents': [],
+      },
+      'contracts': {
+        'total': 0,
+        'actifs': 0,
+        'expires': 0,
+        'suspendus': 0,
+        'expiringThisMonth': 0,
+        'growthRate': 0,
+        'activePercentage': 0,
+      },
+      'lastUpdated': DateTime.now().toIso8601String(),
+    };
   }
 }

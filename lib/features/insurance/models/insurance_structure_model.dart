@@ -209,14 +209,18 @@ class InsuranceAgent {
   String get fullName => '$firstName $lastName';
 }
 
-/// 📊 Statuts de véhicule dans le workflow
+/// 📊 Statuts de véhicule dans le workflow complet
 enum VehicleStatus {
-  enAttenteValidation,  // Soumis par conducteur, en attente validation agent
-  valide,              // Validé par agent, prêt pour contrat
-  assure,              // Contrat créé, véhicule assuré
-  refuse,              // Refusé par agent
-  suspendu,            // Contrat suspendu
-  expire,              // Contrat expiré
+  enAttenteValidation,  // 1. Soumis par conducteur, en attente validation admin agence
+  valide,              // 2. Validé par admin agence, assigné à un agent
+  contratEnCours,      // 3. Agent en train de créer le contrat
+  contratPropose,      // 4. Contrat créé, en attente signature/paiement conducteur
+  assure,              // 5. Contrat signé et payé, véhicule assuré
+  aRenouveler,         // 6. Contrat proche expiration (30 jours)
+  expire,              // 7. Contrat expiré
+  suspendu,            // 8. Contrat suspendu (impayé)
+  refuse,              // 9. Refusé par admin agence
+  annule,              // 10. Annulé par le conducteur
 }
 
 extension VehicleStatusExtension on VehicleStatus {
@@ -226,14 +230,22 @@ extension VehicleStatusExtension on VehicleStatus {
         return 'en_attente_validation';
       case VehicleStatus.valide:
         return 'valide';
+      case VehicleStatus.contratEnCours:
+        return 'contrat_en_cours';
+      case VehicleStatus.contratPropose:
+        return 'contrat_propose';
       case VehicleStatus.assure:
         return 'assure';
-      case VehicleStatus.refuse:
-        return 'refuse';
-      case VehicleStatus.suspendu:
-        return 'suspendu';
+      case VehicleStatus.aRenouveler:
+        return 'a_renouveler';
       case VehicleStatus.expire:
         return 'expire';
+      case VehicleStatus.suspendu:
+        return 'suspendu';
+      case VehicleStatus.refuse:
+        return 'refuse';
+      case VehicleStatus.annule:
+        return 'annule';
     }
   }
 
@@ -242,15 +254,23 @@ extension VehicleStatusExtension on VehicleStatus {
       case VehicleStatus.enAttenteValidation:
         return 'En attente de validation';
       case VehicleStatus.valide:
-        return 'Validé';
+        return 'Validé - Assigné à agent';
+      case VehicleStatus.contratEnCours:
+        return 'Contrat en cours de création';
+      case VehicleStatus.contratPropose:
+        return 'Contrat proposé';
       case VehicleStatus.assure:
         return 'Assuré';
-      case VehicleStatus.refuse:
-        return 'Refusé';
-      case VehicleStatus.suspendu:
-        return 'Suspendu';
+      case VehicleStatus.aRenouveler:
+        return 'À renouveler';
       case VehicleStatus.expire:
         return 'Expiré';
+      case VehicleStatus.suspendu:
+        return 'Suspendu';
+      case VehicleStatus.refuse:
+        return 'Refusé';
+      case VehicleStatus.annule:
+        return 'Annulé';
     }
   }
 
@@ -260,14 +280,47 @@ extension VehicleStatusExtension on VehicleStatus {
         return Colors.orange;
       case VehicleStatus.valide:
         return Colors.blue;
+      case VehicleStatus.contratEnCours:
+        return Colors.indigo;
+      case VehicleStatus.contratPropose:
+        return Colors.purple;
       case VehicleStatus.assure:
         return Colors.green;
-      case VehicleStatus.refuse:
-        return Colors.red;
-      case VehicleStatus.suspendu:
-        return Colors.grey;
+      case VehicleStatus.aRenouveler:
+        return Colors.amber;
       case VehicleStatus.expire:
         return Colors.brown;
+      case VehicleStatus.suspendu:
+        return Colors.grey;
+      case VehicleStatus.refuse:
+        return Colors.red;
+      case VehicleStatus.annule:
+        return Colors.blueGrey;
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case VehicleStatus.enAttenteValidation:
+        return Icons.pending;
+      case VehicleStatus.valide:
+        return Icons.check_circle_outline;
+      case VehicleStatus.contratEnCours:
+        return Icons.edit_document;
+      case VehicleStatus.contratPropose:
+        return Icons.description;
+      case VehicleStatus.assure:
+        return Icons.verified;
+      case VehicleStatus.aRenouveler:
+        return Icons.refresh;
+      case VehicleStatus.expire:
+        return Icons.schedule;
+      case VehicleStatus.suspendu:
+        return Icons.pause_circle;
+      case VehicleStatus.refuse:
+        return Icons.cancel;
+      case VehicleStatus.annule:
+        return Icons.block;
     }
   }
 }

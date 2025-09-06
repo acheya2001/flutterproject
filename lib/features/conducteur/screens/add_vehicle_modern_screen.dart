@@ -1244,11 +1244,11 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
     // Validation de base
     bool isValid = basicFieldsValid && documentsValid && permisValid;
 
-    // Si assurance activée, vérifier les champs d'assurance
+    // Si assurance activée, vérifier seulement la compagnie et l'agence
+    // Le numéro de contrat sera généré automatiquement par l'agent
     if (_hasInsurance) {
       final insuranceFieldsValid = _selectedCompagnieId != null &&
-                                  _selectedAgenceId != null &&
-                                  _contractController.text.trim().isNotEmpty;
+                                  _selectedAgenceId != null;
       isValid = isValid && insuranceFieldsValid;
     }
 
@@ -1524,13 +1524,14 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
         dateObtentionPermis: _dateObtentionPermis ?? DateTime.now(),
         dateExpirationPermis: _dateExpirationPermis ?? DateTime.now().add(const Duration(days: 3650)),
         imagePermisUrl: null, // Sera ajouté plus tard
-        estAssure: _hasInsurance,
+        estAssure: false, // Toujours false - sera true quand l'agent activera le contrat
         compagnieAssuranceId: _hasInsurance ? _selectedCompagnieId : null,
         agenceAssuranceId: _hasInsurance ? _selectedAgenceId : null,
-        numeroContratAssurance: _hasInsurance ? _contractController.text.trim() : null,
+        numeroContratAssurance: _hasInsurance ? 'PENDING_${DateTime.now().millisecondsSinceEpoch}' : null,
         dateDebutAssurance: _hasInsurance ? _dateDebutAssurance : null,
         dateFinAssurance: _hasInsurance ? _dateFinAssurance : null,
         dateDerniereAssurance: _hasInsurance ? _dateDerniereAssurance : null,
+        statutAssurance: _hasInsurance ? 'en_attente_validation' : 'non_assure',
         etatCompte: _selectedEtatCompte,
         controleValide: true,
         createdAt: DateTime.now(),

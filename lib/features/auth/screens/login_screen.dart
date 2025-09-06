@@ -8,6 +8,7 @@ import '../../../services/agent_auth_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/conducteur_workaround_service.dart';
 import '../../admin_compagnie/screens/admin_compagnie_dashboard.dart';
+import 'conducteur_register_simple_screen.dart';
 import '../../admin_agence/screens/modern_admin_agence_dashboard.dart';
 import '../../agent/screens/agent_dashboard_screen.dart';
 import '../../../debug/check_admin_account.dart';
@@ -295,7 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const ConducteurRegistrationScreen(),
+                                builder: (context) => const ConducteurRegisterSimpleScreen(),
                               ),
                             );
                           },
@@ -420,6 +421,9 @@ class _LoginScreenState extends State<LoginScreen> {
               builder: (context) => const AgentDashboardScreen(),
             ),
           );
+        } else if (userRole == 'conducteur') {
+          // Redirection spéciale pour conducteur
+          Navigator.pushReplacementNamed(context, '/conducteur-dashboard');
         } else {
           NavigationService.redirectToDashboard(userRole);
         }
@@ -433,16 +437,20 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur de connexion'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erreur de connexion'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -617,6 +625,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
           if (result['success'] == true) {
             print('[LOGIN] ✅ Connexion conducteur réussie (mode: ${result['mode'] ?? 'firebase'})');
+
+            // Redirection immédiate vers le dashboard conducteur
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Navigator.pushReplacementNamed(context, '/conducteur-dashboard');
+              }
+            });
+
             return result;
           } else {
             print('[LOGIN] ❌ Échec connexion conducteur: ${result['error']}');

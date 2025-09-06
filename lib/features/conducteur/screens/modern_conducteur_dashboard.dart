@@ -6,6 +6,17 @@ import '../../../common/widgets/gradient_background.dart';
 import '../../../common/widgets/animated_counter.dart';
 import '../models/conducteur_vehicle_model.dart';
 import '../services/conducteur_auth_service.dart';
+import '../widgets/vehicle_insurance_status_widget.dart';
+import '../screens/my_contracts_screen.dart';
+import '../../../conducteur/screens/accident_declaration_screen.dart';
+import '../../../conducteur/screens/accident_choice_screen.dart';
+import '../../../conducteur/screens/accident_choice_screen.dart';
+import '../../../conducteur/screens/constat_complet_screen.dart';
+import '../../sinistre/screens/sinistre_choix_rapide_screen.dart';
+import 'vehicle_tracking_screen.dart';
+import 'complete_insurance_request_screen.dart';
+import '../../../services/vehicule_management_service.dart';
+import 'add_vehicle_screen.dart';
 
 /// 🚗 Dashboard moderne pour conducteur avec gestion multi-véhicules
 class ModernConducteurDashboard extends StatefulWidget {
@@ -64,8 +75,16 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
     print('🔍 [MODERN DEBUG] Chargement véhicules pour: $_conducteurUid');
     print('🔍 [MODERN DEBUG] État actuel - vehicles: ${_vehicles.length}, isLoading: $_isLoading');
     try {
-      final vehicles = await ConducteurAuthService.getConducteurVehicles(_conducteurUid!);
-      print('🔍 [MODERN DEBUG] Véhicules trouvés: ${vehicles.length}');
+      // Utiliser la nouvelle méthode simplifiée de VehiculeManagementService
+      final vehiclesData = await VehiculeManagementService.getVehiculesByConducteur(_conducteurUid!);
+      print('🔍 [MODERN DEBUG] Données véhicules brutes: ${vehiclesData.length}');
+
+      // Convertir les données Map en ConducteurVehicleModel avec valeurs par défaut
+      final vehicles = vehiclesData.map((data) {
+        return _convertToConducteurVehicleModel(data, _conducteurUid!);
+      }).toList().cast<ConducteurVehicleModel>();
+
+      print('🔍 [MODERN DEBUG] Véhicules convertis: ${vehicles.length}');
 
       for (int i = 0; i < vehicles.length; i++) {
         final vehicle = vehicles[i];
@@ -147,8 +166,8 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
               _buildWelcomeSection(),
               const SizedBox(height: 24),
 
-              // Section véhicules (toujours affichée)
-              _buildVehiclesSection(),
+              // Section véhicules avec statut d'assurance
+              _buildVehiclesInsuranceSection(),
               const SizedBox(height: 24),
 
               // Actions rapides
@@ -318,7 +337,7 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
             ),
           ),
           const SizedBox(width: 20),
-          Expanded(
+          Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -331,12 +350,16 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  FirebaseAuth.instance.currentUser?.displayName ?? 'Conducteur',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                Flexible(
+                  child: Text(
+                    FirebaseAuth.instance.currentUser?.displayName ?? 'Conducteur',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -530,12 +553,22 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
 
   Widget _buildFloatingActionButton() {
     return FloatingActionButton.extended(
-      onPressed: _addVehicle,
-      backgroundColor: Colors.blue.shade600,
+      onPressed: () {
+        // 🚀 Test direct vers nos écrans optimisés
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ConstatCompletScreen(
+              sessionData: null, // Test sans session
+            ),
+          ),
+        );
+      },
+      backgroundColor: Colors.red.shade600,
       foregroundColor: Colors.white,
       elevation: 8,
-      icon: const Icon(Icons.add),
-      label: const Text('Ajouter véhicule'),
+      icon: const Icon(Icons.warning),
+      label: const Text('TEST ACCIDENT'),
     );
   }
 
@@ -753,6 +786,14 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
         'enabled': _selectedVehicle != null,
       },
       {
+        'title': 'Rejoindre Session',
+        'subtitle': 'Code de session',
+        'icon': Icons.group_add,
+        'gradient': [Colors.orange.shade600, Colors.orange.shade800],
+        'onTap': () => _rejoindreSession(),
+        'enabled': true,
+      },
+      {
         'title': 'Mes Constats',
         'subtitle': 'Voir l\'historique',
         'icon': Icons.history,
@@ -774,6 +815,30 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
         'icon': Icons.description,
         'gradient': [Colors.purple.shade600, Colors.purple.shade800],
         'onTap': () => _showMesContrats(),
+        'enabled': true,
+      },
+      {
+        'title': 'Suivi Demandes',
+        'subtitle': 'État des demandes',
+        'icon': Icons.track_changes,
+        'gradient': [Colors.teal.shade600, Colors.teal.shade800],
+        'onTap': () => _showVehicleTracking(),
+        'enabled': true,
+      },
+      {
+        'title': 'Nouvelle Assurance',
+        'subtitle': 'Demander assurance',
+        'icon': Icons.security,
+        'gradient': [Colors.indigo.shade600, Colors.indigo.shade800],
+        'onTap': () => _requestInsurance(),
+        'enabled': true,
+      },
+      {
+        'title': 'Mes Demandes',
+        'subtitle': 'Suivi assurances',
+        'icon': Icons.list_alt,
+        'gradient': [Colors.blueGrey.shade600, Colors.blueGrey.shade800],
+        'onTap': () => _viewMyInsuranceRequests(),
         'enabled': true,
       },
     ];
@@ -888,6 +953,74 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
           ),
         );
       },
+    );
+  }
+
+  /// 🛡️ Section véhicules avec statut d'assurance
+  Widget _buildVehiclesInsuranceSection() {
+    print('🔍 [VEHICLES INSURANCE] === CONSTRUCTION SECTION VÉHICULES & ASSURANCES ===');
+    print('🔍 [VEHICLES INSURANCE] Nombre de véhicules: ${_vehicles.length}');
+    print('🔍 [VEHICLES INSURANCE] isLoading: $_isLoading');
+
+    return ModernCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Mes Véhicules & Assurances',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const MyContractsScreen()),
+                ),
+                icon: const Icon(Icons.description_rounded, size: 16),
+                label: const Text('Mes contrats'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          if (_vehicles.isEmpty)
+            _buildEmptyVehiclesState()
+          else
+            _buildVehiclesInsuranceList(),
+        ],
+      ),
+    );
+  }
+
+  /// 📋 Liste des véhicules avec statut d'assurance
+  Widget _buildVehiclesInsuranceList() {
+    return Column(
+      children: _vehicles.map((vehicle) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: VehicleInsuranceStatusWidget(
+            vehicle: vehicle,
+            onTap: () {
+              if (vehicle.hasValidInsurance) {
+                // Naviguer vers les contrats
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const MyContractsScreen()),
+                );
+              } else {
+                // Naviguer vers l'ajout d'assurance
+                Navigator.pushNamed(context, '/conducteur/add-vehicle');
+              }
+            },
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -1259,8 +1392,23 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
       return;
     }
 
-    // Naviguer vers l'écran de sélection de constat
-    Navigator.pushNamed(context, '/constat/selection');
+    // 🚀 Navigation directe vers l'écran optimisé avec nos corrections
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SinistreChoixRapideScreen(),
+      ),
+    );
+  }
+
+  void _rejoindreSession() {
+    // Naviguer vers l'écran de rejoindre une session
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AccidentChoiceScreen(),
+      ),
+    );
   }
 
   void _viewConstats() {
@@ -1439,6 +1587,53 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
+    );
+  }
+
+  /// 📊 Afficher l'écran de suivi des véhicules
+  void _showVehicleTracking() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const VehicleTrackingScreen(),
+      ),
+    );
+  }
+
+  /// 🔄 Convertir les données brutes Firestore en ConducteurVehicleModel
+  ConducteurVehicleModel _convertToConducteurVehicleModel(Map<String, dynamic> data, String conducteurUid) {
+    return ConducteurVehicleModel(
+      vehicleId: data['id'] ?? '',
+      conducteurUid: conducteurUid,
+      // Informations véhicule
+      plate: data['numeroImmatriculation'] ?? data['plate'] ?? 'N/A',
+      brand: data['marque'] ?? data['brand'] ?? 'Marque inconnue',
+      model: data['modele'] ?? data['model'] ?? 'Modèle inconnu',
+      year: data['annee'] ?? data['year'] ?? DateTime.now().year,
+      vin: data['vin'],
+      color: data['couleur'] ?? data['color'] ?? 'Non spécifiée',
+      carteGriseNumber: data['numeroCarteGrise'] ?? '',
+      fuelType: data['carburant'] ?? data['fuelType'] ?? 'essence',
+      firstRegistrationDate: null,
+      // Informations conducteur (valeurs par défaut)
+      conducteurNom: 'Conducteur',
+      conducteurPrenom: '',
+      conducteurAddress: '',
+      conducteurPhone: '',
+      conducteurEmail: '',
+      permisNumber: '',
+      permisDeliveryDate: null,
+      // Propriétaire
+      isConducteurOwner: true,
+      owner: null,
+      // Documents et contrats
+      contracts: [],
+      documents: [],
+      // Métadonnées
+      createdAt: DateTime.now(),
+      lastUpdatedAt: DateTime.now(),
+      isActive: true,
+      isFakeData: false,
     );
   }
 
@@ -2001,6 +2196,21 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
         ],
       ),
     );
+  }
+
+  /// 🛡️ Naviguer vers la demande d'assurance
+  void _requestInsurance() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const CompleteInsuranceRequestScreen(),
+      ),
+    );
+  }
+
+  /// 📋 Naviguer vers mes demandes d'assurance
+  void _viewMyInsuranceRequests() {
+    Navigator.pushNamed(context, '/mes-demandes-assurance');
   }
 
   /// 📝 Ligne d'information carte verte

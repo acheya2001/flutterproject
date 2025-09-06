@@ -143,7 +143,8 @@ class UserModel {
       case 'expert':
         return UserType.expert;
       case 'admin':
-        return UserType.admin;
+      case 'administrateur':
+        return UserType.administrateur;
       default:
         return UserType.conducteur;
     }

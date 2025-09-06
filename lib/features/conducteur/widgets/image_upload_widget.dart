@@ -154,36 +154,58 @@ class _ImageUploadWidgetState extends State<ImageUploadWidget> {
       );
     }
 
-    // Image existante depuis URL
+    // Image existante depuis URL (locale ou réseau)
     if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty) {
+      final bool isLocalImage = widget.imageUrl!.startsWith('file://') || widget.imageUrl!.startsWith('/');
+      final String cleanPath = widget.imageUrl!.startsWith('file://') ? widget.imageUrl!.substring(7) : widget.imageUrl!;
+
       return ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Stack(
           children: [
-            Image.network(
-              widget.imageUrl!,
-              width: double.infinity,
-              height: double.infinity,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return const Center(
-                  child: CircularProgressIndicator(),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
-                return const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error, color: Colors.red, size: 32),
-                      SizedBox(height: 8),
-                      Text('Erreur de chargement'),
-                    ],
+            isLocalImage
+                ? Image.file(
+                    File(cleanPath),
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error, color: Colors.red, size: 32),
+                            SizedBox(height: 8),
+                            Text('Image locale non trouvée'),
+                          ],
+                        ),
+                      );
+                    },
+                  )
+                : Image.network(
+                    widget.imageUrl!,
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return const Center(
+                        child: CircularProgressIndicator(),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error, color: Colors.red, size: 32),
+                            SizedBox(height: 8),
+                            Text('Erreur de chargement'),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
             Positioned(
               top: 8,
               right: 8,

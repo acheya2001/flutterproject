@@ -3,6 +3,8 @@ class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
+  static const String conducteurRegister = '/conducteur/register';
+  static const String conducteurLogin = '/conducteur/login';
   
   // Dashboard routes
   static const String conducteurDashboard = '/conducteur-dashboard';
@@ -14,11 +16,16 @@ class AppRoutes {
   static const String conducteurVehicules = '/conducteur/vehicules';
   static const String conducteurAccidents = '/conducteur/accidents';
   static const String conducteurInvitations = '/conducteur/invitations';
-  static const String professionalSession = '/conducteur/professional-session';
-  
+
+  static const String conducteurAddVehicle = '/conducteur/add-vehicle';
+  static const String conducteurNewInsuranceRequest = '/conducteur/new-insurance-request';
+
+  // Agent routes
+  static const String agentCreateConducteur = '/agent/create-conducteur';
+
   // Constat routes
   static const String declarationEntryPoint = '/constat/declaration';
-  static const String joinSession = '/constat/join-session';
+
   static const String aiDemo = '/constat/ai-demo';
   
   // Admin routes

@@ -458,6 +458,27 @@ class ConducteurAuthService {
 
   /// Convertir un modèle Vehicule en ConducteurVehicleModel
   static ConducteurVehicleModel _convertVehiculeToModel(String vehicleId, Map<String, dynamic> data) {
+    // Créer les contrats basés sur les informations d'assurance du véhicule
+    final contracts = <VehicleContract>[];
+
+    // Si le véhicule est assuré, créer un contrat
+    if (data['estAssure'] == true || data['statutAssurance'] == 'assuré' || data['etatCompte'] == 'assuré') {
+      final contract = VehicleContract(
+        contractId: data['contractId'] ?? '',
+        contractNumber: data['numeroContratAssurance'] ?? data['numeroContrat'] ?? '',
+        companyId: data['compagnieAssuranceId'] ?? '',
+        companyName: data['compagnieAssuranceNom'] ?? 'Compagnie d\'Assurance',
+        agencyId: data['agenceAssuranceId'] ?? '',
+        agencyName: data['agenceAssuranceNom'] ?? 'Agence',
+        startDate: _parseDate(data['dateDebutAssurance']) ?? _parseDate(data['dateAssurance']) ?? DateTime.now(),
+        endDate: _parseDate(data['dateFinAssurance']) ?? DateTime.now().add(const Duration(days: 365)),
+        isActive: true,
+        policyType: data['typeAssurance'] ?? 'responsabilite_civile',
+        premium: (data['primeAnnuelle'] ?? 0).toDouble(),
+      );
+      contracts.add(contract);
+    }
+
     return ConducteurVehicleModel(
       vehicleId: vehicleId,
       conducteurUid: data['conducteurId'] ?? '',
@@ -481,8 +502,8 @@ class ConducteurAuthService {
       permisDeliveryDate: _parseDate(data['dateObtentionPermis']),
       // Propriétaire (toujours true pour ce modèle)
       isConducteurOwner: true,
-      // Documents et contrats (vides pour l'instant)
-      contracts: [],
+      // Documents et contrats (maintenant avec les vrais contrats)
+      contracts: contracts,
       documents: [],
       // Métadonnées
       createdAt: _parseDate(data['createdAt']) ?? DateTime.now(),

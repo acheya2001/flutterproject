@@ -83,5 +83,6 @@
   "problems.showCurrentInStatus": true,
   "problems.decorations.enabled": true,
   "editor.showUnused": true,
-  "editor.showDeprecated": true
+  "editor.showDeprecated": true,
+  "CodeGPT.apiKey": "CodeGPT Plus Beta"
 }

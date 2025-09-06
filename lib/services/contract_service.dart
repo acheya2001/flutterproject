@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'contract_number_service.dart';
+import 'contract_completion_service.dart';
 import 'package:flutter/foundation.dart';
 import 'notification_service.dart';
 
@@ -52,35 +53,58 @@ class ContractService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Mettre à jour le statut du véhicule
-      await _firestore.collection('vehicules').doc(vehiculeId).update({
-        'statutAssurance': 'assure',
-        'numeroContratAssurance': numeroContrat,
-        'contractId': contractRef.id,
-        'agenceAssuranceId': agenceId,
-        'compagnieAssuranceId': compagnieId,
-        'estAssure': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      // Récupérer les données complètes du contrat pour le traitement post-création
+      final fullContractData = {
+        'id': contractRef.id,
+        'numeroContrat': numeroContrat,
+        'vehiculeId': vehiculeId,
+        'conducteurId': conducteurId,
+        'agenceId': agenceId,
+        'compagnieId': compagnieId,
+        'agentId': currentUser.uid,
+        'typeContrat': typeCouverture,
+        'primeAnnuelle': primeAssurance,
+        'dateDebut': Timestamp.fromDate(dateDebut),
+        'dateFin': Timestamp.fromDate(dateFin),
+        'statut': 'actif',
+        'optionsSupplementaires': optionsSupplementaires ?? {},
+        'createdAt': FieldValue.serverTimestamp(),
+      };
 
-      // Récupérer infos pour notification
-      final vehiculeDoc = await _firestore.collection('vehicules').doc(vehiculeId).get();
-      final agenceDoc = await _firestore.collection('agences').doc(agenceId).get();
-      
-      if (vehiculeDoc.exists && agenceDoc.exists) {
-        final vehiculeData = vehiculeDoc.data()!;
-        final agenceData = agenceDoc.data()!;
-        
-        final vehiculeInfo = '${vehiculeData['marque']} ${vehiculeData['modele']} (${vehiculeData['immatriculation']})';
-        final agenceNom = agenceData['nom'] ?? 'Agence';
+      // 🎯 Lancer le processus complet de finalisation du contrat
+      try {
+        final completionResults = await ContractCompletionService.completeContractProcess(
+          contractId: contractRef.id,
+          vehicleId: vehiculeId,
+          conducteurId: conducteurId,
+          contractData: fullContractData,
+        );
 
-        // Notifier le conducteur
+        print('✅ [CONTRACT_SERVICE] Contrat créé et finalisé: ${contractRef.id}');
+        print('📄 Documents générés: ${completionResults['documents']}');
+        print('📧 Notification envoyée: ${completionResults['notificationSent']}');
+
+      } catch (e) {
+        print('⚠️ [CONTRACT_SERVICE] Contrat créé mais erreur finalisation: $e');
+
+        // Fallback: mise à jour basique du véhicule si la finalisation échoue
+        await _firestore.collection('vehicules').doc(vehiculeId).update({
+          'statutAssurance': 'assure',
+          'numeroContratAssurance': numeroContrat,
+          'contractId': contractRef.id,
+          'agenceAssuranceId': agenceId,
+          'compagnieAssuranceId': compagnieId,
+          'estAssure': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        // Notification basique en cas d'échec de la finalisation complète
         await NotificationService.notifyContractCreated(
           conducteurId: conducteurId,
           vehiculeId: vehiculeId,
           numeroContrat: numeroContrat,
-          agenceNom: agenceNom,
-          vehiculeInfo: vehiculeInfo,
+          agenceNom: 'Agence',
+          vehiculeInfo: 'Véhicule',
         );
       }
 
@@ -121,11 +145,11 @@ class ContractService {
     }
   }
 
-  /// 📋 Récupérer les véhicules en attente de contrat pour un agent
+  /// 📋 Récupérer les véhicules affectés aux agents d'une agence
   static Stream<QuerySnapshot> getPendingVehicles(String agenceId) {
     return _firestore
         .collection('vehicules')
-        .where('etatCompte', isEqualTo: 'En attente')
+        .where('etatCompte', isEqualTo: 'Affecté à Agent')
         .where('agenceAssuranceId', isEqualTo: agenceId)
         .snapshots();
   }

@@ -13,9 +13,17 @@ import '../../../services/contract_number_service.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/agent_notification_service.dart';
 import '../widgets/agent_notification_widget.dart';
+import 'agent_requests_screen.dart';
 import 'pending_contracts_screen.dart';
 import 'pending_vehicles_screen.dart';
 import 'pending_vehicles_management_screen.dart';
+import 'agent_contracts_screen.dart';
+import 'agent_clients_screen.dart';
+import 'agent_contracts_improved_screen.dart';
+import 'agent_clients_improved_screen.dart';
+import 'create_contract_screen.dart';
+import 'agent_requests_screen.dart';
+import '../widgets/insured_vehicle_action_widget.dart';
 
 /// 🏠 Dashboard principal de l'agent
 class AgentDashboardScreen extends StatefulWidget {
@@ -26,6 +34,7 @@ class AgentDashboardScreen extends StatefulWidget {
 }
 
 class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _agentId;
   String? _agenceId;
   Map<String, dynamic>? _agentInfo;
@@ -185,15 +194,24 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
           ),
         ),
         actions: [
-          // Notifications
-          StreamBuilder<int>(
-            stream: AgentNotificationService.streamPendingVehiclesCount(_agenceId ?? ''),
+          // Notifications - Version corrigée
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('notifications')
+                .where('agentId', isEqualTo: _agentId)
+                .snapshots(),
             builder: (context, snapshot) {
-              final unreadCount = snapshot.data ?? 0;
+              final allNotifications = snapshot.data?.docs ?? [];
+              final unreadNotifications = allNotifications.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return !(data['lu'] ?? false);
+              }).toList();
+              final unreadCount = unreadNotifications.length;
+
               return Stack(
                 children: [
                   IconButton(
-                    onPressed: () => _showNotifications(),
+                    onPressed: () => _showAgentNotifications(),
                     icon: const Icon(Icons.notifications),
                   ),
                   if (unreadCount > 0)
@@ -211,7 +229,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                           minHeight: 16,
                         ),
                         child: Text(
-                          '$unreadCount',
+                          unreadCount > 99 ? '99+' : unreadCount.toString(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -283,6 +301,8 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
 
             const SizedBox(height: 24),
 
+
+
             // 🔔 Notifications temps réel
             AgentNotificationWidget(
               agentId: _agentId!,
@@ -296,12 +316,15 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
 
             const SizedBox(height: 24),
 
+            // Demandes de contrats affectées
+            _buildDemandesContrats(),
+
+            const SizedBox(height: 24),
+
             // Actions principales
             _buildMainActions(),
 
             const SizedBox(height: 24),
-
-
 
             // Véhicules en attente (aperçu)
             _buildPendingVehiclesPreview(),
@@ -492,20 +515,69 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
 
   Widget _buildQuickStats() {
     return StreamBuilder<QuerySnapshot>(
-      stream: ContractService.getPendingVehicles(_agenceId!),
-      builder: (context, pendingSnapshot) {
-        return StreamBuilder<QuerySnapshot>(
-          stream: ContractService.getAgenceContracts(_agenceId!),
-          builder: (context, contractsSnapshot) {
-            final pendingCount = pendingSnapshot.data?.docs.length ?? 0;
-            final contractsCount = contractsSnapshot.data?.docs.length ?? 0;
+      stream: _firestore
+          .collection('demandes_contrats')
+          .where('agentId', isEqualTo: _agentId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          print('❌ [STATS] Erreur: ${snapshot.error}');
+          return _buildErrorStats();
+        }
 
-            return Row(
+        if (!snapshot.hasData) {
+          return _buildLoadingStats();
+        }
+
+        final demandes = snapshot.data!.docs;
+
+        // Calculer les statistiques
+        int vehiculesEnAttente = 0;
+        int vehiculesAssures = 0;
+        int contratsCrees = 0;
+        Set<String> clientsActifs = {};
+
+        for (final doc in demandes) {
+          final data = doc.data() as Map<String, dynamic>;
+          final statut = data['statut']?.toString() ?? '';
+          final conducteurId = data['conducteurId']?.toString();
+
+          // Debug
+          print('🔍 [STATS] Demande ${doc.id}: statut="$statut", conducteurId="$conducteurId"');
+
+          switch (statut) {
+            case 'affectee':
+            case 'en_cours':
+            case 'documents_manquants':
+              vehiculesEnAttente++;
+              break;
+            case 'contrat_actif':
+              vehiculesAssures++;
+              if (conducteurId != null) clientsActifs.add(conducteurId);
+              break;
+            case 'contrat_valide':
+            case 'paiement_propose':
+              contratsCrees++;
+              if (conducteurId != null) clientsActifs.add(conducteurId);
+              break;
+          }
+        }
+
+        print('📊 [STATS] Agent $_agentId:');
+        print('   - Véhicules en attente: $vehiculesEnAttente');
+        print('   - Véhicules assurés: $vehiculesAssures');
+        print('   - Contrats créés: $contratsCrees');
+        print('   - Clients actifs: ${clientsActifs.length}');
+
+        return Column(
+          children: [
+            // Première ligne
+            Row(
               children: [
                 Expanded(
                   child: _buildStatCard(
                     'Véhicules en attente',
-                    '$pendingCount',
+                    '$vehiculesEnAttente',
                     Icons.pending_actions,
                     Colors.orange,
                   ),
@@ -513,17 +585,86 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                 const SizedBox(width: 16),
                 Expanded(
                   child: _buildStatCard(
-                    'Contrats créés',
-                    '$contractsCount',
-                    Icons.assignment_turned_in,
+                    'Véhicules assurés',
+                    '$vehiculesAssures',
+                    Icons.verified,
                     Colors.green,
                   ),
                 ),
               ],
-            );
-          },
+            ),
+            const SizedBox(height: 16),
+            // Deuxième ligne
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    'Contrats créés',
+                    '$contratsCrees',
+                    Icons.assignment_turned_in,
+                    Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildStatCard(
+                    'Clients actifs',
+                    '${clientsActifs.length}',
+                    Icons.people,
+                    Colors.purple,
+                  ),
+                ),
+              ],
+            ),
+          ],
         );
       },
+    );
+  }
+
+  /// 📊 Widget de chargement pour les statistiques
+  Widget _buildLoadingStats() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _buildStatCard('Véhicules en attente', '...', Icons.pending_actions, Colors.orange)),
+            const SizedBox(width: 16),
+            Expanded(child: _buildStatCard('Véhicules assurés', '...', Icons.verified, Colors.green)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: _buildStatCard('Contrats créés', '...', Icons.assignment_turned_in, Colors.blue)),
+            const SizedBox(width: 16),
+            Expanded(child: _buildStatCard('Clients actifs', '...', Icons.people, Colors.purple)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// ❌ Widget d'erreur pour les statistiques
+  Widget _buildErrorStats() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _buildStatCard('Véhicules en attente', '0', Icons.pending_actions, Colors.orange)),
+            const SizedBox(width: 16),
+            Expanded(child: _buildStatCard('Véhicules assurés', '0', Icons.verified, Colors.green)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: _buildStatCard('Contrats créés', '0', Icons.assignment_turned_in, Colors.blue)),
+            const SizedBox(width: 16),
+            Expanded(child: _buildStatCard('Clients actifs', '0', Icons.people, Colors.purple)),
+          ],
+        ),
+      ],
     );
   }
 
@@ -645,14 +786,14 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                 () => _showMesContrats(),
               ),
               _buildActionCard(
-                'Dossiers Affectés',
-                'Traiter les véhicules',
+                'Demandes Affectées',
+                'Traiter les demandes de contrats',
                 Icons.assignment_ind_rounded,
                 const Color(0xFF3B82F6),
                 () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const PendingVehiclesManagementScreen(),
+                    builder: (context) => const AgentRequestsScreen(),
                   ),
                 ),
               ),
@@ -661,7 +802,12 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                 'Gérer conducteurs',
                 Icons.people_rounded,
                 const Color(0xFFF59E0B),
-                () => _showComingSoon('Gestion des clients'),
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AgentClientsImprovedScreen(),
+                  ),
+                ),
               ),
               _buildActionCard(
                 'Rapports',
@@ -765,9 +911,9 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
     );
   }
 
+
+
   Widget _buildPendingVehiclesPreview() {
-    print('🔍 [AGENT DASHBOARD] _agenceId = $_agenceId');
-    print('🔍 [AGENT DASHBOARD] _agentInfo = $_agentInfo');
 
     // TOUJOURS afficher la section pour debug
     return Container(
@@ -808,7 +954,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Véhicules en attente',
+                    'Dossiers Affectés',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -874,9 +1020,6 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
           .where('agentAffecteId', isEqualTo: currentUser.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        print('🔍 [AGENT DASHBOARD] Stream state: ${snapshot.connectionState}');
-        print('🔍 [AGENT DASHBOARD] Has error: ${snapshot.hasError}');
-        print('🔍 [AGENT DASHBOARD] AgentId: ${currentUser.uid}');
         if (snapshot.hasError) {
           print('❌ [AGENT DASHBOARD] Erreur stream véhicules: ${snapshot.error}');
         }
@@ -936,14 +1079,6 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
         }
 
         final vehicules = snapshot.data?.docs ?? [];
-
-        print('📊 [AGENT DASHBOARD] ${vehicules.length} véhicules affectés trouvés pour agent ${currentUser.uid}');
-
-        // Debug: Afficher les détails des véhicules trouvés
-        for (var doc in vehicules) {
-          final data = doc.data() as Map<String, dynamic>;
-          print('🚗 [AGENT DASHBOARD] Véhicule affecté: ${doc.id} - ${data['marque']} ${data['modele']} - agentId: ${data['agentAffecteId']} - etat: ${data['etatCompte']}');
-        }
 
         return Container(
           decoration: BoxDecoration(
@@ -1263,7 +1398,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                           ),
                         ),
                         Text(
-                          'Véhicules en attente de validation',
+                          'Véhicules affectés à traiter',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.white70,
@@ -1276,14 +1411,14 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
               ),
             ),
 
-            // Liste des véhicules en attente
+            // Liste des véhicules affectés à cet agent
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('vehicules')
-                    .where('etatCompte', isEqualTo: 'En attente de validation')
-                    .where('agenceId', isEqualTo: _agenceId)
-                    .orderBy('dateCreation', descending: true)
+                    .where('etatCompte', isEqualTo: 'Affecté à Agent')
+                    .where('agentAffecteId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                    .orderBy('createdAt', descending: true)
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
@@ -1318,7 +1453,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                           Icon(Icons.check_circle_outline, size: 64, color: Colors.green.shade300),
                           const SizedBox(height: 16),
                           Text(
-                            'Aucune notification',
+                            'Aucun dossier affecté',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
@@ -1327,7 +1462,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Tous les véhicules sont traités',
+                            'Aucun véhicule ne vous est affecté pour le moment',
                             style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                           ),
                         ],
@@ -1917,7 +2052,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                   ...vehicules.take(3).map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
                     print('🔍 [AGENT STREAM] Construction carte pour: ${data['marque']} ${data['modele']}');
-                    return _buildAssignedVehicleCard_DELETED(doc.id, data);
+                    return _buildAssignedVehicleCard(doc.id, data);
                   }),
                   if (vehicules.length > 3) ...[
                     const SizedBox(height: 12),
@@ -1948,6 +2083,146 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
               );
             },
           ),
+        ],
+      ),
+    );
+  }
+
+  /// 🚗 Carte d'un véhicule affecté avec actions d'assurance
+  Widget _buildAssignedVehicleCard(String vehicleId, Map<String, dynamic> data) {
+    final assignedAt = (data['dateAffectation'] as Timestamp?)?.toDate();
+    final isInsured = data['etatCompte'] == 'assuré' || data['statutAssurance'] == 'assuré';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isInsured ? Colors.green.shade200 : Colors.blue.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête avec informations du véhicule
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isInsured ? Colors.green.shade100 : Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.directions_car,
+                  color: isInsured ? Colors.green.shade600 : Colors.blue.shade600,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${data['marque']} ${data['modele']}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      data['numeroImmatriculation'] ?? '',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isInsured ? Colors.green.shade100 : Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  isInsured ? '✅ Assuré' : '📋 Affecté',
+                  style: TextStyle(
+                    color: isInsured ? Colors.green.shade700 : Colors.blue.shade700,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Informations du propriétaire
+          Text(
+            'Propriétaire: ${data['prenomProprietaire']} ${data['nomProprietaire']}',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 14,
+            ),
+          ),
+
+          if (assignedAt != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Affecté le: ${_formatDate(assignedAt)}',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 16),
+
+          // Actions selon le statut
+          if (isInsured) ...[
+            // Widget d'action pour véhicule assuré
+            InsuredVehicleActionWidget(
+              vehicleData: {
+                ...data,
+                'id': vehicleId,
+              },
+              onDocumentsSent: () {
+                // Optionnel: rafraîchir la liste ou afficher un message
+                setState(() {});
+              },
+            ),
+          ] else ...[
+            // Bouton pour créer un contrat
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _createContractForVehicle(vehicleId, data),
+                icon: const Icon(Icons.assignment_rounded),
+                label: const Text('Créer Contrat'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade600,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -2882,6 +3157,16 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
 
   /// 📋 Afficher la liste des contrats de l'agent
   void _showMesContrats() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AgentContractsImprovedScreen(),
+      ),
+    );
+  }
+
+  /// 📋 Afficher la liste des contrats de l'agent (ancienne version modal)
+  void _showMesContratsModal() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -3888,6 +4173,574 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
         ],
       ),
     );
+  }
+
+  /// 📋 Créer un contrat pour un véhicule
+  void _createContractForVehicle(String vehicleId, Map<String, dynamic> vehicleData) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateContractScreen(
+          vehiculeId: vehicleId,
+          vehiculeData: vehicleData,
+          agenceId: _agenceId ?? '',
+        ),
+      ),
+    );
+  }
+
+  /// 📋 Section des demandes de contrats affectées
+  Widget _buildDemandesContrats() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('demandes_contrats')
+          .where('agentId', isEqualTo: _agentId)
+          .where('statut', whereIn: ['affectee', 'documents_manquants', 'en_cours'])
+          .limit(5)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          print('❌ Erreur demandes contrats: ${snapshot.error}');
+          return const SizedBox.shrink();
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            height: 100,
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        final demandes = snapshot.data?.docs ?? [];
+        print('📋 Agent Dashboard: ${demandes.length} demandes trouvées pour agent $_agentId');
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // En-tête
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[100],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.assignment_ind,
+                        color: Colors.blue[700],
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '📋 Demandes Affectées',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1F2937),
+                            ),
+                          ),
+                          Text(
+                            '${demandes.length} demande(s) à traiter',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AgentRequestsScreen(),
+                        ),
+                      ),
+                      child: const Text('Voir tout'),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Liste des demandes
+              if (demandes.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.inbox,
+                          size: 48,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Aucune demande affectée',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ...demandes.take(3).map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final statut = data['statut'] ?? 'affectee';
+                  final numero = data['numero'] ?? 'N/A';
+
+                  Color statutColor;
+                  IconData statutIcon;
+
+                  switch (statut) {
+                    case 'affectee':
+                      statutColor = Colors.blue;
+                      statutIcon = Icons.assignment;
+                      break;
+                    case 'documents_manquants':
+                      statutColor = Colors.orange;
+                      statutIcon = Icons.warning;
+                      break;
+                    case 'en_cours':
+                      statutColor = Colors.purple;
+                      statutIcon = Icons.pending;
+                      break;
+                    default:
+                      statutColor = Colors.grey;
+                      statutIcon = Icons.help;
+                  }
+
+                  return Container(
+                    margin: const EdgeInsets.only(left: 20, right: 20, bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: statutColor.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: statutColor.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: statutColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            statutIcon,
+                            color: statutColor,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Demande $numero',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Text(
+                                '${data['prenom'] ?? ''} ${data['nom'] ?? ''}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              Text(
+                                '${data['marque'] ?? ''} ${data['modele'] ?? ''}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statutColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            statut == 'affectee' ? 'À traiter' :
+                            statut == 'documents_manquants' ? 'Docs manquants' :
+                            statut == 'en_cours' ? 'En cours' : statut,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+
+              if (demandes.isNotEmpty)
+                const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 🧪 Tester les notifications agent
+  Future<void> _testNotifications() async {
+    try {
+      print('🧪 Test notifications pour agent $_agentId');
+
+      // Créer une notification de test
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'agentId': _agentId,
+        'type': 'test',
+        'titre': 'Test Notification Agent',
+        'message': 'Ceci est une notification de test pour vérifier que le système fonctionne.',
+        'dateCreation': FieldValue.serverTimestamp(),
+        'lu': false,
+      });
+
+      // Vérifier les notifications existantes
+      final notifications = await FirebaseFirestore.instance
+          .collection('notifications')
+          .where('agentId', isEqualTo: _agentId)
+          .get();
+
+      print('📊 Total notifications pour agent $_agentId: ${notifications.docs.length}');
+
+      for (final doc in notifications.docs) {
+        final data = doc.data();
+        print('  - ${data['type']}: ${data['titre']} (lu: ${data['lu']})');
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🧪 Test créé ! ${notifications.docs.length} notifications trouvées.'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+
+    } catch (e) {
+      print('❌ Erreur test notifications: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 🔔 Afficher les notifications de l'agent
+  void _showAgentNotifications() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.8,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          children: [
+            // En-tête
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.notifications, color: Colors.white),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      '🔔 Mes Notifications',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+
+            // Liste des notifications
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('notifications')
+                    .where('agentId', isEqualTo: _agentId)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Erreur: ${snapshot.error}'));
+                  }
+
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final notifications = snapshot.data?.docs ?? [];
+
+                  // Trier par date
+                  notifications.sort((a, b) {
+                    final aData = a.data() as Map<String, dynamic>;
+                    final bData = b.data() as Map<String, dynamic>;
+                    final aDate = aData['dateCreation'] as Timestamp?;
+                    final bDate = bData['dateCreation'] as Timestamp?;
+
+                    if (aDate == null && bDate == null) return 0;
+                    if (aDate == null) return 1;
+                    if (bDate == null) return -1;
+
+                    return bDate.compareTo(aDate);
+                  });
+
+                  if (notifications.isEmpty) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.notifications_none, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text('Aucune notification', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: notifications.length,
+                    itemBuilder: (context, index) {
+                      final notification = notifications[index];
+                      final data = notification.data() as Map<String, dynamic>;
+
+                      return _buildAgentNotificationCard(notification.id, data);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAgentNotificationCard(String notificationId, Map<String, dynamic> data) {
+    final isRead = data['lu'] ?? false;
+    final type = data['type'] ?? '';
+    final titre = data['titre'] ?? 'Notification';
+    final message = data['message'] ?? '';
+    final dateCreation = data['dateCreation'] as Timestamp?;
+
+    Color cardColor;
+    IconData icon;
+    Color iconColor;
+
+    switch (type) {
+      case 'documents_completes':
+        cardColor = Colors.green[50]!;
+        icon = Icons.check_circle;
+        iconColor = Colors.green[700]!;
+        break;
+      case 'test':
+        cardColor = Colors.orange[50]!;
+        icon = Icons.bug_report;
+        iconColor = Colors.orange[700]!;
+        break;
+      default:
+        cardColor = Colors.grey[50]!;
+        icon = Icons.info;
+        iconColor = Colors.grey[700]!;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: () => _handleAgentNotificationTap(notificationId, data),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isRead ? Colors.white : cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isRead ? Colors.grey[300]! : iconColor.withOpacity(0.3),
+              width: isRead ? 1 : 2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: iconColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          titre,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isRead ? Colors.grey[700] : Colors.black87,
+                          ),
+                        ),
+                        if (dateCreation != null)
+                          Text(
+                            _formatNotificationDate(dateCreation),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (!isRead)
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: iconColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              Text(
+                message,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isRead ? Colors.grey[600] : Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleAgentNotificationTap(String notificationId, Map<String, dynamic> data) async {
+    // Marquer comme lu
+    if (!(data['lu'] ?? false)) {
+      await FirebaseFirestore.instance
+          .collection('notifications')
+          .doc(notificationId)
+          .update({'lu': true});
+    }
+
+    // Navigation selon le type de notification
+    final type = data['type'] ?? '';
+
+    switch (type) {
+      case 'documents_completes':
+      case 'frequence_choisie':
+        // Naviguer vers l'écran des demandes
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AgentRequestsScreen(),
+          ),
+        );
+        break;
+
+      default:
+        // Pour les autres types, naviguer vers les demandes
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AgentRequestsScreen(),
+          ),
+        );
+        break;
+    }
+  }
+
+  String _formatNotificationDate(Timestamp timestamp) {
+    final date = timestamp.toDate();
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays > 0) {
+      return 'Il y a ${difference.inDays} jour${difference.inDays > 1 ? 's' : ''}';
+    } else if (difference.inHours > 0) {
+      return 'Il y a ${difference.inHours} heure${difference.inHours > 1 ? 's' : ''}';
+    } else if (difference.inMinutes > 0) {
+      return 'Il y a ${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''}';
+    } else {
+      return 'À l\'instant';
+    }
   }
 
 

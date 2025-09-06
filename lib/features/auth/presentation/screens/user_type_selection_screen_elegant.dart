@@ -3,6 +3,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../screens/login_screen.dart';
 import 'professional_account_request_screen.dart';
+import 'guest_access_screen.dart';
 import 'super_admin_login_ultra_simple.dart';
 
 /// 👥 Écran de sélection du type d'utilisateur - Version Élégante et Simplifiée
@@ -112,12 +113,12 @@ class UserTypeSelectionScreenElegant extends StatelessWidget {
 
                 const SizedBox(height: 40),
 
-                // OPTION 1: Conducteur
+                // OPTION 1: Conducteur inscrit
                 _buildElegantCard(
                   context,
                   icon: Icons.person_outline,
-                  title: 'Conducteur',
-                  subtitle: 'Je veux déclarer un sinistre automobile',
+                  title: 'Conducteur inscrit',
+                  subtitle: 'J\'ai un compte et je veux déclarer un sinistre',
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -128,7 +129,23 @@ class UserTypeSelectionScreenElegant extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                // OPTION 2: Professionnel
+                // OPTION 2: Invité non inscrit
+                _buildElegantCard(
+                  context,
+                  icon: Icons.person_add_outlined,
+                  title: 'Invité non inscrit',
+                  subtitle: 'Accès rapide pour rejoindre un constat',
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                  ),
+                  onTap: () => _navigateToGuestAccess(context),
+                ),
+
+                const SizedBox(height: 20),
+
+                // OPTION 3: Professionnel
                 _buildElegantCard(
                   context,
                   icon: Icons.business_center_outlined,
@@ -590,6 +607,15 @@ class UserTypeSelectionScreenElegant extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _navigateToGuestAccess(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const GuestAccessScreen(),
       ),
     );
   }

@@ -3,8 +3,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/admin_agence_service.dart';
 import '../../../services/admin_agence_diagnostic_service.dart';
+import '../widgets/alerts_panel.dart';
 import 'agence_info_screen.dart';
 import 'agents_management_screen.dart';
+import 'bi_dashboard_screen.dart';
+import 'contract_management_screen.dart';
+import 'demandes_contrats_screen.dart';
 import '../../agent/screens/pending_vehicles_management_screen.dart';
 
 /// 🎨 Dashboard Admin Agence - Design Ultra Moderne
@@ -550,6 +554,8 @@ class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
           _buildNavItem(0, 'Accueil', Icons.dashboard_rounded),
           _buildNavItem(1, 'Mon Agence', Icons.business_rounded),
           _buildNavItem(2, 'Agents', Icons.people_rounded),
+          _buildNavItem(3, 'Statistiques', Icons.analytics_rounded),
+          _buildNavItem(4, 'Contrats', Icons.description_rounded),
         ],
       ),
     );
@@ -615,6 +621,21 @@ class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
           userData: widget.userData!,
           onAgentUpdated: _loadAllData, // Rafraîchir quand un agent est modifié
         );
+      case 3:
+        return BIDashboardScreen(
+          agenceId: _agenceData!['id'] ?? '',
+          agenceData: _agenceData!,
+        );
+      case 4:
+        return ContractManagementScreen(
+          agenceId: _agenceData!['id'] ?? '',
+          agenceData: _agenceData!,
+        );
+      case 5:
+        return DemandesContratsScreen(
+          agenceId: _agenceData!['id'] ?? '',
+          agenceData: _agenceData!,
+        );
       default:
         return _buildHomeContent();
     }
@@ -633,6 +654,10 @@ class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
 
           // Actions rapides
           _buildQuickActions(),
+          const SizedBox(height: 30),
+
+          // Alertes et notifications
+          _buildAlertsSection(),
           const SizedBox(height: 30),
 
           // Véhicules en attente
@@ -805,6 +830,48 @@ class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                'Statistiques',
+                'Tableaux de bord et analytics',
+                Icons.analytics_rounded,
+                const Color(0xFF10B981),
+                () => setState(() => _selectedIndex = 3),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildActionCard(
+                'Gérer Contrats',
+                'Voir tous les contrats de l\'agence',
+                Icons.description_rounded,
+                const Color(0xFF3B82F6),
+                () => setState(() => _selectedIndex = 4),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                'Demandes Contrats',
+                'Gérer les nouvelles demandes',
+                Icons.request_page_rounded,
+                const Color(0xFFEF4444),
+                () => setState(() => _selectedIndex = 5),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Container(), // Espace vide pour équilibrer
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -861,6 +928,36 @@ class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
           ],
         ),
       ),
+    );
+  }
+
+  /// 🚨 Section des alertes
+  Widget _buildAlertsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Alertes & Notifications',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1F2937),
+          ),
+        ),
+        const SizedBox(height: 16),
+        AlertsPanel(
+          agenceId: _agenceData!['id'] ?? '',
+          onAlertTap: () {
+            // TODO: Naviguer vers l'écran détaillé des alertes
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Écran détaillé des alertes - À implémenter'),
+                backgroundColor: Colors.blue,
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 

@@ -5,6 +5,7 @@ import '../../../common/widgets/modern_card.dart';
 import '../../../common/widgets/gradient_background.dart';
 import '../../../common/widgets/animated_counter.dart';
 import '../../../services/insurance_structure_service.dart';
+import 'compagnie_bi_dashboard_screen.dart';
 
 /// 🏢 Dashboard moderne et élégant pour Admin Compagnie
 class ModernAdminCompagnieDashboard extends StatefulWidget {
@@ -26,7 +27,10 @@ class _ModernAdminCompagnieDashboardState extends State<ModernAdminCompagnieDash
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
-  
+
+  // Navigation
+  int _selectedIndex = 0;
+
   Map<String, dynamic> _statistiques = {};
   List<Map<String, dynamic>> _agences = [];
   List<Map<String, dynamic>> _recentActivity = [];
@@ -127,58 +131,161 @@ class _ModernAdminCompagnieDashboardState extends State<ModernAdminCompagnieDash
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.blue.shade50,
-              Colors.indigo.shade50,
-              Colors.white,
-            ],
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: _buildAppBar(),
+      body: _isLoading ? _buildLoadingState() : _buildContent(),
+      bottomNavigationBar: _buildBottomNavigation(),
+    );
+  }
+
+  /// 📱 AppBar
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      elevation: 0,
+      backgroundColor: Colors.white,
+      foregroundColor: const Color(0xFF1A1A1A),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Admin Compagnie',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          Text(
+            widget.compagnieData['nom'] ?? 'Compagnie',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          onPressed: () => _logout(context),
+          icon: const Icon(Icons.logout_rounded),
+          tooltip: 'Déconnexion',
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  /// ⏳ État de chargement
+  Widget _buildLoadingState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text(
+            'Chargement du dashboard...',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📊 Contenu selon l'onglet sélectionné
+  Widget _buildContent() {
+    switch (_selectedIndex) {
+      case 0:
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: _buildDashboardContent(),
+          ),
+        );
+      case 1:
+        return CompagnieBIDashboardScreen(
+          compagnieId: widget.compagnieId,
+          compagnieData: widget.compagnieData,
+        );
+      default:
+        return _buildDashboardContent();
+    }
+  }
+
+  /// 📱 Navigation du bas
+  Widget _buildBottomNavigation() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(
+            color: Color(0xFFE5E7EB),
+            width: 1,
           ),
         ),
-        child: SafeArea(
-          child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                  ),
-                )
-              : FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: SlideTransition(
-                    position: _slideAnimation,
-                    child: _buildDashboardContent(),
-                  ),
-                ),
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) => setState(() => _selectedIndex = index),
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white,
+        selectedItemColor: const Color(0xFF667EEA),
+        unselectedItemColor: Colors.grey.shade600,
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
         ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 12,
+        ),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_rounded),
+            label: 'Accueil',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.analytics_rounded),
+            label: 'Statistiques BI',
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildDashboardContent() {
-    return CustomScrollView(
-      slivers: [
-        _buildModernAppBar(),
-        SliverPadding(
-          padding: const EdgeInsets.all(20),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              _buildWelcomeSection(),
-              const SizedBox(height: 24),
-              _buildStatisticsCards(),
-              const SizedBox(height: 24),
-              _buildQuickActionsGrid(),
-              const SizedBox(height: 24),
-              _buildRecentActivitySection(),
-              const SizedBox(height: 24),
-              _buildAgencesOverview(),
-            ]),
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.blue.shade50,
+            Colors.indigo.shade50,
+            Colors.white,
+          ],
         ),
-      ],
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            _buildWelcomeSection(),
+            const SizedBox(height: 24),
+            _buildStatisticsCards(),
+            const SizedBox(height: 24),
+            _buildQuickActionsGrid(),
+            const SizedBox(height: 24),
+            _buildRecentActivitySection(),
+            const SizedBox(height: 24),
+            _buildAgencesOverview(),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1197,6 +1304,37 @@ class _CreateAgenceDialogState extends State<_CreateAgenceDialog> {
         _isLoading = false;
       });
     }
+  }
+
+  /// 🚪 Déconnexion
+  void _logout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Déconnexion'),
+        content: const Text('Êtes-vous sûr de vouloir vous déconnecter ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Déconnexion'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

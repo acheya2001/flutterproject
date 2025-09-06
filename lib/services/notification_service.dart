@@ -7,6 +7,34 @@ class NotificationService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  /// 📤 Créer une notification générique
+  static Future<void> createNotification({
+    required String recipientId,
+    required String type,
+    required String title,
+    required String message,
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      await _firestore.collection('notifications').add({
+        'recipientId': recipientId,
+        'type': type,
+        'title': title,
+        'message': message,
+        'data': data ?? {},
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(
+          DateTime.now().add(const Duration(days: 30)),
+        ),
+      });
+
+      debugPrint('✅ Notification créée pour $recipientId: $title');
+    } catch (e) {
+      debugPrint('❌ Erreur création notification: $e');
+    }
+  }
+
   /// 📤 Envoyer notification à un agent quand un véhicule est ajouté
   static Future<void> notifyAgentNewVehicule({
     required String agenceId,
@@ -84,6 +112,88 @@ class NotificationService {
       debugPrint('✅ Notification contrat envoyée au conducteur $conducteurId');
     } catch (e) {
       debugPrint('❌ Erreur notification contrat: $e');
+    }
+  }
+
+  /// 🎉 Notifier la validation d'un contrat avec documents
+  static Future<void> notifyContractValidated({
+    required String conducteurId,
+    required String contractId,
+    required String numeroContrat,
+    required String vehiculeImmatriculation,
+    required String typeAssurance,
+    Map<String, String>? documents,
+  }) async {
+    try {
+      await _firestore.collection('notifications').add({
+        'type': 'contrat_valide',
+        'destinataireId': conducteurId,
+        'destinataireType': 'conducteur',
+        'titre': '🎉 Contrat validé - Véhicule assuré !',
+        'message': 'Félicitations ! Votre contrat N° $numeroContrat est validé. Votre véhicule $vehiculeImmatriculation est maintenant assuré.',
+        'donnees': {
+          'contractId': contractId,
+          'numeroContrat': numeroContrat,
+          'vehiculeImmatriculation': vehiculeImmatriculation,
+          'typeAssurance': typeAssurance,
+          'documents': documents ?? {},
+          'action': 'view_contract_documents',
+        },
+        'lu': false,
+        'priorite': 'haute',
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 30))),
+      });
+
+      // Note: Notification push pourrait être ajoutée ici avec Firebase Messaging
+
+      debugPrint('✅ Notification contrat validé envoyée à: $conducteurId');
+    } catch (e) {
+      debugPrint('❌ Erreur notification contrat validé: $e');
+    }
+  }
+
+  /// 📄 Notifier la disponibilité des documents
+  static Future<void> notifyDocumentsReady({
+    required String conducteurId,
+    required String numeroContrat,
+    required List<String> documentTypes,
+  }) async {
+    try {
+      final documentNames = documentTypes.map((type) {
+        switch (type) {
+          case 'carte_verte':
+            return 'Carte Verte';
+          case 'quittance':
+            return 'Quittance de Paiement';
+          case 'contrat':
+            return 'Contrat d\'Assurance';
+          case 'certificat':
+            return 'Certificat Numérique';
+          default:
+            return type;
+        }
+      }).join(', ');
+
+      await _firestore.collection('notifications').add({
+        'type': 'documents_prets',
+        'destinataireId': conducteurId,
+        'destinataireType': 'conducteur',
+        'titre': '📄 Documents prêts à télécharger',
+        'message': 'Vos documents d\'assurance sont prêts : $documentNames. Contrat N° $numeroContrat.',
+        'donnees': {
+          'numeroContrat': numeroContrat,
+          'documentTypes': documentTypes,
+          'action': 'download_documents',
+        },
+        'lu': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+      });
+
+      debugPrint('✅ Notification documents prêts envoyée à: $conducteurId');
+    } catch (e) {
+      debugPrint('❌ Erreur notification documents: $e');
     }
   }
 

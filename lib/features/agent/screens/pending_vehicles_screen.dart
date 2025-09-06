@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../insurance/models/insurance_structure_model.dart';
 import '../../insurance/services/insurance_structure_service.dart';
 import '../../../core/widgets/custom_button.dart';
-import 'vehicle_validation_screen.dart';
+import 'contract_creation_screen.dart';
 
 /// 🚗 Écran de gestion des véhicules en attente pour les agents
 class PendingVehiclesScreen extends StatefulWidget {
@@ -204,7 +204,7 @@ class _PendingVehiclesScreenState extends State<PendingVehiclesScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
-        onTap: () => _openVehicleValidation(vehicle),
+        onTap: () => _openContractCreation(vehicle),
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -353,12 +353,27 @@ class _PendingVehiclesScreenState extends State<PendingVehiclesScreen> {
     );
   }
 
-  /// 🔍 Ouvrir l'écran de validation détaillée
-  void _openVehicleValidation(PendingVehicle vehicle) {
+  /// 🔍 Ouvrir l'écran de création de contrat
+  void _openContractCreation(PendingVehicle vehicle) {
+    // Convertir PendingVehicle en Map pour le nouveau workflow
+    final vehicleData = {
+      'marque': vehicle.brand,
+      'modele': vehicle.model,
+      'numeroImmatriculation': vehicle.plate,
+      'annee': vehicle.year,
+      'typeVehicule': 'VP', // Valeur par défaut
+      'conducteurPrenom': vehicle.conducteurPrenom,
+      'conducteurNom': vehicle.conducteurNom,
+      'conducteurTelephone': vehicle.conducteurTelephone,
+    };
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => VehicleValidationScreen(vehicle: vehicle),
+        builder: (context) => ContractCreationScreen(
+          vehicleId: vehicle.vehicleId,
+          vehicleData: vehicleData,
+        ),
       ),
     );
   }

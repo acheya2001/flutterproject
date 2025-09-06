@@ -1,1 +1,42 @@
-import 'package:cloud_firestore/cloud_firestore.dart';import 'package:flutter/foundation.dart';import ';  }';      debugPrint('[VEHICULE_SERVICE] 🚗 Creation contrat vehicule';      final contratId = 'contrat_{DateTime.now(').millisecondsSinceEpoch}';      final vehiculeId = 'vehicule_{DateTime.now(').millisecondsSinceEpoch}';        'id';        'contratId';        'compagnieId';        'agenceId';        'conducteurId';        'marque': vehiculeData['marque';        'modele': vehiculeData['modele';        'annee': vehiculeData['annee';        'immatriculation': vehiculeData['immatriculation';        'numeroSerie': vehiculeData['numeroSerie';        'couleur': vehiculeData['couleur';        'typeCarburant': vehiculeData['typeCarburant'] ?? 'Essence';        'puissance': vehiculeData['puissance';        'nombrePlaces': vehiculeData['nombrePlaces';        'valeurVenale': vehiculeData['valeurVenale';        'usage': vehiculeData['usage'] ?? 'Prive';        'status': 'actif';        'created_at: FieldValue.serverTimestamp(';        'updated_at: FieldValue.serverTimestamp(';        'id';        'numeroContrat: _generateNumeroContrat(compagnieId';        'compagnieId';        'agenceId';        'agentId';        'conducteurId';        'vehiculeId';        'typeAssurance': contratData['typeAssurance'] ?? 'Tous risques';        'dateDebut': contratData['dateDebut';        'dateFin': contratData['dateFin';        'primeAnnuelle': contratData['primeAnnuelle';        'franchise': contratData['franchise';        'garanties': contratData['garanties';          'Responsabilite civile';          'Dommages tous accidents';          'Vol et incendie';          'Bris de glace';        'conditions': contratData['conditions';        'status': 'actif';        'isActive';        'created_at: FieldValue.serverTimestamp(';        'created_by';        ';      final batch = _firestore.batch(';        _firestore.collection(';      ';        _firestore.collection(';      await batch.commit(';      debugPrint('[VEHICULE_SERVICE] ✅ Contrat vehicule cree: 'contratId';        'success';        'contratId';        'vehiculeId';        'numeroContrat': contratDoc['numeroContrat';        'message': ';    } catch (e';      debugPrint('[VEHICULE_SERVICE] ❌ Erreur creation:  + e.toString()';        'success';        'error: e.toString(';        'message': 'Erreur lors de la creation du contrat';  static Future<List<Map<String, dynamic>>> getVehiculesByConducteur(String conducteurId';      debugPrint('[VEHICULE_SERVICE] 📋 Recuperation vehicules conducteur: 'conducteurId';          .collection('vehicules';          .where('conducteurId, isEqualTo: conducteurId';          .where('status', isEqualTo: 'actif';          .orderBy(';        final data = doc.data(';        data['id';        if (data['contratId] != null';              .collection('contrats';              .doc(data[';          if (contratDoc.exists';            data[';        vehicules.add(data';      debugPrint('[VEHICULE_SERVICE] ✅ ';    } catch (e';      debugPrint(';  static Future<Map<String, dynamic>?> verifyVehiculeByContrat(String numeroContrat';      debugPrint('[VEHICULE_SERVICE] 🔍 Verification contrat: 'numeroContrat';          .collection('contrats';          .where('numeroContrat, isEqualTo: numeroContrat';          .where('status', isEqualTo: ';      final contratData = contratSnapshot.docs.first.data(';      contratData['id';      if (contratData['vehiculeId] != null';            .collection('vehicules';            .doc(contratData[';          final vehiculeData = vehiculeDoc.data(';          vehiculeData['id';            'contrat';            'vehicule';            ';    } catch (e';      debugPrint(';  }';      debugPrint('[VEHICULE_SERVICE] 📊 Recuperation stats contrats';      Query query = _firestore.collection(';      if (compagnieId != null';        query = query.where(';      if (agenceId != null';        query = query.where(';        final data = doc.data(';        if (data['status'] == 'actif';        if (data['dateFin] != null';          final dateFin = (data[';          if (dateFin.isBefore(now)';        if (data['primeAnnuelle] != null';          primeTotal += (data['primeAnnuelle] as num).toDouble(';        'total_contrats';        'contrats_actifs';        'contrats_expires';        'prime_totale';        'prime_moyenne';        'last_updated: DateTime.now().toIso8601String(';      debugPrint('[VEHICULE_SERVICE] ✅ Stats calculees: ';    } catch (e';      debugPrint('[VEHICULE_SERVICE] ❌ Erreur stats:  + e.toString()';        'total_contrats';        'contrats_actifs';        'contrats_expires';        'prime_totale';        'prime_moyenne';        ';    final month = DateTime.now().month.toString(').padLeft(2, ';    final random = Random().nextInt(9999).toString(').padLeft(4, ';    final compagnieCode = compagnieId.toUpperCase().substring(0, 3.clamp(0, compagnieId.length)';    return '$compagnieCode$year$month';  static bool _isContratValid(Map<String, dynamic> contratData';    if (contratData['status'] != 'actif';    if (contratData['dateFin] != null';      final dateFin = (contratData[';  }';      debugPrint('[VEHICULE_SERVICE] 🔄 Renouvellement contrat: 'contratId';          .collection(';          .doc(contratId';        'dateFin: Timestamp.fromDate(nouvelleDateFin';        'primeAnnuelle';        'status': 'actif';        'renewed_at: FieldValue.serverTimestamp(';        ';      }';      debugPrint('[VEHICULE_SERVICE] ✅ Contrat renouvele';        'success';        'message': ';    } catch (e';      debugPrint('[VEHICULE_SERVICE] ❌ Erreur renouvellement:  + e.toString()';        'success';        'error: e.toString(';        'message': ';  }';      debugPrint('[VEHICULE_SERVICE] 🗑️ Resiliation contrat: 'contratId';          .collection(';          .doc(contratId';        'status': 'resilie';        'motif_resiliation';        'date_resiliation: FieldValue.serverTimestamp(';        ';      }';          .collection(';      if (contratDoc.exists && contratDoc.data(')!['vehiculeId] != null';            .collection(';            .doc(contratDoc.data(')!['vehiculeId]';          'status': 'inactif';          ';        }';      debugPrint('[VEHICULE_SERVICE] ✅ Contrat resilie';        'success';        'message': ';    } catch (e';      debugPrint('[VEHICULE_SERVICE] ❌ Erreur resiliation:  + e.toString()';        'success';        'error: e.toString(';        'message': 'Erreur lors de la resiliation';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class VehiculeManagementService {
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  /// 📋 Récupérer les véhicules d'un conducteur
+  static Future<List<Map<String, dynamic>>> getVehiculesByConducteur(String conducteurId) async {
+    final List<Map<String, dynamic>> vehicules = [];
+    try {
+      final QuerySnapshot snapshot = await _firestore
+          .collection('vehicules')
+          .where('conducteurId', isEqualTo: conducteurId)
+          .where('status', isEqualTo: 'actif')
+          .get();
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id; // Ajout de l'ID du document
+        vehicules.add(data);
+      }
+      return vehicules;
+    } catch (e) {
+      print('❌ Erreur lors de la récupération des véhicules: $e');
+      return [];
+    }
+  }
+
+  /// ➕ Ajouter un nouveau véhicule
+  static Future<void> addVehicle(Map<String, dynamic> vehicleData) async {
+    try {
+      await _firestore.collection('vehicules').add({
+        ...vehicleData,
+        'status': 'actif',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      print('✅ Véhicule ajouté avec succès');
+    } catch (e) {
+      print('❌ Erreur lors de l\'ajout du véhicule: $e');
+      throw Exception('Erreur lors de l\'ajout du véhicule');
+    }
+  }
+}

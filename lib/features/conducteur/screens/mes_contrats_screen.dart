@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../services/post_contract_service.dart';
+import '../../../services/pdf_service.dart';
 
 /// 📋 Écran des contrats du conducteur
 class MesContratsScreen extends StatefulWidget {
