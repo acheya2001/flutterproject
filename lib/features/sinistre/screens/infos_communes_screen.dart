@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -738,7 +738,7 @@ class _InfosCommunesScreenState extends State<InfosCommunesScreen> {
       lastDate: DateTime.now(),
     );
     if (date != null) {
-      setState(() {
+      if (mounted) setState(() {
         _dateAccident = date;
         _dateController.text = DateFormat('dd/MM/yyyy').format(date);
       });
@@ -751,7 +751,7 @@ class _InfosCommunesScreenState extends State<InfosCommunesScreen> {
       initialTime: _heureAccident,
     );
     if (time != null) {
-      setState(() {
+      if (mounted) setState(() {
         _heureAccident = time;
         _heureController.text = time.format(context);
       });
@@ -968,3 +968,4 @@ class _TemoinDialogState extends State<_TemoinDialog> {
     );
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/tunisian_payment_service.dart';
 import 'tunisian_contract_creation_screen.dart';
@@ -28,7 +28,11 @@ class _TunisianAgentDashboardState extends State<TunisianAgentDashboard> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadDashboardData();
+    });
   }
 
   @override
@@ -742,3 +746,4 @@ class _TunisianAgentDashboardState extends State<TunisianAgentDashboard> {
     // TODO: Implémenter
   }
 }
+

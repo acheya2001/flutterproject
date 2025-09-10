@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/accident_session.dart';
@@ -465,7 +465,7 @@ Nombre de véhicules: ${widget.session.nombreParticipants}
       Navigator.pop(context);
 
       // Marquer comme envoyée
-      setState(() {
+      if (mounted) setState(() {
         _invitationEnvoyee[role] = true;
       });
 
@@ -513,3 +513,4 @@ Nombre de véhicules: ${widget.session.nombreParticipants}
     }
   }
 }
+

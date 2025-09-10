@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/admin_agence_service.dart';
@@ -29,7 +29,11 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAllData();
+    });
   }
 
   /// 📊 Charger toutes les données
@@ -1843,7 +1847,7 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
                   );
                 }).toList(),
                 onChanged: (value) {
-                  setState(() {
+                  if (mounted) setState(() {
                     selectedAgentId = value;
                   });
                 },
@@ -2334,3 +2338,4 @@ class _AdminAgenceDashboardState extends State<AdminAgenceDashboard> {
     );
   }
 }
+

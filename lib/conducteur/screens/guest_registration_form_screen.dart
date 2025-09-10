@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/modern_sinistre_service.dart';
 import '../../common/widgets/custom_app_bar.dart';
 import '../../common/widgets/gradient_background.dart';
-import 'constat_form_screen.dart';
+import 'modern_single_accident_info_screen.dart';
 
 /// 👤 Écran d'inscription complète pour conducteur invité non-inscrit
 class GuestRegistrationFormScreen extends StatefulWidget {
@@ -57,7 +57,11 @@ class _GuestRegistrationFormScreenState extends State<GuestRegistrationFormScree
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _chargerCompagnies();
+    });
   }
 
   @override
@@ -105,7 +109,7 @@ class _GuestRegistrationFormScreenState extends State<GuestRegistrationFormScree
       
       final agences = await ModernSinistreService.getAgencesParCompagnie(compagnieId);
       
-      setState(() {
+      if (mounted) setState(() {
         _agences = agences;
         _agenceSelectionnee = null;
         _isLoading = false;
@@ -203,11 +207,8 @@ class _GuestRegistrationFormScreenState extends State<GuestRegistrationFormScree
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => ConstatFormScreen(
-            sessionData: widget.sessionData,
-            vehiculeSelectionne: vehiculeData,
-            isInscrit: false,
-            conducteurData: conducteurData,
+          builder: (context) => ModernSingleAccidentInfoScreen(
+            typeAccident: 'Collision entre deux véhicules',
           ),
         ),
       );
@@ -500,7 +501,7 @@ class _GuestRegistrationFormScreenState extends State<GuestRegistrationFormScree
           );
         }).toList(),
         onChanged: (value) {
-          setState(() {
+          if (mounted) setState(() {
             _compagnieSelectionnee = value;
             _agenceSelectionnee = null;
             _agences.clear();
@@ -609,3 +610,4 @@ class _GuestRegistrationFormScreenState extends State<GuestRegistrationFormScree
     );
   }
 }
+

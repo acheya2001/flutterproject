@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/document_delivery_options_widget.dart';
@@ -22,8 +22,12 @@ class _AgentClientsScreenState extends State<AgentClientsScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _agentId = _auth.currentUser?.uid;
     _loadClients();
+    });
   }
 
   /// 📥 Charger les clients de l'agent
@@ -83,7 +87,7 @@ class _AgentClientsScreenState extends State<AgentClientsScreen> {
         }
       }
 
-      setState(() {
+      if (mounted) setState(() {
         _clients = clientsMap.values.toList();
         _isLoading = false;
       });
@@ -360,7 +364,7 @@ class _AgentClientsScreenState extends State<AgentClientsScreen> {
       builder: (context) => DocumentDeliveryOptionsWidget(
         contractData: contractData,
         onDeliveryComplete: () {
-          setState(() {});
+          if (mounted) setState(() {});
         },
       ),
     );
@@ -400,3 +404,4 @@ class _AgentClientsScreenState extends State<AgentClientsScreen> {
     );
   }
 }
+

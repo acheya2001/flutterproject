@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../services/accident_session_service.dart';
 import '../../models/accident_session.dart';
-import 'vehicle_selection_enhanced_screen.dart';
-import 'accident_session_screen.dart';
+import 'modern_accident_type_screen.dart';
+import 'modern_single_accident_info_screen.dart';
 import 'modern_join_session_screen.dart';
 import 'guest_registration_form_screen.dart';
 import 'join_session_registered_screen.dart';
@@ -67,13 +67,13 @@ class _AccidentChoiceScreenState extends State<AccidentChoiceScreen> {
   Future<void> _rejoindreSesssionParCode() async {
     final code = _codeController.text.trim().toUpperCase();
     if (code.isEmpty) {
-      setState(() {
+      if (mounted) setState(() {
         _errorMessage = 'Veuillez saisir un code de session';
       });
       return;
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
@@ -82,7 +82,7 @@ class _AccidentChoiceScreenState extends State<AccidentChoiceScreen> {
       final session = await AccidentSessionService.rejoindreSesssionParCode(code);
       
       if (session == null) {
-        setState(() {
+        if (mounted) setState(() {
           _errorMessage = 'Code de session invalide ou session introuvable';
         });
         return;
@@ -92,15 +92,15 @@ class _AccidentChoiceScreenState extends State<AccidentChoiceScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => AccidentSessionScreen(session: session),
+          builder: (context) => ModernSingleAccidentInfoScreen(typeAccident: 'Sortie de route'),
         ),
       );
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _errorMessage = 'Erreur lors de la connexion à la session: $e';
       });
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -504,3 +504,4 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     );
   }
 }
+

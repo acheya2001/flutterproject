@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/agent_service.dart';
 import 'add_vehicle_agent_screen.dart';
 
@@ -24,7 +24,11 @@ class _VehiculesScreenState extends State<VehiculesScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadVehicules();
+    });
   }
 
   /// 🚗 Charger les véhicules
@@ -373,3 +377,4 @@ class _VehiculesScreenState extends State<VehiculesScreen> {
     }
   }
 }
+

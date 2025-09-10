@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -271,7 +271,7 @@ class _ImageUploadWidgetState extends State<ImageUploadWidget> {
       );
 
       if (image != null) {
-        setState(() {
+        if (mounted) setState(() {
           _selectedImage = File(image.path);
         });
         widget.onImageSelected(_selectedImage);
@@ -319,9 +319,10 @@ class _ImageUploadWidgetState extends State<ImageUploadWidget> {
   }
 
   void _removeImage() {
-    setState(() {
+    if (mounted) setState(() {
       _selectedImage = null;
     });
     widget.onImageSelected(null);
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -44,7 +44,11 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgentInfo();
+    });
   }
 
   Future<void> _loadAgentInfo() async {
@@ -300,8 +304,6 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
             _buildAgenceInfo(),
 
             const SizedBox(height: 24),
-
-
 
             // 🔔 Notifications temps réel
             AgentNotificationWidget(
@@ -910,8 +912,6 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
       ),
     );
   }
-
-
 
   Widget _buildPendingVehiclesPreview() {
 
@@ -2201,7 +2201,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
               },
               onDocumentsSent: () {
                 // Optionnel: rafraîchir la liste ou afficher un message
-                setState(() {});
+                if (mounted) setState(() {});
               },
             ),
           ] else ...[
@@ -2659,8 +2659,6 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
     );
   }
 
-
-
   /// 📄 Créer un contrat d'assurance
   Future<void> _createContract(String vehicleId, Map<String, dynamic> data) async {
     final TextEditingController numeroContratController = TextEditingController();
@@ -2817,7 +2815,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                             lastDate: DateTime.now().add(const Duration(days: 365)),
                           );
                           if (date != null) {
-                            setState(() {
+                            if (mounted) setState(() {
                               dateDebut = date;
                             });
                           }
@@ -2843,7 +2841,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                             lastDate: DateTime.now().add(const Duration(days: 730)),
                           );
                           if (date != null) {
-                            setState(() {
+                            if (mounted) setState(() {
                               dateFin = date;
                             });
                           }
@@ -3617,8 +3615,6 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
     );
   }
 
-
-
   /// 👁️ Afficher les détails du contrat
   void _showContratDetails(Map<String, dynamic> contrat) {
     showDialog(
@@ -3811,8 +3807,6 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
       ),
     );
   }
-
-
 
   /// 📄 Générer le fichier PDF avec support Unicode
   Future<void> _generatePDFFile(Map<String, dynamic> contrat) async {
@@ -4743,7 +4737,5 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
     }
   }
 
-
-
-
 }
+

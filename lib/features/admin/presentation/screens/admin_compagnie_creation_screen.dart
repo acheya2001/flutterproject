@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../services/admin_compagnie_service.dart';
 import '../../../../services/insurance_company_service.dart';
@@ -41,12 +41,16 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _selectedCompany = widget.preSelectedCompany;
     _selectedCompanyId = widget.preSelectedCompany?.id;
     _loadCompanies();
     _prenomController.addListener(_updateGeneratedEmail);
     _nomController.addListener(_updateGeneratedEmail);
     _searchController.addListener(_filterCompanies);
+    });
   }
 
   @override
@@ -140,11 +144,11 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
       final prenom = _cleanString(_prenomController.text);
       final nom = _cleanString(_nomController.text);
       final compagnie = _cleanString(_selectedCompany!.nom);
-      setState(() {
+      if (mounted) setState(() {
         _generatedEmail = '$prenom.$nom@$compagnie.com';
       });
     } else {
-      setState(() {
+      if (mounted) setState(() {
         _generatedEmail = '';
       });
     }
@@ -662,7 +666,7 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
                   return; // Ne pas sélectionner
                 }
 
-                setState(() {
+                if (mounted) setState(() {
                   _selectedCompanyId = companyId;
                   _selectedCompany = company;
                   _updateGeneratedEmail();
@@ -1300,8 +1304,6 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
     );
   }
 
-
-
   /// 🔍 Barre de recherche et filtres
   Widget _buildSearchAndFilters() {
     return Container(
@@ -1361,7 +1363,7 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
                   subtitle: Text('${_filteredCompanies.where((c) => !(c.hasAdmin ?? false)).length} compagnies'),
                   value: _showOnlyAvailable,
                   onChanged: (value) {
-                    setState(() {
+                    if (mounted) setState(() {
                       _showOnlyAvailable = value!;
                       _filterCompanies();
                     });
@@ -1418,3 +1420,4 @@ class _AdminCompagnieCreationScreenState extends State<AdminCompagnieCreationScr
     );
   }
 }
+

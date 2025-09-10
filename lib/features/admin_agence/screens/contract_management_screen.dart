@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/admin_agence_contract_service.dart';
 import '../../../services/export_service.dart';
@@ -37,7 +37,11 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadContracts();
+    });
   }
 
   @override
@@ -49,7 +53,7 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> {
   /// 📄 Charger les contrats
   Future<void> _loadContracts({bool refresh = false}) async {
     if (refresh) {
-      setState(() {
+      if (mounted) setState(() {
         _contracts.clear();
         _lastDocument = null;
         _hasMore = true;
@@ -538,7 +542,7 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> {
 
   /// 🔄 Mettre à jour le filtre de statut
   void _updateStatusFilter(String? status) {
-    setState(() {
+    if (mounted) setState(() {
       _selectedStatus = status;
     });
     _loadContracts(refresh: true);
@@ -556,7 +560,7 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> {
           startDate: _startDate,
           endDate: _endDate,
           onFiltersApplied: (filters) {
-            setState(() {
+            if (mounted) setState(() {
               _selectedStatus = filters['status'];
               _selectedType = filters['type'];
               _selectedAgent = filters['agent'];
@@ -754,3 +758,4 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> {
     }
   }
 }
+

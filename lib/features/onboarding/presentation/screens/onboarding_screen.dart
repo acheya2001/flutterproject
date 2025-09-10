@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../auth/presentation/screens/user_type_selection_screen_elegant.dart';
 import '../../../../core/theme/app_theme.dart';
 
@@ -10,7 +10,7 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> with TickerProviderStateMixin {
+class _OnboardingScreenState extends State<OnboardingScreen>with TickerProviderStateMixin  {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -160,7 +160,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                 child: PageView.builder(
                   controller: _pageController,
                   onPageChanged: (index) {
-                    setState(() {
+                    if (mounted) setState(() {
                       _currentPage = index;
                     });
                     _animationController.reset();

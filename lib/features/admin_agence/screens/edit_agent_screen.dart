@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/theme/form_styles.dart';
 
@@ -30,7 +30,11 @@ class _EditAgentScreenState extends State<EditAgentScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgentData();
+    });
   }
 
   /// 📋 Charger les données de l'agent
@@ -231,7 +235,7 @@ class _EditAgentScreenState extends State<EditAgentScreen> {
                       Switch(
                         value: _isActive,
                         onChanged: (value) {
-                          setState(() {
+                          if (mounted) setState(() {
                             _isActive = value;
                           });
                         },
@@ -401,3 +405,4 @@ class _EditAgentScreenState extends State<EditAgentScreen> {
     }
   }
 }
+

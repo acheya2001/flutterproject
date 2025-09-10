@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -39,7 +39,7 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
           .get();
 
       if (userDoc.docs.isNotEmpty) {
-        setState(() {
+        if (mounted) setState(() {
           _currentAgentId = userDoc.docs.first.id;
         });
         print('✅ Agent trouvé dans users: $_currentAgentId');
@@ -57,7 +57,7 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
           .get();
 
       if (agentDoc.docs.isNotEmpty) {
-        setState(() {
+        if (mounted) setState(() {
           _currentAgentId = agentDoc.docs.first.id;
         });
         print('✅ Agent trouvé dans agents_assurance: $_currentAgentId');
@@ -152,7 +152,6 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
       ),
       body: Column(
         children: [
-
 
           _buildFilterTabs(),
           Expanded(
@@ -788,8 +787,6 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
     if (date == null) return 'N/A';
     return '${date.day}/${date.month}/${date.year}';
   }
-
-
 
   Future<void> _finalizeRequest(String requestId, Map<String, dynamic> data) async {
     final confirmed = await showDialog<bool>(
@@ -2744,7 +2741,7 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
 
       if (result == true) {
         // Rafraîchir la liste
-        setState(() {});
+        if (mounted) setState(() {});
       }
     } catch (e) {
       print('❌ Erreur encaissement: $e');
@@ -3135,3 +3132,4 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
     );
   }
 }
+

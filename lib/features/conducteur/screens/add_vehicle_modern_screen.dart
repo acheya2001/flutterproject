@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,8 +17,7 @@ class AddVehicleModernScreen extends StatefulWidget {
   State<AddVehicleModernScreen> createState() => _AddVehicleModernScreenState();
 }
 
-class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
-    with SingleTickerProviderStateMixin {
+class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>with SingleTickerProviderStateMixin  {
   final _formKey = GlobalKey<FormState>();
   late TabController _tabController;
   
@@ -112,8 +111,12 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _tabController = TabController(length: 4, vsync: this);
     _loadCompagnies();
+    });
   }
 
   @override
@@ -1263,7 +1266,7 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
       print('🔄 Début du chargement des compagnies...');
       final compagnies = await InsuranceDataService.getCompagnies();
 
-      setState(() {
+      if (mounted) setState(() {
         _compagnies = compagnies;
         _isLoadingCompagnies = false;
       });
@@ -1274,7 +1277,7 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
         _showSuccessSnackBar('${compagnies.length} compagnies d\'assurance chargées');
       }
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _compagnies = [];
         _isLoadingCompagnies = false;
       });
@@ -1286,7 +1289,7 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
 
   /// Charge la liste des agences pour une compagnie donnée
   Future<void> _loadAgences(String compagnieId) async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoadingAgences = true;
       _agences = [];
       _selectedAgenceId = null;
@@ -1296,7 +1299,7 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
       print('🔄 Début du chargement des agences pour: $compagnieId');
       final agences = await InsuranceDataService.getAgencesByCompagnie(compagnieId);
 
-      setState(() {
+      if (mounted) setState(() {
         _agences = agences;
         _isLoadingAgences = false;
       });
@@ -1309,7 +1312,7 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
         _showSuccessSnackBar('${agences.length} agences trouvées');
       }
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _agences = [];
         _isLoadingAgences = false;
       });
@@ -1572,8 +1575,6 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
     }
   }
 
-
-
   /// Widget dropdown pour les compagnies d'assurance
   Widget _buildCompagnieDropdown() {
     return Column(
@@ -1695,7 +1696,7 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
             );
           }).toList(),
           onChanged: _isLoadingCompagnies ? null : (value) {
-            setState(() {
+            if (mounted) setState(() {
               _selectedCompagnieId = value;
               _selectedAgenceId = null;
               _agences = [];
@@ -1788,3 +1789,4 @@ class _AddVehicleModernScreenState extends State<AddVehicleModernScreen>
     );
   }
 }
+

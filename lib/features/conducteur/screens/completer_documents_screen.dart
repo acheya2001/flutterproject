@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -283,7 +283,7 @@ class _CompleterDocumentsScreenState extends State<CompleterDocumentsScreen> {
       );
 
       if (image != null) {
-        setState(() {
+        if (mounted) setState(() {
           _uploadedImages[fieldKey] = File(image.path);
         });
       }
@@ -305,7 +305,7 @@ class _CompleterDocumentsScreenState extends State<CompleterDocumentsScreen> {
   }
 
   Future<void> _submitDocuments() async {
-    setState(() {
+    if (mounted) setState(() {
       _isUploading = true;
     });
 
@@ -385,9 +385,10 @@ class _CompleterDocumentsScreenState extends State<CompleterDocumentsScreen> {
         ),
       );
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isUploading = false;
       });
     }
   }
 }
+

@@ -153,9 +153,9 @@ class ModernSinistreCard extends StatelessWidget {
             ),
           ],
         ),
-        
+
         const SizedBox(height: 8),
-        
+
         // Lieu
         Row(
           children: [
@@ -178,8 +178,377 @@ class ModernSinistreCard extends StatelessWidget {
             ),
           ],
         ),
+
+        // Informations collaboratives si disponibles
+        if (_isCollaborativeSession()) ...[
+          const SizedBox(height: 12),
+          _buildCollaborativeInfo(),
+        ],
       ],
     );
+  }
+
+  /// 🤝 Vérifier si c'est une session collaborative
+  bool _isCollaborativeSession() {
+    return sinistre['source'] == 'session' ||
+           sinistre['source'] == 'collaborative_session' ||
+           sinistre['codeSession'] != null ||
+           sinistre['participants'] != null ||
+           sinistre['estCollaboratif'] == true ||
+           sinistre['type'] == 'accident_collaboratif';
+  }
+
+  /// 🤝 Informations collaboratives
+  Widget _buildCollaborativeInfo() {
+    final codeSession = sinistre['codeSession'] ?? sinistre['codePublic'];
+    final participants = sinistre['participants'] as List<dynamic>? ?? [];
+    final nombreVehicules = sinistre['nombreVehicules'] ?? participants.length;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue[200]!, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête session collaborative
+          Row(
+            children: [
+              Icon(Icons.group_work, size: 16, color: Colors.blue[600]),
+              const SizedBox(width: 6),
+              Text(
+                'Session Collaborative',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue[700],
+                ),
+              ),
+              if (codeSession != null) ...[
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    codeSession,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[800],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // Statistiques
+          Row(
+            children: [
+              _buildStatChip(
+                icon: Icons.directions_car,
+                label: '$nombreVehicules véhicule${nombreVehicules > 1 ? 's' : ''}',
+                color: Colors.orange,
+              ),
+              const SizedBox(width: 8),
+              _buildStatChip(
+                icon: Icons.people,
+                label: '${participants.length}/${nombreVehicules} rejoints',
+                color: Colors.blue,
+              ),
+              const SizedBox(width: 8),
+              _buildProgressionChip(participants),
+            ],
+          ),
+
+          // Liste des participants (si disponible)
+          if (participants.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildParticipantsList(participants),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 📊 Chip de statistique
+  Widget _buildStatChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📈 Chip de progression des formulaires avec états détaillés
+  Widget _buildProgressionChip(List<dynamic> participants) {
+    print('🔍 ModernSinistreCard - Participants reçus: ${participants.length}');
+    for (int i = 0; i < participants.length; i++) {
+      print('🔍 Participant $i: ${participants[i]}');
+    }
+
+    // Compter les différents états
+    final enAttente = participants.where((p) =>
+      p['formulaireStatus'] == 'en_attente' ||
+      (p['formulaireStatus'] == null && p['statut'] == 'en_attente')
+    ).length;
+
+    final enCours = participants.where((p) =>
+      p['formulaireStatus'] == 'en_cours' ||
+      (p['formulaireStatus'] == null && p['statut'] == 'rejoint')
+    ).length;
+
+    final termines = participants.where((p) =>
+      p['formulaireStatus'] == 'termine' ||
+      p['statut'] == 'formulaire_fini' ||
+      p['formulaireComplete'] == true
+    ).length;
+
+    final total = participants.length;
+
+    // Déterminer la couleur principale selon la progression
+    Color color;
+    IconData icon;
+    String texte;
+
+    if (termines == total) {
+      color = Colors.green;
+      icon = Icons.check_circle;
+      texte = 'Tous terminés';
+    } else if (termines > 0) {
+      color = Colors.orange;
+      icon = Icons.pending;
+      texte = '$termines/$total terminés';
+    } else if (enCours > 0) {
+      color = Colors.blue;
+      icon = Icons.edit;
+      texte = '$enCours en cours';
+    } else {
+      color = Colors.grey;
+      icon = Icons.hourglass_empty;
+      texte = '$enAttente en attente';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            texte,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 👥 Liste des participants
+  Widget _buildParticipantsList(List<dynamic> participants) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Participants:',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+        const SizedBox(height: 4),
+        ...participants.take(3).map((participant) => _buildParticipantRow(participant)),
+        if (participants.length > 3)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              '... et ${participants.length - 3} autre${participants.length - 3 > 1 ? 's' : ''}',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 👤 Ligne de participant avec état du formulaire
+  Widget _buildParticipantRow(dynamic participant) {
+    final nom = participant['nom'] ?? participant['nomConducteur'] ?? 'Conducteur';
+    final prenom = participant['prenom'] ?? '';
+    final role = participant['roleVehicule'] ?? participant['role'] ?? '';
+    final statut = participant['statut'] ?? 'en_attente';
+    final formulaireStatus = participant['formulaireStatus'] ?? 'en_attente';
+    final isCreator = participant['estCreateur'] == true;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        children: [
+          // Icône avec badge créateur
+          Stack(
+            children: [
+              Icon(
+                Icons.person,
+                size: 12,
+                color: Colors.grey[600],
+              ),
+              if (isCreator)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: Colors.amber[700],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 6),
+
+          // Nom et état
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${prenom.isNotEmpty ? '$prenom ' : ''}$nom${role.isNotEmpty ? ' ($role)' : ''}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[700],
+                    fontWeight: isCreator ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                // État du formulaire
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: _getFormulaireStatusColor(formulaireStatus).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: _getFormulaireStatusColor(formulaireStatus).withOpacity(0.3),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Text(
+                    _getFormulaireStatusText(formulaireStatus),
+                    style: TextStyle(
+                      fontSize: 7,
+                      fontWeight: FontWeight.w500,
+                      color: _getFormulaireStatusColor(formulaireStatus),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Indicateur de statut global
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: _getParticipantStatusColor(statut),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🎨 Couleur du statut participant
+  Color _getParticipantStatusColor(String statut) {
+    switch (statut) {
+      case 'termine':
+      case 'completed':
+      case 'formulaire_fini':
+        return Colors.green;
+      case 'en_cours':
+      case 'in_progress':
+      case 'rejoint':
+        return Colors.orange;
+      case 'en_attente':
+      case 'pending':
+        return Colors.grey;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  /// 🎨 Couleur de l'état du formulaire
+  Color _getFormulaireStatusColor(String formulaireStatus) {
+    switch (formulaireStatus) {
+      case 'termine':
+        return Colors.green;
+      case 'en_cours':
+        return Colors.blue;
+      case 'en_attente':
+      default:
+        return Colors.grey;
+    }
+  }
+
+  /// 📝 Texte de l'état du formulaire
+  String _getFormulaireStatusText(String formulaireStatus) {
+    switch (formulaireStatus) {
+      case 'termine':
+        return 'Terminé';
+      case 'en_cours':
+        return 'En cours';
+      case 'en_attente':
+      default:
+        return 'En attente';
+    }
   }
 
   /// 📊 Barre de progression

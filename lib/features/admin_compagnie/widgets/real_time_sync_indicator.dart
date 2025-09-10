@@ -18,8 +18,7 @@ class RealTimeSyncIndicator extends StatefulWidget {
   State<RealTimeSyncIndicator> createState() => _RealTimeSyncIndicatorState();
 }
 
-class _RealTimeSyncIndicatorState extends State<RealTimeSyncIndicator>
-    with TickerProviderStateMixin {
+class _RealTimeSyncIndicatorState extends State<RealTimeSyncIndicator>with TickerProviderStateMixin  {
   late AnimationController _pulseController;
   late AnimationController _rotationController;
   Timer? _updateTimer;
@@ -61,7 +60,9 @@ class _RealTimeSyncIndicatorState extends State<RealTimeSyncIndicator>
   void didUpdateWidget(RealTimeSyncIndicator oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.lastUpdate != oldWidget.lastUpdate) {
-      _updateTimeAgo();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateTimeAgo();
+      });
     }
   }
 
@@ -69,18 +70,20 @@ class _RealTimeSyncIndicatorState extends State<RealTimeSyncIndicator>
     if (widget.lastUpdate != null) {
       final now = DateTime.now();
       final difference = now.difference(widget.lastUpdate!);
-      
-      setState(() {
-        if (difference.inMinutes < 1) {
-          _timeAgo = 'À l\'instant';
-        } else if (difference.inMinutes < 60) {
-          _timeAgo = 'Il y a ${difference.inMinutes} min';
-        } else if (difference.inHours < 24) {
-          _timeAgo = 'Il y a ${difference.inHours}h';
-        } else {
-          _timeAgo = 'Il y a ${difference.inDays}j';
-        }
-      });
+
+      if (mounted) {
+        setState(() {
+          if (difference.inMinutes < 1) {
+            _timeAgo = 'À l\'instant';
+          } else if (difference.inMinutes < 60) {
+            _timeAgo = 'Il y a ${difference.inMinutes} min';
+          } else if (difference.inHours < 24) {
+            _timeAgo = 'Il y a ${difference.inHours}h';
+          } else {
+            _timeAgo = 'Il y a ${difference.inDays}j';
+          }
+        });
+      }
     }
   }
 
@@ -317,8 +320,7 @@ class ChangeNotificationBanner extends StatefulWidget {
   State<ChangeNotificationBanner> createState() => _ChangeNotificationBannerState();
 }
 
-class _ChangeNotificationBannerState extends State<ChangeNotificationBanner>
-    with SingleTickerProviderStateMixin {
+class _ChangeNotificationBannerState extends State<ChangeNotificationBanner>with SingleTickerProviderStateMixin  {
   late AnimationController _controller;
   late Animation<double> _slideAnimation;
 

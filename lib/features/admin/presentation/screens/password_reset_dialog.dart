@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../services/password_reset_service.dart';
 
@@ -19,22 +19,26 @@ class _PasswordResetDialogState extends State<PasswordResetDialog> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAdmins();
+    });
   }
 
   Future<void> _loadAdmins() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
     try {
       final admins = await PasswordResetService.getAdminsForPasswordReset();
-      setState(() {
+      if (mounted) setState(() {
         _admins = admins;
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
       if (mounted) {
@@ -265,7 +269,7 @@ class _PasswordResetDialogState extends State<PasswordResetDialog> {
                     ? const Icon(Icons.check_circle_rounded, color: Color(0xFF059669))
                     : null,
                   onTap: () {
-                    setState(() {
+                    if (mounted) setState(() {
                       _selectedAdminId = admin['id'];
                       _selectedAdmin = admin;
                     });
@@ -409,3 +413,4 @@ class _PasswordResetDialogState extends State<PasswordResetDialog> {
     }
   }
 }
+

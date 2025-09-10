@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
 import '../../../services/admin_compagnie_agence_service.dart';
@@ -23,7 +23,7 @@ class AdminCompagnieDashboard extends StatefulWidget {
   State<AdminCompagnieDashboard> createState() => _AdminCompagnieDashboardState();
 }
 
-class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with SingleTickerProviderStateMixin {
+class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with SingleTickerProviderStateMixin  {
   Map<String, dynamic>? _compagnieData;
   Map<String, dynamic> _stats = {};
   List<Map<String, dynamic>> _agences = [];
@@ -39,8 +39,12 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
-    _loadAllData();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _tabController = TabController(length: 5, vsync: this);
+      _loadAllData();
+    });
   }
 
   @override
@@ -2880,10 +2884,6 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
     }
   }
 
-
-
-
-
   void _showAgenceDetails(Map<String, dynamic> agence) {
     final agenceId = agence['id'];
     final adminAgence = _adminsAgence.firstWhere(
@@ -3379,8 +3379,6 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
     );
   }
 
-
-
   /// 🎨 Champ de texte moderne
   Widget _buildModernTextField({
     required TextEditingController controller,
@@ -3519,7 +3517,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
           ),
         );
         await _loadAllData();
-        setState(() {});
+        if (mounted) setState(() {});
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3578,7 +3576,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
           ),
         );
         await _loadAllData();
-        setState(() {});
+        if (mounted) setState(() {});
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3773,7 +3771,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
 
         // Recharger les données
         await _loadAllData();
-        setState(() {}); // Forcer la mise à jour de l'interface
+        if (mounted) setState(() {}); // Forcer la mise à jour de l'interface
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3959,9 +3957,6 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
       ),
     );
   }
-
-
-
 
   void _showAdminCredentialsDialog(Map<String, dynamic> result) {
     showDialog(
@@ -4189,7 +4184,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
 
         // Recharger les données
         await _loadAllData();
-        setState(() {});
+        if (mounted) setState(() {});
 
         // Proposer de créer un nouvel admin seulement si l'agence est fournie
         if (agence != null) {
@@ -4748,7 +4743,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
 
         // Recharger les données
         await _loadAllData();
-        setState(() {});
+        if (mounted) setState(() {});
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -4800,7 +4795,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
 
         // Recharger les données
         await _loadAllData();
-        setState(() {}); // Forcer la mise à jour
+        if (mounted) setState(() {}); // Forcer la mise à jour
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -5103,8 +5098,6 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
       ),
     );
   }
-
-
 
   void _showResetPasswordDialog(Map<String, dynamic> admin) {
     _showComingSoon('Réinitialisation du mot de passe pour ${admin['adminEmail']}');
@@ -5758,10 +5751,6 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
     );
   }
 
-
-
-
-
   /// 👥 Afficher les agents d'une agence
   void _showAgentsDialog(Map<String, dynamic> agence) {
     final agenceId = agence['id'];
@@ -5984,3 +5973,4 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard> with 
     );
   }
 }
+

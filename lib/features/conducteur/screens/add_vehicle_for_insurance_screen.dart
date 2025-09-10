@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/complete_insurance_workflow_service.dart';
@@ -52,8 +52,12 @@ class _AddVehicleForInsuranceScreenState extends State<AddVehicleForInsuranceScr
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadCompagnies();
     _setupFormValidation();
+    });
   }
 
   void _setupFormValidation() {
@@ -77,7 +81,7 @@ class _AddVehicleForInsuranceScreenState extends State<AddVehicleForInsuranceScr
         _selectedAgence != null;
 
     if (isValid != _isFormValid) {
-      setState(() {
+      if (mounted) setState(() {
         _isFormValid = isValid;
       });
     }
@@ -111,7 +115,7 @@ class _AddVehicleForInsuranceScreenState extends State<AddVehicleForInsuranceScr
   Future<void> _loadCompagnies() async {
     try {
       final compagnies = await InsuranceDataService.getCompagnies();
-      setState(() {
+      if (mounted) setState(() {
         _compagnies = compagnies;
       });
     } catch (e) {
@@ -122,7 +126,7 @@ class _AddVehicleForInsuranceScreenState extends State<AddVehicleForInsuranceScr
   Future<void> _loadAgences(String compagnieId) async {
     try {
       final agences = await InsuranceDataService.getAgencesByCompagnie(compagnieId);
-      setState(() {
+      if (mounted) setState(() {
         _agences = agences;
         _selectedAgence = null; // Reset selection
       });
@@ -323,7 +327,7 @@ class _AddVehicleForInsuranceScreenState extends State<AddVehicleForInsuranceScr
                 );
               }).toList(),
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedCompagnie = value;
                   _selectedAgence = null;
                 });
@@ -358,7 +362,7 @@ class _AddVehicleForInsuranceScreenState extends State<AddVehicleForInsuranceScr
                 );
               }).toList(),
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedAgence = value;
                 });
                 _validateForm();
@@ -795,3 +799,4 @@ class _AddVehicleForInsuranceScreenState extends State<AddVehicleForInsuranceScr
     }
   }
 }
+

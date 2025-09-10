@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/admin_compagnie_agence_service.dart';
 import '../widgets/real_time_sync_indicator.dart';
@@ -36,7 +36,11 @@ class _UnifiedAgencesManagementScreenState extends State<UnifiedAgencesManagemen
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAllData();
+    });
   }
 
   /// 📊 Charger toutes les données de manière unifiée
@@ -101,7 +105,7 @@ class _UnifiedAgencesManagementScreenState extends State<UnifiedAgencesManagemen
         debugPrint('[UNIFIED_AGENCES] 🏢 ${agenceData['nom']}: $agenceAgents agents, $agenceAdmins admins');
       }
 
-      setState(() {
+      if (mounted) setState(() {
         _agences = agences;
         _agencesStats = stats;
         _totalAgences = agences.length;
@@ -117,7 +121,7 @@ class _UnifiedAgencesManagementScreenState extends State<UnifiedAgencesManagemen
 
     } catch (e) {
       debugPrint('[UNIFIED_AGENCES] ❌ Erreur chargement: $e');
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
         _isConnected = false;
       });
@@ -757,3 +761,4 @@ class _UnifiedAgencesManagementScreenState extends State<UnifiedAgencesManagemen
     }
   }
 }
+

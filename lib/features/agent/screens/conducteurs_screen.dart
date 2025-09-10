@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/agent_service.dart';
 
 /// 👥 Écran de gestion des conducteurs
@@ -23,7 +23,11 @@ class _ConducteursScreenState extends State<ConducteursScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadConducteurs();
+    });
   }
 
   /// 👥 Charger les conducteurs
@@ -324,3 +328,4 @@ class _ConducteursScreenState extends State<ConducteursScreen> {
     );
   }
 }
+

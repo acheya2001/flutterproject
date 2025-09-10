@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -20,7 +20,11 @@ class _MesContratsScreenState extends State<MesContratsScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadContrats();
+    });
   }
 
   /// 📋 Charger les contrats du conducteur
@@ -48,7 +52,7 @@ class _MesContratsScreenState extends State<MesContratsScreen> {
         contrats.add(contractData);
       }
 
-      setState(() {
+      if (mounted) setState(() {
         _contrats = contrats;
         _isLoading = false;
       });
@@ -391,3 +395,4 @@ class _MesContratsScreenState extends State<MesContratsScreen> {
     );
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -32,7 +32,11 @@ class _AgencyAppointmentScreenState extends State<AgencyAppointmentScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgenceData();
+    });
   }
 
   Future<void> _loadAgenceData() async {
@@ -43,7 +47,7 @@ class _AgencyAppointmentScreenState extends State<AgencyAppointmentScreen> {
           .get();
       
       if (doc.exists) {
-        setState(() {
+        if (mounted) setState(() {
           _agenceData = doc.data();
           _isLoading = false;
         });
@@ -626,3 +630,4 @@ class _AgencyAppointmentScreenState extends State<AgencyAppointmentScreen> {
     }
   }
 }
+

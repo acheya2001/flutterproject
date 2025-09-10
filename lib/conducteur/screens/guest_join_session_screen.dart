@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../services/accident_session_complete_service.dart';
 import '../../models/accident_session_complete.dart';
-import 'accident_form_step1_infos_generales.dart';
+import 'modern_single_accident_info_screen.dart';
 
 /// 👤 Écran pour rejoindre une session en tant qu'invité
 class GuestJoinSessionScreen extends StatefulWidget {
@@ -43,7 +43,7 @@ class _GuestJoinSessionScreenState extends State<GuestJoinSessionScreen> {
   }
 
   Future<void> _rechercherSession() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -55,12 +55,12 @@ class _GuestJoinSessionScreenState extends State<GuestJoinSessionScreen> {
         throw Exception('Code de session invalide ou session expirée');
       }
 
-      setState(() {
+      if (mounted) setState(() {
         _session = session;
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
 
@@ -516,7 +516,7 @@ class _GuestJoinSessionScreenState extends State<GuestJoinSessionScreen> {
   void _rejoindreSession() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -535,14 +535,14 @@ class _GuestJoinSessionScreenState extends State<GuestJoinSessionScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => AccidentFormStep1InfosGenerales(
-              session: session,
+            builder: (context) => ModernSingleAccidentInfoScreen(
+              typeAccident: 'Collision entre deux véhicules',
             ),
           ),
         );
       }
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
       
@@ -557,3 +557,4 @@ class _GuestJoinSessionScreenState extends State<GuestJoinSessionScreen> {
     }
   }
 }
+

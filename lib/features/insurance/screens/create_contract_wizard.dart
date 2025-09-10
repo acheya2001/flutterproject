@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../common/widgets/modern_card.dart';
@@ -22,8 +22,7 @@ class CreateContractWizard extends StatefulWidget {
   State<CreateContractWizard> createState() => _CreateContractWizardState();
 }
 
-class _CreateContractWizardState extends State<CreateContractWizard>
-    with TickerProviderStateMixin {
+class _CreateContractWizardState extends State<CreateContractWizard>with TickerProviderStateMixin  {
   late AnimationController _animationController;
   late PageController _pageController;
   
@@ -49,12 +48,16 @@ class _CreateContractWizardState extends State<CreateContractWizard>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
     _pageController = PageController();
     _loadInitialData();
+    });
   }
 
   @override
@@ -65,7 +68,7 @@ class _CreateContractWizardState extends State<CreateContractWizard>
   }
 
   Future<void> _loadInitialData() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -83,12 +86,12 @@ class _CreateContractWizardState extends State<CreateContractWizard>
         return data;
       }).toList();
 
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     } catch (e) {
       print('❌ Erreur chargement données: $e');
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -292,7 +295,7 @@ class _CreateContractWizardState extends State<CreateContractWizard>
       margin: const EdgeInsets.only(bottom: 12),
       child: ModernCard(
         onTap: () {
-          setState(() {
+          if (mounted) setState(() {
             _selectedConducteurId = conducteur['id'];
           });
           _loadVehiculesByConducteur(conducteur['id']);
@@ -415,7 +418,7 @@ class _CreateContractWizardState extends State<CreateContractWizard>
       margin: const EdgeInsets.only(bottom: 12),
       child: ModernCard(
         onTap: () {
-          setState(() {
+          if (mounted) setState(() {
             _selectedVehiculeId = vehicule['id'];
           });
         },
@@ -565,7 +568,7 @@ class _CreateContractWizardState extends State<CreateContractWizard>
 
   void _nextStep() {
     if (_currentStep < _totalSteps - 1) {
-      setState(() {
+      if (mounted) setState(() {
         _currentStep++;
       });
       _pageController.nextPage(
@@ -579,7 +582,7 @@ class _CreateContractWizardState extends State<CreateContractWizard>
 
   void _previousStep() {
     if (_currentStep > 0) {
-      setState(() {
+      if (mounted) setState(() {
         _currentStep--;
       });
       _pageController.previousPage(
@@ -590,7 +593,7 @@ class _CreateContractWizardState extends State<CreateContractWizard>
   }
 
   Future<void> _createContract() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -628,7 +631,7 @@ class _CreateContractWizardState extends State<CreateContractWizard>
         ),
       );
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -647,3 +650,4 @@ class _CreateContractWizardState extends State<CreateContractWizard>
     );
   }
 }
+

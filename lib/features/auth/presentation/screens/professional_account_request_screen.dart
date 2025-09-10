@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 
 /// 💼 Écran de demande de compte professionnel
@@ -104,7 +104,7 @@ class _ProfessionalAccountRequestScreenState extends State<ProfessionalAccountRe
                       value: 'agent',
                       groupValue: _selectedType,
                       onChanged: (value) {
-                        setState(() {
+                        if (mounted) setState(() {
                           _selectedType = value!;
                         });
                       },
@@ -116,7 +116,7 @@ class _ProfessionalAccountRequestScreenState extends State<ProfessionalAccountRe
                       value: 'expert',
                       groupValue: _selectedType,
                       onChanged: (value) {
-                        setState(() {
+                        if (mounted) setState(() {
                           _selectedType = value!;
                         });
                       },
@@ -342,7 +342,7 @@ class _ProfessionalAccountRequestScreenState extends State<ProfessionalAccountRe
   void _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -392,7 +392,7 @@ class _ProfessionalAccountRequestScreenState extends State<ProfessionalAccountRe
         ),
       );
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }

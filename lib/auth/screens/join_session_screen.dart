@@ -1,11 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/accident_session.dart';
 import '../../models/accident_session_complete.dart';
 import '../../services/accident_session_service.dart';
 import '../../services/accident_session_complete_service.dart';
-import '../../conducteur/screens/guest_vehicle_form_screen.dart';
-import '../../conducteur/screens/multi_vehicle_constat_screen.dart';
+import '../../conducteur/screens/modern_single_accident_info_screen.dart';
 
 /// 🔗 Écran pour rejoindre une session avec un code (conducteurs non-inscrits)
 class JoinSessionScreen extends StatefulWidget {
@@ -138,7 +137,7 @@ class _JoinSessionScreenState extends State<JoinSessionScreen> {
           },
           onChanged: (value) {
             if (_sessionTrouvee != null) {
-              setState(() {
+              if (mounted) setState(() {
                 _sessionTrouvee = null;
               });
             }
@@ -316,7 +315,7 @@ class _JoinSessionScreenState extends State<JoinSessionScreen> {
   Future<void> _rechercherSession() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _sessionTrouvee = null;
     });
@@ -325,7 +324,7 @@ class _JoinSessionScreenState extends State<JoinSessionScreen> {
       final code = _codeController.text.trim().toUpperCase();
       final session = await AccidentSessionCompleteService.obtenirSessionParCode(code);
       
-      setState(() {
+      if (mounted) setState(() {
         _sessionTrouvee = session;
       });
 
@@ -337,7 +336,7 @@ class _JoinSessionScreenState extends State<JoinSessionScreen> {
         ),
       );
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -357,8 +356,8 @@ class _JoinSessionScreenState extends State<JoinSessionScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => GuestVehicleFormScreen(
-            session: _sessionTrouvee!,
+          builder: (context) => const ModernSingleAccidentInfoScreen(
+            typeAccident: 'Collision entre deux véhicules',
           ),
         ),
       );
@@ -373,11 +372,8 @@ class _JoinSessionScreenState extends State<JoinSessionScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => MultiVehicleConstatScreen(
-            sessionId: _sessionTrouvee!.id,
-            monRole: roleDisponible,
-            monVehicule: null, // Sera défini plus tard
-            nombreVehicules: _sessionTrouvee!.conducteurs.length,
+          builder: (context) => const ModernSingleAccidentInfoScreen(
+            typeAccident: 'Collision entre deux véhicules',
           ),
         ),
       );
@@ -421,3 +417,4 @@ class _JoinSessionScreenState extends State<JoinSessionScreen> {
     return '${date.day}/${date.month}/${date.year} à ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
+

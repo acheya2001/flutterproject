@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -25,8 +25,7 @@ class AccidentFormStep2Vehicules extends StatefulWidget {
   State<AccidentFormStep2Vehicules> createState() => _AccidentFormStep2VehiculesState();
 }
 
-class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>
-    with TickerProviderStateMixin {
+class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>with TickerProviderStateMixin  {
   late TabController _tabController;
   bool _isLoading = false;
   String? _monRoleVehicule;
@@ -41,8 +40,12 @@ class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _initialiserVehicules();
     _chargerMesVehicules();
+    });
   }
 
   @override
@@ -96,7 +99,7 @@ class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final vehicules = await VehiculeService.obtenirVehiculesUtilisateur(user.uid);
-        setState(() {
+        if (mounted) setState(() {
           _mesVehicules = vehicules.where((v) => v.contratActif).toList();
           _isLoadingVehicules = false;
         });
@@ -104,7 +107,7 @@ class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>
       }
     } catch (e) {
       print('❌ Erreur chargement véhicules: $e');
-      setState(() {
+      if (mounted) setState(() {
         _isLoadingVehicules = false;
       });
     }
@@ -568,7 +571,7 @@ class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>
 
   /// 📝 Remplir les données du véhicule sélectionné
   void _remplirDonneesVehicule(VehiculeFormData vehiculeData, VehiculeModel vehicule) {
-    setState(() {
+    if (mounted) setState(() {
       vehiculeData.marqueController.text = vehicule.marque;
       vehiculeData.modeleController.text = vehicule.modele;
       vehiculeData.immatriculationController.text = vehicule.numeroImmatriculation;
@@ -758,7 +761,7 @@ class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>
                   label: Text(point),
                   selected: isSelected,
                   onSelected: peutModifier ? (selected) {
-                    setState(() {
+                    if (mounted) setState(() {
                       vehiculeData.pointChocInitial = selected ? point : '';
                     });
                   } : null,
@@ -955,7 +958,7 @@ class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>
   }
 
   Future<void> _sauvegarder() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -989,7 +992,7 @@ class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>
         );
       }
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -1366,7 +1369,7 @@ class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>
       if (mounted) Navigator.pop(context);
 
       if (photoUrl != null) {
-        setState(() {
+        if (mounted) setState(() {
           vehiculeData.photosDegats.add(photoUrl!);
         });
 
@@ -1626,7 +1629,7 @@ class _AccidentFormStep2VehiculesState extends State<AccidentFormStep2Vehicules>
                 }
 
                 // Supprimer de la liste locale
-                setState(() {
+                if (mounted) setState(() {
                   vehiculeData.photosDegats.removeAt(index);
                 });
 
@@ -1723,3 +1726,4 @@ class VehiculeFormData {
     degatsController.dispose();
   }
 }
+

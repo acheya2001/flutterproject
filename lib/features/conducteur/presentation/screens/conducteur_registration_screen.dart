@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/screens/login_screen.dart';
 import '../../../../services/conducteur_workaround_service.dart';
@@ -369,7 +369,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
                                 _obscurePassword ? Icons.visibility : Icons.visibility_off,
                               ),
                               onPressed: () {
-                                setState(() {
+                                if (mounted) setState(() {
                                   _obscurePassword = !_obscurePassword;
                                 });
                               },
@@ -403,7 +403,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
                                 _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
                               ),
                               onPressed: () {
-                                setState(() {
+                                if (mounted) setState(() {
                                   _obscureConfirmPassword = !_obscureConfirmPassword;
                                 });
                               },
@@ -431,7 +431,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
                             Checkbox(
                               value: _acceptTerms,
                               onChanged: (value) {
-                                setState(() {
+                                if (mounted) setState(() {
                                   _acceptTerms = value ?? false;
                                 });
                               },
@@ -504,3 +504,4 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
     );
   }
 }
+

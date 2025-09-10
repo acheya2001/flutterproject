@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 /// 🎨 Interface moderne de sélection du nombre de véhicules
 class ModernVehicleCountScreen extends StatefulWidget {
@@ -13,8 +13,7 @@ class ModernVehicleCountScreen extends StatefulWidget {
   State<ModernVehicleCountScreen> createState() => _ModernVehicleCountScreenState();
 }
 
-class _ModernVehicleCountScreenState extends State<ModernVehicleCountScreen>
-    with TickerProviderStateMixin {
+class _ModernVehicleCountScreenState extends State<ModernVehicleCountScreen>with TickerProviderStateMixin  {
   int _nombreVehicules = 3;
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
@@ -223,7 +222,7 @@ class _ModernVehicleCountScreenState extends State<ModernVehicleCountScreen>
               max: 8,
               divisions: 5,
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _nombreVehicules = value.round();
                 });
                 _animationController.forward().then((_) {
@@ -421,3 +420,4 @@ class _ModernVehicleCountScreenState extends State<ModernVehicleCountScreen>
     );
   }
 }
+

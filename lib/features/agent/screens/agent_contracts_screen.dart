@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/contract_completion_service.dart';
@@ -298,7 +298,7 @@ class _AgentContractsScreenState extends State<AgentContractsScreen> {
       builder: (context) => DocumentDeliveryOptionsWidget(
         contractData: contractData,
         onDeliveryComplete: () {
-          setState(() {});
+          if (mounted) setState(() {});
         },
       ),
     );
@@ -485,3 +485,4 @@ class _AgentContractsScreenState extends State<AgentContractsScreen> {
     return '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year}';
   }
 }
+

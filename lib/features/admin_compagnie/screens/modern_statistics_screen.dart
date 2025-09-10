@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shimmer/shimmer.dart';
@@ -18,8 +18,7 @@ class ModernStatisticsScreen extends StatefulWidget {
   State<ModernStatisticsScreen> createState() => _ModernStatisticsScreenState();
 }
 
-class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>
-    with TickerProviderStateMixin {
+class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with TickerProviderStateMixin  {
   Map<String, dynamic>? _statistics;
   bool _isLoading = true;
   late AnimationController _animationController;
@@ -32,6 +31,9 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
@@ -40,6 +42,7 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
     _loadStatistics();
+    });
   }
 
   @override
@@ -56,7 +59,7 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>
       final compagnieId = widget.compagnieData['id'] ?? '';
       final stats = await AdminCompagnieStatsService.getMyCompagnieStatistics(compagnieId);
 
-      setState(() {
+      if (mounted) setState(() {
         _statistics = stats;
         _isLoading = false;
       });
@@ -67,8 +70,6 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>
       setState(() => _isLoading = false);
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -1157,3 +1158,4 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>
     );
   }
 }
+

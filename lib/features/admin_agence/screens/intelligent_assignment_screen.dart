@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/intelligent_agent_assignment_service.dart';
 
@@ -26,7 +26,11 @@ class _IntelligentAssignmentScreenState extends State<IntelligentAssignmentScree
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadSuggestion();
+    });
   }
 
   Future<void> _loadSuggestion() async {
@@ -609,3 +613,4 @@ class _IntelligentAssignmentScreenState extends State<IntelligentAssignmentScree
     }
   }
 }
+

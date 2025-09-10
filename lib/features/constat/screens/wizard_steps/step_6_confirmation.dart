@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../declaration_wizard_screen.dart';
 
@@ -210,7 +210,7 @@ class _Step6ConfirmationState extends State<Step6Confirmation> {
           ),
           value: _confirmAccuracy,
           onChanged: (value) {
-            setState(() {
+            if (mounted) setState(() {
               _confirmAccuracy = value ?? false;
             });
           },
@@ -224,7 +224,7 @@ class _Step6ConfirmationState extends State<Step6Confirmation> {
           ),
           value: _acceptTerms,
           onChanged: (value) {
-            setState(() {
+            if (mounted) setState(() {
               _acceptTerms = value ?? false;
             });
           },
@@ -323,3 +323,4 @@ class _Step6ConfirmationState extends State<Step6Confirmation> {
     }
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/constat_officiel_model.dart';
 import '../services/constat_officiel_service.dart';
@@ -73,7 +73,7 @@ class _ConstatOfficielScreenState extends State<ConstatOfficielScreen> {
     } catch (e) {
       _showError('Erreur lors du chargement du constat: $e');
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -137,7 +137,7 @@ class _ConstatOfficielScreenState extends State<ConstatOfficielScreen> {
             child: PageView(
               controller: _pageController,
               onPageChanged: (index) {
-                setState(() {
+                if (mounted) setState(() {
                   _currentPage = index;
                 });
               },
@@ -409,7 +409,7 @@ class _ConstatOfficielScreenState extends State<ConstatOfficielScreen> {
   }
 
   void _updateConstat(ConstatOfficielModel updatedConstat) {
-    setState(() {
+    if (mounted) setState(() {
       _constat = updatedConstat;
     });
     _saveConstat();
@@ -429,7 +429,7 @@ class _ConstatOfficielScreenState extends State<ConstatOfficielScreen> {
   Future<void> _saveConstat() async {
     if (_constat == null || _isSaving) return;
 
-    setState(() {
+    if (mounted) setState(() {
       _isSaving = true;
     });
 
@@ -444,7 +444,7 @@ class _ConstatOfficielScreenState extends State<ConstatOfficielScreen> {
     } catch (e) {
       _showError('Erreur lors de la sauvegarde: $e');
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isSaving = false;
       });
     }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/compagnie_bi_service.dart';
 import '../../../services/export_service.dart';
 
@@ -26,7 +26,11 @@ class _CompagnieBIDashboardScreenState extends State<CompagnieBIDashboardScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadData();
+    });
   }
 
   /// 📊 Charger toutes les données
@@ -37,7 +41,7 @@ class _CompagnieBIDashboardScreenState extends State<CompagnieBIDashboardScreen>
         CompagnieBIService.getCompagnieAlerts(widget.compagnieId),
       ]);
 
-      setState(() {
+      if (mounted) setState(() {
         _statistics = results[0];
         _alerts = results[1];
         _isLoading = false;
@@ -1165,3 +1169,4 @@ class _CompagnieBIDashboardScreenState extends State<CompagnieBIDashboardScreen>
     }
   }
 }
+

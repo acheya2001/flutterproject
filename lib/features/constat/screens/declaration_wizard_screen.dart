@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/widgets/custom_app_bar.dart';
 import '../../../core/widgets/custom_button.dart';
@@ -36,7 +36,7 @@ class _DeclarationWizardScreenState extends State<DeclarationWizardScreen> {
   Future<void> _initializeLocation() async {
     try {
       final position = await Geolocator.getCurrentPosition();
-      setState(() {
+      if (mounted) setState(() {
         _wizardData.location = SinistreLocation(
           lat: position.latitude,
           lng: position.longitude,
@@ -170,7 +170,7 @@ class _DeclarationWizardScreenState extends State<DeclarationWizardScreen> {
 
   void _nextStep() {
     if (_currentStep < 5) {
-      setState(() {
+      if (mounted) setState(() {
         _currentStep++;
       });
       _pageController.nextPage(
@@ -182,7 +182,7 @@ class _DeclarationWizardScreenState extends State<DeclarationWizardScreen> {
 
   void _previousStep() {
     if (_currentStep > 0) {
-      setState(() {
+      if (mounted) setState(() {
         _currentStep--;
       });
       _pageController.previousPage(
@@ -193,7 +193,7 @@ class _DeclarationWizardScreenState extends State<DeclarationWizardScreen> {
   }
 
   Future<void> _submitDeclaration() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -245,7 +245,7 @@ class _DeclarationWizardScreenState extends State<DeclarationWizardScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _isLoading = false;
         });
       }
@@ -308,3 +308,4 @@ class WizardData {
   bool get isStep4Valid => true; // Pièces jointes optionnelles
   bool get isStep5Valid => signature != null;
 }
+

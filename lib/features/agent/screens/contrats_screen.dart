@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/agent_service.dart';
 import 'create_contrat_screen.dart';
 import 'contrat_details_screen.dart';
@@ -28,7 +28,11 @@ class _ContratsScreenState extends State<ContratsScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadContrats();
+    });
   }
 
   /// 📋 Charger les contrats
@@ -37,7 +41,7 @@ class _ContratsScreenState extends State<ContratsScreen> {
 
     try {
       final contrats = await AgentService.getAgentContrats(widget.agentData['id']);
-      setState(() {
+      if (mounted) setState(() {
         _contrats = contrats;
         _applyFilters();
       });
@@ -202,7 +206,7 @@ class _ContratsScreenState extends State<ContratsScreen> {
           // Barre de recherche
           TextField(
             onChanged: (value) {
-              setState(() {
+              if (mounted) setState(() {
                 _searchQuery = value;
                 _applyFilters();
               });
@@ -271,7 +275,7 @@ class _ContratsScreenState extends State<ContratsScreen> {
       label: Text(label),
       selected: isSelected,
       onSelected: (selected) {
-        setState(() {
+        if (mounted) setState(() {
           _statusFilter = value;
           _applyFilters();
         });
@@ -564,3 +568,4 @@ class _ContratsScreenState extends State<ContratsScreen> {
     }
   }
 }
+

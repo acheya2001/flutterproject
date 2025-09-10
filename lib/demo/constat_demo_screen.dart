@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../conducteur/screens/constat_officiel_screen.dart';
+import '../conducteur/screens/modern_single_accident_info_screen.dart';
 import '../models/vehicule_model.dart';
 
 /// 🎯 Écran de démonstration du nouveau constat officiel
@@ -253,8 +253,8 @@ class ConstatDemoScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ConstatOfficielScreen(
-          vehiculeSelectionne: vehiculeDemo,
+        builder: (context) => ModernSingleAccidentInfoScreen(
+          typeAccident: 'Sortie de route',
         ),
       ),
     );

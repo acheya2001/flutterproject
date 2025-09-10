@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/dashboard_stats_widget.dart';
@@ -17,8 +17,7 @@ class AdminCompagnieDashboard extends StatefulWidget {
   State<AdminCompagnieDashboard> createState() => _AdminCompagnieDashboardState();
 }
 
-class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>
-    with SingleTickerProviderStateMixin {
+class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with SingleTickerProviderStateMixin  {
   
   late TabController _tabController;
   Map<String, dynamic>? _compagnieData;
@@ -30,8 +29,12 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _tabController = TabController(length: 6, vsync: this);
     _loadAdminCompagnieData();
+    });
   }
 
   @override
@@ -43,7 +46,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>
   /// 📊 Charger les données de l'Admin Compagnie
   Future<void> _loadAdminCompagnieData() async {
     try {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = true;
         _error = null;
       });
@@ -86,12 +89,12 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>
       // Charger les statistiques
       await _loadStats();
 
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
 
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _error = e.toString();
         _isLoading = false;
       });
@@ -307,3 +310,4 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>
     );
   }
 }
+

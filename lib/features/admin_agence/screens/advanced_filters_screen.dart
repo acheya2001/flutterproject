@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 /// 🔧 Écran de filtres avancés pour les contrats
 class AdvancedFiltersScreen extends StatefulWidget {
@@ -413,7 +413,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
 
   /// 🔄 Réinitialiser les filtres
   void _resetFilters() {
-    setState(() {
+    if (mounted) setState(() {
       _selectedStatus = null;
       _selectedType = null;
       _selectedAgent = null;
@@ -437,7 +437,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
   /// 📅 Définir ce mois
   void _setThisMonth() {
     final now = DateTime.now();
-    setState(() {
+    if (mounted) setState(() {
       _startDate = DateTime(now.year, now.month, 1);
       _endDate = DateTime(now.year, now.month + 1, 0);
     });
@@ -446,7 +446,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
   /// 📅 Définir le mois dernier
   void _setLastMonth() {
     final now = DateTime.now();
-    setState(() {
+    if (mounted) setState(() {
       _startDate = DateTime(now.year, now.month - 1, 1);
       _endDate = DateTime(now.year, now.month, 0);
     });
@@ -455,7 +455,7 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
   /// 📅 Définir cette année
   void _setThisYear() {
     final now = DateTime.now();
-    setState(() {
+    if (mounted) setState(() {
       _startDate = DateTime(now.year, 1, 1);
       _endDate = DateTime(now.year, 12, 31);
     });
@@ -466,3 +466,4 @@ class _AdvancedFiltersScreenState extends State<AdvancedFiltersScreen> {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 }
+

@@ -10,8 +10,8 @@ import '../../../conducteur/screens/modern_join_session_screen.dart';
 import '../../../conducteur/screens/guest_registration_form_screen.dart';
 import '../../../services/modern_sinistre_service.dart';
 import '../../../conducteur/screens/accident_choice_screen.dart';
-import '../../../conducteur/screens/constat_complet_screen.dart';
-import '../../../conducteur/screens/accident_vehicle_selection_screen.dart';
+import '../../../conducteur/screens/modern_single_accident_info_screen.dart';
+import '../../../conducteur/screens/modern_accident_type_screen.dart';
 
 /// Écran de choix rapide pour déclarer un sinistre ou rejoindre une session
 class SinistreChoixRapideScreen extends StatefulWidget {
@@ -335,7 +335,7 @@ class _SinistreChoixRapideScreenState extends State<SinistreChoixRapideScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const AccidentVehicleSelectionScreen(),
+        builder: (context) => const ModernAccidentTypeScreen(),
       ),
     );
   }

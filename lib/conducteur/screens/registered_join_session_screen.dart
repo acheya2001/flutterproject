@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/accident_session_complete_service.dart';
 import '../../services/user_profile_service.dart';
 import '../../models/accident_session_complete.dart';
-import 'accident_form_step1_infos_generales.dart';
+import 'modern_single_accident_info_screen.dart';
 
 /// 🚗 Écran pour conducteur inscrit rejoignant une session
 class RegisteredJoinSessionScreen extends StatefulWidget {
@@ -28,12 +28,16 @@ class _RegisteredJoinSessionScreenState extends State<RegisteredJoinSessionScree
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadSessionAndProfile();
+    });
   }
 
   /// 📋 Charger la session et le profil utilisateur
   Future<void> _loadSessionAndProfile() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _error = null;
     });
@@ -60,12 +64,12 @@ class _RegisteredJoinSessionScreenState extends State<RegisteredJoinSessionScree
       final doc = querySnapshot.docs.first;
       _session = AccidentSessionComplete.fromMap(doc.data(), doc.id);
 
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
 
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _error = e.toString();
         _isLoading = false;
       });
@@ -85,7 +89,7 @@ class _RegisteredJoinSessionScreenState extends State<RegisteredJoinSessionScree
   Future<void> _rejoindreSession() async {
     if (_session == null || _userProfile == null) return;
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -103,15 +107,15 @@ class _RegisteredJoinSessionScreenState extends State<RegisteredJoinSessionScree
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => AccidentFormStep1InfosGenerales(
-              session: updatedSession,
+            builder: (context) => ModernSingleAccidentInfoScreen(
+              typeAccident: 'Collision entre deux véhicules',
             ),
           ),
         );
       }
 
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
 
@@ -411,3 +415,4 @@ class _RegisteredJoinSessionScreenState extends State<RegisteredJoinSessionScree
     );
   }
 }
+

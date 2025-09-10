@@ -11,8 +11,11 @@ class AccidentSessionComplete {
   final List<ConducteurSession> conducteurs;
   final InfosGeneralesAccident infosGenerales;
   final List<VehiculeAccident> vehicules;
+  final Map<String, PointChocInitial> pointsChoc; // vehiculeId -> point de choc
+  final Map<String, DegatsApparents> degatsApparents; // vehiculeId -> dégâts
   final CirconstancesAccident circonstances;
   final CroquisAccident croquis;
+  final ObservationsAccident observations;
   final List<String> photos;
   final Map<String, String> signatures;
   final DateTime dateCreation;
@@ -29,8 +32,11 @@ class AccidentSessionComplete {
     required this.conducteurs,
     required this.infosGenerales,
     required this.vehicules,
+    required this.pointsChoc,
+    required this.degatsApparents,
     required this.circonstances,
     required this.croquis,
+    required this.observations,
     required this.photos,
     required this.signatures,
     required this.dateCreation,
@@ -49,8 +55,11 @@ class AccidentSessionComplete {
       'conducteurs': conducteurs.map((c) => c.toMap()).toList(),
       'infosGenerales': infosGenerales.toMap(),
       'vehicules': vehicules.map((v) => v.toMap()).toList(),
+      'pointsChoc': pointsChoc.map((k, v) => MapEntry(k, v.toMap())),
+      'degatsApparents': degatsApparents.map((k, v) => MapEntry(k, v.toMap())),
       'circonstances': circonstances.toMap(),
       'croquis': croquis.toMap(),
+      'observations': observations.toMap(),
       'photos': photos,
       'signatures': signatures,
       'dateCreation': Timestamp.fromDate(dateCreation),
@@ -71,8 +80,11 @@ class AccidentSessionComplete {
         conducteurs: _safeGetConducteursList(map['conducteurs']),
         infosGenerales: InfosGeneralesAccident.fromMap(_safeGetMap(map, 'infosGenerales')),
         vehicules: _safeGetVehiculesList(map['vehicules']),
+        pointsChoc: _safeGetPointsChocMap(map['pointsChoc']),
+        degatsApparents: _safeGetDegatsApparentsMap(map['degatsApparents']),
         circonstances: CirconstancesAccident.fromMap(_safeGetMap(map, 'circonstances')),
         croquis: CroquisAccident.fromMap(_safeGetMap(map, 'croquis')),
+        observations: ObservationsAccident.fromMap(_safeGetMap(map, 'observations')),
         photos: _safeGetStringList(map['photos']),
         signatures: _safeGetStringMap(map['signatures']),
         dateCreation: _safeGetDateTime(map, 'dateCreation') ?? DateTime.now(),
@@ -160,6 +172,38 @@ class AccidentSessionComplete {
     if (value is Timestamp) return value.toDate();
     if (value is String) return DateTime.tryParse(value);
     return null;
+  }
+
+  static Map<String, PointChocInitial> _safeGetPointsChocMap(dynamic value) {
+    if (value == null) return {};
+    if (value is Map) {
+      final result = <String, PointChocInitial>{};
+      value.forEach((key, val) {
+        if (val is Map<String, dynamic>) {
+          result[key.toString()] = PointChocInitial.fromMap(val);
+        } else if (val is Map) {
+          result[key.toString()] = PointChocInitial.fromMap(Map<String, dynamic>.from(val));
+        }
+      });
+      return result;
+    }
+    return {};
+  }
+
+  static Map<String, DegatsApparents> _safeGetDegatsApparentsMap(dynamic value) {
+    if (value == null) return {};
+    if (value is Map) {
+      final result = <String, DegatsApparents>{};
+      value.forEach((key, val) {
+        if (val is Map<String, dynamic>) {
+          result[key.toString()] = DegatsApparents.fromMap(val);
+        } else if (val is Map) {
+          result[key.toString()] = DegatsApparents.fromMap(Map<String, dynamic>.from(val));
+        }
+      });
+      return result;
+    }
+    return {};
   }
 }
 
@@ -471,6 +515,85 @@ class CirconstancesAccident {
           (key, value) => MapEntry(key, List<String>.from(value)),
         ) ?? {},
       ),
+    );
+  }
+}
+
+/// 📍 Section 10: Point de choc initial
+class PointChocInitial {
+  final String position; // avant, arrière, côté droit, côté gauche, etc.
+  final String description;
+
+  PointChocInitial({
+    required this.position,
+    required this.description,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'position': position,
+      'description': description,
+    };
+  }
+
+  factory PointChocInitial.fromMap(Map<String, dynamic> map) {
+    return PointChocInitial(
+      position: map['position'] ?? '',
+      description: map['description'] ?? '',
+    );
+  }
+}
+
+/// 💥 Section 11: Dégâts apparents
+class DegatsApparents {
+  final List<String> degatsSelectionnes;
+  final String autresDegats;
+  final List<String> photosUrls;
+
+  DegatsApparents({
+    required this.degatsSelectionnes,
+    required this.autresDegats,
+    required this.photosUrls,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'degatsSelectionnes': degatsSelectionnes,
+      'autresDegats': autresDegats,
+      'photosUrls': photosUrls,
+    };
+  }
+
+  factory DegatsApparents.fromMap(Map<String, dynamic> map) {
+    return DegatsApparents(
+      degatsSelectionnes: List<String>.from(map['degatsSelectionnes'] ?? []),
+      autresDegats: map['autresDegats'] ?? '',
+      photosUrls: List<String>.from(map['photosUrls'] ?? []),
+    );
+  }
+}
+
+/// 📝 Section 14: Observations
+class ObservationsAccident {
+  final String observations;
+  final String remarques;
+
+  ObservationsAccident({
+    required this.observations,
+    required this.remarques,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'observations': observations,
+      'remarques': remarques,
+    };
+  }
+
+  factory ObservationsAccident.fromMap(Map<String, dynamic> map) {
+    return ObservationsAccident(
+      observations: map['observations'] ?? '',
+      remarques: map['remarques'] ?? '',
     );
   }
 }

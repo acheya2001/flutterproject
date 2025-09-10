@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 🌍 Écran de gestion globale des agences pour Super Admin
@@ -39,8 +39,12 @@ class _GlobalAgenceManagementScreenState extends State<GlobalAgenceManagementScr
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadData();
     _searchController.addListener(_filterAgences);
+    });
   }
 
   @override
@@ -1758,3 +1762,4 @@ class _GlobalAgenceManagementScreenState extends State<GlobalAgenceManagementScr
     );
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../common/widgets/custom_app_bar.dart';
@@ -20,14 +20,18 @@ class _ConstatsRecusScreenState extends State<ConstatsRecusScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _chargerAgenceId();
+    });
   }
 
   Future<void> _chargerAgenceId() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      setState(() {
+      if (mounted) setState(() {
         _agenceId = userDoc.data()?['agenceId'];
       });
     }
@@ -77,7 +81,7 @@ class _ConstatsRecusScreenState extends State<ConstatsRecusScreen> {
                 DropdownMenuItem(value: 'termine', child: Text('Terminés')),
               ],
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _filtreStatut = value!;
                 });
               },
@@ -99,7 +103,7 @@ class _ConstatsRecusScreenState extends State<ConstatsRecusScreen> {
                 DropdownMenuItem(value: 'normale', child: Text('Normale')),
               ],
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _filtrePriorite = value!;
                 });
               },
@@ -456,3 +460,4 @@ class _ConstatsRecusScreenState extends State<ConstatsRecusScreen> {
     );
   }
 }
+

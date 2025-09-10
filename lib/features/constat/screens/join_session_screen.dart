@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class JoinSessionScreen extends StatefulWidget {
   const JoinSessionScreen({super.key});
@@ -139,7 +139,7 @@ class _JoinSessionScreenState extends State<JoinSessionScreen> {
       return;
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -167,7 +167,7 @@ class _JoinSessionScreenState extends State<JoinSessionScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _isLoading = false;
         });
       }

@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:signature/signature.dart';
 import '../../../../core/widgets/custom_button.dart';
@@ -298,7 +298,7 @@ class _Step5SignatureState extends State<Step5Signature> {
   }
 
   void _clearSignature() {
-    setState(() {
+    if (mounted) setState(() {
       _signatureController.clear();
     });
   }
@@ -317,7 +317,7 @@ class _Step5SignatureState extends State<Step5Signature> {
     try {
       final Uint8List? signature = await _signatureController.toPngBytes();
       if (signature != null) {
-        setState(() {
+        if (mounted) setState(() {
           widget.wizardData.signature = signature.toString(); // TODO: Convertir en base64
           _hasSignature = true;
         });
@@ -344,7 +344,7 @@ class _Step5SignatureState extends State<Step5Signature> {
   }
 
   void _editSignature() {
-    setState(() {
+    if (mounted) setState(() {
       _hasSignature = false;
       widget.wizardData.signature = null;
       _signatureController.clear();
@@ -357,3 +357,4 @@ class _Step5SignatureState extends State<Step5Signature> {
     super.dispose();
   }
 }
+

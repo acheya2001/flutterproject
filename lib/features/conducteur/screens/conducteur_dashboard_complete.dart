@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,7 +18,15 @@ import '../../../conducteur/screens/guest_join_session_screen.dart';
 import '../../../conducteur/screens/registered_join_session_screen.dart';
 import '../../../conducteur/screens/sinistre_details_screen.dart';
 import '../../../conducteur/screens/accident_choice_screen.dart';
-import '../../../conducteur/screens/accident_vehicle_selection_screen.dart';
+import '../../../services/form_status_service.dart';
+import '../../../services/collaborative_session_service.dart';
+import '../../../models/collaborative_session_model.dart';
+import '../../../conducteur/screens/modern_single_accident_info_screen.dart';
+import '../../../conducteur/screens/modern_collaborative_sketch_screen.dart';
+import '../../../conducteur/screens/session_dashboard_screen.dart';
+import '../../../conducteur/screens/join_session_screen.dart';
+import '../../../conducteur/screens/accident_choice_screen.dart';
+// Ancien écran supprimé - utiliser modern_single_accident_info_screen.dart
 import '../../../conducteur/screens/modern_single_accident_info_screen.dart';
 import '../../../conducteur/screens/modern_accident_type_screen.dart';
 import '../../../conducteur/screens/join_session_registered_screen.dart';
@@ -32,7 +40,6 @@ import '../../sinistre/screens/sinistre_choix_rapide_screen.dart';
 import '../../../conducteur/screens/accident_declaration_screen.dart';
 import '../../../services/sinistre_tracking_service.dart';
 import '../../../widgets/modern_sinistre_card.dart';
-
 
 class ConducteurDashboardComplete extends StatefulWidget {
   const ConducteurDashboardComplete({Key? key}) : super(key: key);
@@ -52,23 +59,27 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
   @override
   void initState() {
     super.initState();
-    _debugAuth();
-    _loadUserData();
 
-    // Forcer le rechargement périodique pour éviter les données en cache
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        _loadUserData();
-      }
-    });
+    // Utiliser addPostFrameCallback pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _debugAuth();
+      _loadUserData();
 
-    // Rafraîchir les statistiques toutes les 30 secondes
-    Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted) {
-        _refreshStats();
-      } else {
-        timer.cancel();
-      }
+      // Forcer le rechargement périodique pour éviter les données en cache
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          _loadUserData();
+        }
+      });
+
+      // Rafraîchir les statistiques toutes les 30 secondes
+      Timer.periodic(const Duration(seconds: 30), (timer) {
+        if (mounted) {
+          _refreshStats();
+        } else {
+          timer.cancel();
+        }
+      });
     });
   }
 
@@ -172,11 +183,12 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
       if (userDoc.exists) {
         final data = userDoc.data()!;
-        setState(() {
+        if (mounted) { setState(() {
           final prenom = data['prenom'] ?? data['firstName'] ?? '';
           final nom = data['nom'] ?? data['lastName'] ?? '';
           _nomConducteur = '$prenom $nom'.trim();
         });
+        }
         print('✅ Nom trouvé dans conducteurs: $_nomConducteur');
         return;
       }
@@ -204,11 +216,12 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           final userData = json.decode(dataString) as Map<String, dynamic>;
           // Vérifier que l'email correspond
           if (userData['email'] == currentUser.email) {
-            setState(() {
+            if (mounted) { setState(() {
               final prenom = userData['prenom'] ?? userData['firstName'] ?? '';
               final nom = userData['nom'] ?? userData['lastName'] ?? '';
               _nomConducteur = '$prenom $nom'.trim();
             });
+            }
             print('✅ Nom trouvé dans SharedPreferences pour utilisateur actuel: $_nomConducteur');
             return;
           }
@@ -217,9 +230,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
       // Fallback : utiliser les infos Firebase Auth
       if (currentUser != null) {
-        setState(() {
+        if (mounted) { setState(() {
           _nomConducteur = currentUser.displayName ?? currentUser.email?.split('@').first ?? 'Conducteur';
         });
+        }
         print('✅ Nom depuis Firebase Auth: $_nomConducteur');
         return;
       }
@@ -301,8 +315,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
           // Trier par date de création
           _demandes.sort((a, b) {
-            final dateA = a['dateCreation']?.toDate() ?? DateTime.now();
-            final dateB = b['dateCreation']?.toDate() ?? DateTime.now();
+            final dateA = _convertirDateSafe(a['dateCreation']) ?? DateTime.now();
+            final dateB = _convertirDateSafe(b['dateCreation']) ?? DateTime.now();
             return dateB.compareTo(dateA);
           });
 
@@ -321,8 +335,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
       // Trier par date de création (plus récent en premier)
       _demandes.sort((a, b) {
-        final dateA = a['dateCreation']?.toDate() ?? DateTime.now();
-        final dateB = b['dateCreation']?.toDate() ?? DateTime.now();
+        final dateA = _convertirDateSafe(a['dateCreation']) ?? DateTime.now();
+        final dateB = _convertirDateSafe(b['dateCreation']) ?? DateTime.now();
         return dateB.compareTo(dateA);
       });
 
@@ -371,9 +385,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
       // FORCER la mise à jour de l'interface
       if (mounted) {
-        setState(() {
+        if (mounted) { setState(() {
           // Force rebuild avec nouvelles données
         });
+        }
       }
 
     } catch (e) {
@@ -787,9 +802,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
             },
           ),
 
-
-
-
           IconButton(
             icon: const Icon(Icons.login),
             onPressed: () {
@@ -966,8 +978,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
             ),
           ),
           const SizedBox(height: 16),
-
-
 
           _buildActionCard(
             'Nouvelle Demande d\'Assurance',
@@ -1185,7 +1195,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           ],
         ),
 
-
       ],
     );
   }
@@ -1204,7 +1213,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
         // Mettre à jour l'interface
         if (mounted) {
-          setState(() {});
+          if (mounted) { setState(() {});
+        }
         }
       }
     } catch (e) {
@@ -1448,7 +1458,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     final agence = demande['agenceNom'] ?? 'N/A';
     final agentNom = demande['agentNom'] ?? '';
     final motifRejet = demande['motifRejet'] ?? '';
-    final dateCreation = demande['dateCreation']?.toDate() ?? DateTime.now();
+    final dateCreation = _convertirDateSafe(demande['dateCreation']) ?? DateTime.now();
 
     // Configuration des couleurs et icônes selon le statut
     Color statutColor;
@@ -1517,16 +1527,23 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           Row(
             children: [
               Expanded(
+                flex: 3,
                 child: Text(
                   'Demande ${demande['numero'] ?? demande['id'].substring(0, 8)}',
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              _buildStatutBadge(statut),
+              const SizedBox(width: 8),
+              Flexible(
+                flex: 2,
+                child: _buildStatutBadge(statut),
+              ),
             ],
           ),
 
@@ -1571,21 +1588,31 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _voirDetailDemande(demande),
-                  icon: const Icon(Icons.visibility),
-                  label: const Text('Voir détail'),
+                  icon: const Icon(Icons.visibility, size: 16),
+                  label: const Text(
+                    'Voir détail',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  ),
                 ),
               ),
 
               if (statut == 'contrat_valide') ...[
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () => _telechargerContrat(demande),
-                    icon: const Icon(Icons.download),
-                    label: const Text('Télécharger'),
+                    icon: const Icon(Icons.download, size: 16),
+                    label: const Text(
+                      'Télécharger',
+                      style: TextStyle(fontSize: 12),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green[600],
                       foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                     ),
                   ),
                 ),
@@ -1596,8 +1623,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
       ),
     );
   }
-
-
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Padding(
@@ -1702,8 +1727,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     );
   }
 
-
-
   String _getStatutText(String statut) {
     switch (statut) {
       case 'en_attente':
@@ -1723,8 +1746,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         return '❓ Statut inconnu';
     }
   }
-
-
 
   void _telechargerContrat(Map<String, dynamic> demande) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1782,18 +1803,20 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                 ),
                 IconButton(
                   onPressed: () async {
-                    setState(() {
+                    if (mounted) { setState(() {
                       _isLoading = true;
                     });
+                    }
 
                     final user = FirebaseAuth.instance.currentUser;
                     if (user != null) {
                       await _loadVehicules(user.uid);
                     }
 
-                    setState(() {
+                    if (mounted) { setState(() {
                       _isLoading = false;
                     });
+                    }
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -1842,8 +1865,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     final annee = vehicule['annee']?.toString() ?? 'N/A';
     final couleur = vehicule['couleur'] ?? 'N/A';
     final typeCarburant = vehicule['typeCarburant'] ?? 'N/A';
-    final dateDebut = vehicule['dateDebut']?.toDate() ?? DateTime.now();
-    final dateFin = vehicule['dateFin']?.toDate() ?? DateTime.now().add(const Duration(days: 365));
+    final dateDebut = _convertirDateSafe(vehicule['dateDebut']) ?? DateTime.now();
+    final dateFin = _convertirDateSafe(vehicule['dateFin']) ?? DateTime.now().add(const Duration(days: 365));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -1923,11 +1946,17 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _voirContrat(vehicule),
-                  icon: const Icon(Icons.description),
-                  label: const Text('Voir contrat'),
+                  icon: const Icon(Icons.description, size: 16),
+                  label: const Text(
+                    'Voir contrat',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: (statut == 'contrat_actif' || statut == 'documents_completes')
@@ -1935,6 +1964,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                       : null,
                   icon: Icon(
                     Icons.report_problem,
+                    size: 16,
                     color: (statut == 'contrat_actif' || statut == 'documents_completes')
                         ? Colors.white
                         : Colors.grey[400],
@@ -1942,6 +1972,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                   label: Text(
                     'Déclarer sinistre',
                     style: TextStyle(
+                      fontSize: 12,
                       color: (statut == 'contrat_actif' || statut == 'documents_completes')
                           ? Colors.white
                           : Colors.grey[400],
@@ -1954,6 +1985,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                     foregroundColor: Colors.white,
                     disabledBackgroundColor: Colors.grey[300],
                     disabledForegroundColor: Colors.grey[400],
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                   ),
                 ),
               ),
@@ -2085,10 +2117,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     final statut = vehicule['statut'] ?? 'N/A';
     final numeroDemande = vehicule['numeroDemande'] ?? 'N/A';
 
-    // Dates
-    final dateDebut = vehicule['dateDebut']?.toDate();
-    final dateFin = vehicule['dateFin']?.toDate();
-    final dateCreation = vehicule['dateCreation']?.toDate();
+    // Dates - Conversion sécurisée
+    final dateDebut = _convertirDateSafe(vehicule['dateDebut']);
+    final dateFin = _convertirDateSafe(vehicule['dateFin']);
+    final dateCreation = _convertirDateSafe(vehicule['dateCreation']);
 
     // Compagnie et agence
     final compagnieNom = vehicule['compagnieNom'] ?? 'N/A';
@@ -2578,23 +2610,27 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: textColor, size: 16),
-          const SizedBox(width: 6),
-          Text(
-            texte,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          Icon(icon, color: textColor, size: 14),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              texte,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -2612,6 +2648,16 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           children: [
             // En-tête avec statistiques
             _buildSinistresHeader(),
+
+            const SizedBox(height: 24),
+
+            // Mes Formulaires en cours (Brouillons)
+            _buildMesFormulairesSection(),
+
+            const SizedBox(height: 24),
+
+            // 👥 Sessions Collaboratives
+            _buildSessionsCollaborativesSection(),
 
             const SizedBox(height: 24),
 
@@ -2811,7 +2857,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
             ),
           ],
         ),
-
 
       ],
     );
@@ -3391,7 +3436,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     final statut = data['statut'] ?? '';
     final typeAccident = data['typeAccident'] ?? '';
     final nombreVehicules = data['nombreVehicules'] ?? 2;
-    final dateCreation = (data['dateCreation'] as Timestamp?)?.toDate() ?? DateTime.now();
+    final dateCreation = _convertirDateSafe(data['dateCreation']) ?? DateTime.now();
     final conducteurs = (data['conducteurs'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
     // Déterminer si l'utilisateur est le créateur
@@ -3892,6 +3937,171 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     }
   }
 
+  /// 📅 Convertir une date de manière sécurisée
+  DateTime? _convertirDateSafe(dynamic date) {
+    if (date == null) return null;
+
+    try {
+      if (date is DateTime) {
+        return date;
+      } else if (date is Timestamp) {
+        return date.toDate();
+      } else if (date is String) {
+        return DateTime.tryParse(date);
+      } else {
+        return null;
+      }
+    } catch (e) {
+      print('⚠️ Erreur conversion date: $e');
+      return null;
+    }
+  }
+
+  /// 👥 Section Sessions Collaboratives
+  Widget _buildSessionsCollaborativesSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // En-tête
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.purple[600]!, Colors.purple[700]!],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.group_work,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Sessions Collaboratives',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _chargerSessionsCollaboratives(),
+                  icon: const Icon(
+                    Icons.refresh,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  tooltip: 'Actualiser',
+                ),
+              ],
+            ),
+          ),
+
+          // Contenu
+          StreamBuilder<List<CollaborativeSession>>(
+            stream: _getSessionsCollaborativesStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.group_off,
+                        size: 48,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Aucune session collaborative',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Créez ou rejoignez une session pour collaborer',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[500],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () => _creerNouvelleSession(),
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Créer'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.purple[600],
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _rejoindreSession(),
+                            icon: const Icon(Icons.login, size: 16),
+                            label: const Text('Rejoindre'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Statistiques
+                    _buildStatistiquesCollaboratives(snapshot.data!),
+                    const SizedBox(height: 16),
+
+                    // Liste des sessions
+                    ...snapshot.data!.map((session) => _buildCollaborativeSessionCard(session)),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 📅 Formater une date
   String _formatDate(dynamic date) {
     if (date == null) return 'N/A';
@@ -3918,6 +4128,77 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
   String _truncateText(String text, int maxLength) {
     if (text.length <= maxLength) return text;
     return '${text.substring(0, maxLength)}...';
+  }
+
+  /// 🔄 Stream des sessions collaboratives
+  Stream<List<CollaborativeSession>> _getSessionsCollaborativesStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value([]);
+
+    return FirebaseFirestore.instance
+        .collection('collaborative_sessions')
+        .where('conducteurCreateur', isEqualTo: user.uid)
+        .orderBy('dateCreation', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => CollaborativeSession.fromMap(doc.data(), doc.id))
+            .toList());
+  }
+
+  /// 🔄 Charger les sessions collaboratives
+  Future<void> _chargerSessionsCollaboratives() async {
+    // Cette méthode est appelée par le bouton refresh
+    // Le StreamBuilder se charge automatiquement du rechargement
+    if (mounted) { setState(() {});
+  }
+  }
+
+  /// 📊 Statistiques des sessions collaboratives
+  Widget _buildStatistiquesCollaboratives(List<CollaborativeSession> sessions) {
+    final int total = sessions.length;
+    final int actives = sessions.where((s) => s.statut == SessionStatus.en_cours).length;
+    final int terminees = sessions.where((s) => s.statut == SessionStatus.finalise).length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.purple[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.purple[200]!),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatItem('Total', total.toString(), Colors.purple[600]!),
+          _buildStatItem('Actives', actives.toString(), Colors.orange[600]!),
+          _buildStatItem('Terminées', terminees.toString(), Colors.green[600]!),
+        ],
+      ),
+    );
+  }
+
+  /// 📊 Item de statistique
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
   }
 
   IconData _getSinistreStatutIcon(String statut) {
@@ -4110,8 +4391,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     );
   }
 
-
-
   void _ouvrirConsultationCroisee() {
     // TODO: Ouvrir la consultation croisée
     showDialog(
@@ -4151,8 +4430,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
       ),
     );
   }
-
-
 
   /// 🎨 Naviguer vers le formulaire moderne avec croquis et signatures
   Future<void> _naviguerVersFormulaireModerne() async {
@@ -4439,8 +4716,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     );
   }
 
-
-
   Widget _buildDetailRowSinistre(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -4717,9 +4992,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
   void _voirVehicule(Map<String, dynamic> demande) {
     // Naviguer vers la section véhicules ou afficher les détails
-    setState(() {
+    if (mounted) { setState(() {
       _selectedIndex = 1; // Index de la page véhicules
     });
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -4741,7 +5017,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
       ),
     );
   }
-
 
   /// 📄 Section Contrats sur la page d'accueil
   Widget _buildHomeContractsSection() {
@@ -4773,9 +5048,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               onPressed: () async {
                 print('🔄 BOUTON REFRESH CLIQUÉ - RECHARGEMENT RADICAL');
 
-                setState(() {
+                if (mounted) { setState(() {
                   _isLoading = true;
                 });
+                }
 
                 try {
                   final user = FirebaseAuth.instance.currentUser;
@@ -4788,9 +5064,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                     print('🔄 Rechargement terminé, ${_vehicules.length} véhicules');
 
                     // FORCER la mise à jour de l'interface
-                    setState(() {
+                    if (mounted) { setState(() {
                       _isLoading = false;
                     });
+                    }
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -4801,15 +5078,17 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                     );
                   } else {
                     print('❌ Aucun utilisateur connecté');
-                    setState(() {
+                    if (mounted) { setState(() {
                       _isLoading = false;
                     });
+                    }
                   }
                 } catch (e) {
                   print('❌ Erreur lors du refresh: $e');
-                  setState(() {
+                  if (mounted) { setState(() {
                     _isLoading = false;
                   });
+                  }
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -4850,16 +5129,18 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               onPressed: () async {
                 print('🔄 BOUTON VRAIES DONNÉES CLIQUÉ');
 
-                setState(() {
+                if (mounted) { setState(() {
                   _isLoading = true;
                 });
+                }
 
                 try {
                   _vehicules = await ConducteurDataService.recupererVraiesDonneesContrat();
 
-                  setState(() {
+                  if (mounted) { setState(() {
                     _isLoading = false;
                   });
+                  }
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -4870,9 +5151,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                   );
                 } catch (e) {
                   print('❌ Erreur vraies données: $e');
-                  setState(() {
+                  if (mounted) { setState(() {
                     _isLoading = false;
                   });
+                  }
                 }
               },
               icon: const Icon(Icons.verified, size: 20),
@@ -4884,16 +5166,18 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               onPressed: () async {
                 print('🎯 BOUTON DEMANDES APPROUVÉES CLIQUÉ');
 
-                setState(() {
+                if (mounted) { setState(() {
                   _isLoading = true;
                 });
+                }
 
                 try {
                   _vehicules = await ConducteurDataService.recupererDonneesContratDansDemandesApprouvees();
 
-                  setState(() {
+                  if (mounted) { setState(() {
                     _isLoading = false;
                   });
+                  }
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -4904,9 +5188,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                   );
                 } catch (e) {
                   print('❌ Erreur demandes approuvées: $e');
-                  setState(() {
+                  if (mounted) { setState(() {
                     _isLoading = false;
                   });
+                  }
                 }
               },
               icon: const Icon(Icons.approval, size: 20),
@@ -4918,16 +5203,18 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               onPressed: () async {
                 print('🎯 BOUTON VRAIES DONNÉES OBSERVÉES CLIQUÉ');
 
-                setState(() {
+                if (mounted) { setState(() {
                   _isLoading = true;
                 });
+                }
 
                 try {
                   _vehicules = await ConducteurDataService.recupererAvecVraisNumeros();
 
-                  setState(() {
+                  if (mounted) { setState(() {
                     _isLoading = false;
                   });
+                  }
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -4938,9 +5225,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                   );
                 } catch (e) {
                   print('❌ Erreur vraies données: $e');
-                  setState(() {
+                  if (mounted) { setState(() {
                     _isLoading = false;
                   });
+                  }
                 }
               },
               icon: const Icon(Icons.verified_user, size: 20),
@@ -5442,7 +5730,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     return donneesValides && statutValide && (!estContratTest || kDebugMode);
   }
 
-  /// 📋 Widget pour afficher une ligne de détail compacte
+  /// 📋 Widget pour afficher une ligne de détail compacte (sans overflow)
   Widget _buildDetailRowCompact(String label, String value, IconData icon) {
     return Row(
       children: [
@@ -5451,21 +5739,27 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           size: 14,
           color: Colors.grey[600],
         ),
-        const SizedBox(width: 8),
-        Text(
-          '$label:',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[600],
+        const SizedBox(width: 6),
+        Flexible(
+          flex: 2,
+          child: Text(
+            '$label:',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        const SizedBox(width: 6),
-        Expanded(
+        const SizedBox(width: 4),
+        Flexible(
+          flex: 3,
           child: Text(
             value,
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w600,
               color: Color(0xFF1F2937),
             ),
@@ -5847,4 +6141,668 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
       ),
     );
   }
+
+  /// 📋 Section "Mes Formulaires" avec brouillons
+  Widget _buildMesFormulairesSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.assignment_outlined,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Mes Formulaires en Cours',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => setState(() {}), // Refresh
+                  icon: const Icon(
+                    Icons.refresh,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  tooltip: 'Actualiser',
+                ),
+              ],
+            ),
+          ),
+
+          // Contenu
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: _recupererTousLesBrouillons(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.all(40),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Erreur de chargement',
+                          style: TextStyle(
+                            color: Colors.red[600],
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              final brouillons = snapshot.data ?? [];
+
+              if (brouillons.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(40),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.assignment_outlined,
+                        size: 64,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Aucun formulaire en cours',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Commencez à remplir un formulaire pour le voir apparaître ici',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: brouillons.map((brouillon) => _buildBrouillonCard(brouillon)).toList(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📄 Carte d'un brouillon
+  Widget _buildBrouillonCard(Map<String, dynamic> brouillon) {
+    final sessionId = brouillon['sessionId'] as String;
+    final etape = brouillon['etape'] as String;
+    final dateModification = (brouillon['dateModification'] as Timestamp?)?.toDate();
+    final donnees = brouillon['donnees'] as Map<String, dynamic>? ?? {};
+
+    // Calculer le pourcentage de completion
+    final pourcentage = _calculerPourcentageCompletion(donnees);
+
+    // Obtenir le nom d'affichage de l'étape
+    final nomEtape = FormStatusService.getNomEtape(etape);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () => _ouvrirBrouillon(sessionId, etape),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Icône de statut
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.edit_outlined,
+                  color: Colors.orange,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Informations
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nomEtape,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'En cours',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${pourcentage.toStringAsFixed(0)}%',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (dateModification != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Modifié le ${_formatDate(dateModification)} à ${dateModification.hour}:${dateModification.minute.toString().padLeft(2, '0')}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              // Flèche
+              Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.grey[400],
+                size: 16,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 📊 Récupérer tous les brouillons du conducteur
+  Future<List<Map<String, dynamic>>> _recupererTousLesBrouillons() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return [];
+
+      final query = await FirebaseFirestore.instance
+          .collection('brouillons_session')
+          .where('conducteurId', isEqualTo: user.uid)
+          .orderBy('dateModification', descending: true)
+          .get();
+
+      return query.docs.map((doc) => {
+        'id': doc.id,
+        ...doc.data(),
+      }).toList();
+    } catch (e) {
+      print('❌ Erreur récupération brouillons: $e');
+      return [];
+    }
+  }
+
+  /// 📈 Calculer le pourcentage de completion
+  double _calculerPourcentageCompletion(Map<String, dynamic> donnees) {
+    if (donnees.isEmpty) return 0.0;
+
+    int champsRemplis = 0;
+    int totalChamps = 0;
+
+    donnees.forEach((key, value) {
+      totalChamps++;
+      if (value != null && value.toString().isNotEmpty) {
+        if (value is List && value.isNotEmpty) {
+          champsRemplis++;
+        } else if (value is! List) {
+          champsRemplis++;
+        }
+      }
+    });
+
+    return totalChamps > 0 ? (champsRemplis / totalChamps) * 100 : 0.0;
+  }
+
+  /// 📂 Ouvrir un brouillon
+  Future<void> _ouvrirBrouillon(String sessionId, String etape) async {
+    try {
+      // Récupérer la session collaborative
+      final sessionDoc = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .get();
+
+      if (!sessionDoc.exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Session introuvable'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final sessionData = sessionDoc.data()!;
+      final session = CollaborativeSession.fromMap(sessionData, sessionId);
+
+      // Naviguer vers le formulaire approprié selon l'étape
+      if (mounted) {
+        switch (etape) {
+          case 'formulaire_general':
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ModernSingleAccidentInfoScreen(
+                  typeAccident: session.typeAccident ?? 'Accident collaboratif',
+                  session: session,
+                  isCollaborative: true,
+                ),
+              ),
+            );
+            break;
+          case 'circonstances':
+            // TODO: Naviguer vers l'écran des circonstances
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Écran des circonstances - À implémenter'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            break;
+          case 'croquis':
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ModernCollaborativeSketchScreen(
+                  session: session,
+                ),
+              ),
+            );
+            break;
+          case 'signatures':
+            // TODO: Naviguer vers l'écran des signatures
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Écran des signatures - À implémenter'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            break;
+          default:
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Étape inconnue: $etape'),
+                backgroundColor: Colors.red,
+              ),
+            );
+        }
+      }
+    } catch (e) {
+      print('❌ Erreur ouverture brouillon: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 🎴 Carte de session collaborative
+  Widget _buildCollaborativeSessionCard(CollaborativeSession session) {
+    final Color statusColor = _getSessionStatusColor(session.statut);
+    final String statusText = _getSessionStatusText(session.statut);
+    final int participantsCount = session.participants.length;
+    final int maxParticipants = session.nombreVehicules;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () => _ouvrirSessionCollaborative(session),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // En-tête avec code et statut
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.purple[100],
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      session.codeSession,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple[800],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Type d'accident
+              Text(
+                session.typeAccident,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Informations
+              Row(
+                children: [
+                  Icon(Icons.group, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$participantsCount/$maxParticipants participants',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formatDate(session.dateCreation),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Barre de progression
+              _buildProgressionSession(session),
+
+              const SizedBox(height: 12),
+
+              // Actions
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _voirParticipants(session),
+                      icon: const Icon(Icons.people, size: 16),
+                      label: const Text('Participants'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.purple[600],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _ouvrirSessionCollaborative(session),
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text('Ouvrir'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purple[600],
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 📊 Barre de progression de la session
+  Widget _buildProgressionSession(CollaborativeSession session) {
+    final double progression = session.progression.participantsRejoints / session.nombreVehicules;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Progression',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              '${(progression * 100).toInt()}%',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        LinearProgressIndicator(
+          value: progression,
+          backgroundColor: Colors.grey[200],
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.purple[600]!),
+        ),
+      ],
+    );
+  }
+
+  /// 🎨 Couleur selon le statut de session
+  Color _getSessionStatusColor(SessionStatus statut) {
+    switch (statut) {
+      case SessionStatus.creation:
+        return Colors.blue[600]!;
+      case SessionStatus.attente_participants:
+        return Colors.orange[600]!;
+      case SessionStatus.en_cours:
+        return Colors.green[600]!;
+      case SessionStatus.pret_signature:
+        return Colors.purple[600]!;
+      case SessionStatus.signe:
+        return Colors.indigo[600]!;
+      case SessionStatus.finalise:
+        return Colors.grey[600]!;
+      default:
+        return Colors.grey[600]!;
+    }
+  }
+
+  /// 📝 Texte selon le statut de session
+  String _getSessionStatusText(SessionStatus statut) {
+    switch (statut) {
+      case SessionStatus.creation:
+        return 'Création';
+      case SessionStatus.attente_participants:
+        return 'En attente';
+      case SessionStatus.en_cours:
+        return 'En cours';
+      case SessionStatus.pret_signature:
+        return 'Prêt signature';
+      case SessionStatus.signe:
+        return 'Signée';
+      case SessionStatus.finalise:
+        return 'Finalisée';
+      default:
+        return 'Inconnu';
+    }
+  }
+
+  /// 🆕 Créer une nouvelle session
+  void _creerNouvelleSession() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AccidentChoiceScreen(),
+      ),
+    );
+  }
+
+  /// 🔗 Rejoindre une session
+  void _rejoindreSession() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const JoinSessionScreen(),
+      ),
+    );
+  }
+
+  /// 👥 Voir les participants
+  void _voirParticipants(CollaborativeSession session) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SessionDashboardScreen(session: session),
+      ),
+    );
+  }
+
+  /// 📱 Ouvrir la session collaborative
+  void _ouvrirSessionCollaborative(CollaborativeSession session) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SessionDashboardScreen(session: session),
+      ),
+    );
+  }
 }
+

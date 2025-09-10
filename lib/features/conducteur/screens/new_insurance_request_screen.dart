@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,8 +13,7 @@ class NewInsuranceRequestScreen extends StatefulWidget {
   State<NewInsuranceRequestScreen> createState() => _NewInsuranceRequestScreenState();
 }
 
-class _NewInsuranceRequestScreenState extends State<NewInsuranceRequestScreen>
-    with TickerProviderStateMixin {
+class _NewInsuranceRequestScreenState extends State<NewInsuranceRequestScreen>with TickerProviderStateMixin  {
   late TabController _tabController;
   final _formKey = GlobalKey<FormState>();
   final _picker = ImagePicker();
@@ -82,8 +81,12 @@ class _NewInsuranceRequestScreenState extends State<NewInsuranceRequestScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _tabController = TabController(length: 3, vsync: this);
     _loadCompagnies();
+    });
   }
 
   @override
@@ -637,7 +640,7 @@ class _NewInsuranceRequestScreenState extends State<NewInsuranceRequestScreen>
               child: Text(compagnie['nom'] ?? 'Compagnie'),
             )).toList(),
             onChanged: (value) {
-              setState(() {
+              if (mounted) setState(() {
                 _selectedCompagnie = value;
                 _selectedAgence = null;
                 _agences.clear();
@@ -888,7 +891,7 @@ class _NewInsuranceRequestScreenState extends State<NewInsuranceRequestScreen>
   }
 
   void _showError(String message) {
-    setState(() {
+    if (mounted) setState(() {
       _errorMessage = message;
     });
 
@@ -902,7 +905,7 @@ class _NewInsuranceRequestScreenState extends State<NewInsuranceRequestScreen>
     // Effacer le message d'erreur après 3 secondes
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _errorMessage = '';
         });
       }
@@ -938,7 +941,7 @@ class _NewInsuranceRequestScreenState extends State<NewInsuranceRequestScreen>
   Future<void> _submitRequest() async {
     if (!_validateCurrentTab()) return;
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _errorMessage = '';
     });
@@ -1022,10 +1025,11 @@ class _NewInsuranceRequestScreenState extends State<NewInsuranceRequestScreen>
       }
     } finally {
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _isLoading = false;
         });
       }
     }
   }
 }
+

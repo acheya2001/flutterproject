@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/admin_agence_service.dart';
 import 'create_agent_screen.dart';
@@ -32,7 +32,11 @@ class _AgentsManagementScreenState extends State<AgentsManagementScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgents();
+    });
   }
 
   /// 👥 Charger les agents
@@ -41,7 +45,7 @@ class _AgentsManagementScreenState extends State<AgentsManagementScreen> {
 
     try {
       final agents = await AdminAgenceService.getAgentsOfAgence(widget.agenceData['id']);
-      setState(() {
+      if (mounted) setState(() {
         _agents = agents;
         _applyFilters();
       });
@@ -226,7 +230,7 @@ class _AgentsManagementScreenState extends State<AgentsManagementScreen> {
           // Barre de recherche
           TextField(
             onChanged: (value) {
-              setState(() {
+              if (mounted) setState(() {
                 _searchQuery = value;
                 _applyFilters();
               });
@@ -293,7 +297,7 @@ class _AgentsManagementScreenState extends State<AgentsManagementScreen> {
       label: Text(label),
       selected: isSelected,
       onSelected: (selected) {
-        setState(() {
+        if (mounted) setState(() {
           _statusFilter = value;
           _applyFilters();
         });
@@ -487,8 +491,6 @@ class _AgentsManagementScreenState extends State<AgentsManagementScreen> {
       ),
     );
   }
-
-
 
   /// 📭 État vide simplifié (sans bouton)
   Widget _buildEmptyStateSimple() {
@@ -908,3 +910,4 @@ class _AgentsManagementScreenState extends State<AgentsManagementScreen> {
     }
   }
 }
+

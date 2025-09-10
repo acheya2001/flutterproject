@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/auto_fill_service.dart';
 import '../services/cloudinary_service.dart';
 import '../widgets/elegant_form_widgets.dart';
@@ -36,7 +36,11 @@ class _OptimizedAccidentFormExampleState extends State<OptimizedAccidentFormExam
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadPreFilledData();
+    });
   }
 
   /// 🔄 Charger les données pré-remplies
@@ -411,7 +415,7 @@ class _OptimizedAccidentFormExampleState extends State<OptimizedAccidentFormExam
         );
 
         if (photoUrl != null) {
-          setState(() {
+          if (mounted) setState(() {
             _photos.add(photoUrl);
             _isLoading = false;
           });
@@ -426,7 +430,7 @@ class _OptimizedAccidentFormExampleState extends State<OptimizedAccidentFormExam
 
   /// 🗑️ Supprimer une photo
   void _supprimerPhoto(int index) {
-    setState(() {
+    if (mounted) setState(() {
       _photos.removeAt(index);
     });
     _showSuccessMessage('Photo supprimée');
@@ -486,3 +490,4 @@ class _OptimizedAccidentFormExampleState extends State<OptimizedAccidentFormExam
     super.dispose();
   }
 }
+

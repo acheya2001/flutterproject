@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
@@ -29,9 +29,13 @@ class _CroquisInteractifWidgetState extends State<CroquisInteractifWidget> {
   @override
   void initState() {
     super.initState();
-    if (widget.croquisInitial != null) {
-      _chargerCroquisInitial();
-    }
+
+    // Utiliser WidgetsBinding pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.croquisInitial != null) {
+        _chargerCroquisInitial();
+      }
+    });
   }
 
   void _chargerCroquisInitial() {
@@ -106,10 +110,12 @@ class _CroquisInteractifWidgetState extends State<CroquisInteractifWidget> {
                 Colors.purple,
               ].map((couleur) => GestureDetector(
                 onTap: () {
-                  setState(() {
-                    _couleurActuelle = couleur;
-                    _modeGomme = false;
-                  });
+                  if (mounted) {
+                    setState(() {
+                      _couleurActuelle = couleur;
+                      _modeGomme = false;
+                    });
+                  }
                 },
                 child: Container(
                   margin: const EdgeInsets.only(right: 8),
@@ -129,9 +135,11 @@ class _CroquisInteractifWidgetState extends State<CroquisInteractifWidget> {
               // Gomme
               GestureDetector(
                 onTap: () {
-                  setState(() {
-                    _modeGomme = !_modeGomme;
-                  });
+                  if (mounted) {
+                    setState(() {
+                      _modeGomme = !_modeGomme;
+                    });
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.all(8),
@@ -165,9 +173,11 @@ class _CroquisInteractifWidgetState extends State<CroquisInteractifWidget> {
                   divisions: 9,
                   label: _epaisseurActuelle.round().toString(),
                   onChanged: (value) {
-                    setState(() {
-                      _epaisseurActuelle = value;
-                    });
+                    if (mounted) {
+                      setState(() {
+                        _epaisseurActuelle = value;
+                      });
+                    }
                   },
                 ),
               ),
@@ -228,17 +238,21 @@ class _CroquisInteractifWidgetState extends State<CroquisInteractifWidget> {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    setState(() {
-      _paths.add(path);
-      _paints.add(paint);
-    });
+    if (mounted) {
+      setState(() {
+        _paths.add(path);
+        _paints.add(paint);
+      });
+    }
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
     if (_paths.isNotEmpty) {
-      setState(() {
-        _paths.last.lineTo(details.localPosition.dx, details.localPosition.dy);
-      });
+      if (mounted) {
+        setState(() {
+          _paths.last.lineTo(details.localPosition.dx, details.localPosition.dy);
+        });
+      }
     }
   }
 
@@ -247,18 +261,22 @@ class _CroquisInteractifWidgetState extends State<CroquisInteractifWidget> {
   }
 
   void _effacerTout() {
-    setState(() {
-      _paths.clear();
-      _paints.clear();
-    });
+    if (mounted) {
+      setState(() {
+        _paths.clear();
+        _paints.clear();
+      });
+    }
   }
 
   void _annulerDernierTrait() {
     if (_paths.isNotEmpty) {
-      setState(() {
-        _paths.removeLast();
-        _paints.removeLast();
-      });
+      if (mounted) {
+        setState(() {
+          _paths.removeLast();
+          _paints.removeLast();
+        });
+      }
     }
   }
 
@@ -450,17 +468,21 @@ class _SignatureElectroniqueWidgetState extends State<SignatureElectroniqueWidge
     final path = Path();
     path.moveTo(details.localPosition.dx, details.localPosition.dy);
     
-    setState(() {
-      _paths.add(path);
-      _aDessinee = true;
-    });
+    if (mounted) {
+      setState(() {
+        _paths.add(path);
+        _aDessinee = true;
+      });
+    }
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
     if (_paths.isNotEmpty) {
-      setState(() {
-        _paths.last.lineTo(details.localPosition.dx, details.localPosition.dy);
-      });
+      if (mounted) {
+        setState(() {
+          _paths.last.lineTo(details.localPosition.dx, details.localPosition.dy);
+        });
+      }
     }
   }
 
@@ -469,10 +491,12 @@ class _SignatureElectroniqueWidgetState extends State<SignatureElectroniqueWidge
   }
 
   void _effacerSignature() {
-    setState(() {
-      _paths.clear();
-      _aDessinee = false;
-    });
+    if (mounted) {
+      setState(() {
+        _paths.clear();
+        _aDessinee = false;
+      });
+    }
   }
 
   Future<void> _validerSignature() async {
@@ -528,3 +552,5 @@ class SignaturePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+
+

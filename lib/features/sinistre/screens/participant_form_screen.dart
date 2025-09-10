@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../common/widgets/custom_app_bar.dart';
@@ -6,6 +6,8 @@ import '../../../common/widgets/gradient_background.dart';
 import '../../../models/accident_session.dart';
 import '../../../models/participant.dart';
 import '../services/accident_session_service.dart';
+import '../../../conducteur/widgets/vehicule_point_choc_widget.dart';
+import '../../../conducteur/widgets/photo_manager_widget.dart';
 
 /// Écran de formulaire pour un participant (cases 6-12 du constat)
 class ParticipantFormScreen extends StatefulWidget {
@@ -62,6 +64,7 @@ class _ParticipantFormScreenState extends State<ParticipantFormScreen> {
   List<String> _piecesJointes = [];
   List<String> _degatsPhotos = [];
   Map<String, dynamic>? _chocInitial;
+  List<String> _pointsChocSelectionnes = [];
   bool _conducteurDifferentAssure = false;
 
   // Services
@@ -303,7 +306,7 @@ class _ParticipantFormScreenState extends State<ParticipantFormScreen> {
           _buildPageHeader(
             icon: Icons.person,
             title: 'Identité du Conducteur',
-            subtitle: 'Case 7 - Vos informations personnelles',
+            subtitle: 'Case 6 - Vos informations personnelles',
           ),
           const SizedBox(height: 32),
           _buildFormCard([
@@ -431,7 +434,7 @@ class _ParticipantFormScreenState extends State<ParticipantFormScreen> {
           _buildPageHeader(
             icon: Icons.security,
             title: 'Assurance',
-            subtitle: 'Case 6 - Informations d\'assurance',
+            subtitle: 'Case 7 - Informations d\'assurance',
           ),
           const SizedBox(height: 32),
           _buildFormCard([
@@ -541,7 +544,7 @@ class _ParticipantFormScreenState extends State<ParticipantFormScreen> {
           _buildPageHeader(
             icon: Icons.directions_car,
             title: 'Véhicule',
-            subtitle: 'Case 9 - Informations du véhicule',
+            subtitle: 'Case 8 - Informations du véhicule',
           ),
           const SizedBox(height: 32),
           _buildFormCard([
@@ -705,34 +708,16 @@ class _ParticipantFormScreenState extends State<ParticipantFormScreen> {
               maxLines: 4,
               validator: (value) => value?.trim().isEmpty == true ? 'Description requise' : null,
             ),
-            const SizedBox(height: 16),
-            // TODO: Ajouter le canvas pour le point de choc initial
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey[300]!),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.touch_app, size: 48, color: Colors.grey[400]),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Point de choc initial\n(Case 10)',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton(
-                      onPressed: _showChocDialog,
-                      child: const Text('Indiquer le point de choc'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+
+            const SizedBox(height: 24),
+
+            // Section photos des dégâts
+            _buildPhotosDegatSection(),
+
+            const SizedBox(height: 24),
+
+            // Widget interactif pour le point de choc initial
+            _buildPointChocWidget(),
           ]),
         ],
       ),
@@ -1016,13 +1001,99 @@ class _ParticipantFormScreenState extends State<ParticipantFormScreen> {
     onChanged(date);
   }
 
+  Widget _buildPhotosDegatSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Titre avec numérotation correcte
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.green[100],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green[300]!, width: 2),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.camera_alt, color: Colors.green[600], size: 24),
+              const SizedBox(width: 8),
+              const Text(
+                'Case 11: Photos des Dégâts Apparents',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Widget de gestion des photos
+        PhotoManagerWidget(
+          onPhotosChanged: (photos) {
+            if (mounted) setState(() {
+              _degatsPhotos = photos;
+            });
+          },
+          photosInitiales: _degatsPhotos,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPointChocWidget() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Titre avec numérotation correcte
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange[100],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange[300]!, width: 2),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.directions_car, color: Colors.orange[600], size: 24),
+              const SizedBox(width: 8),
+              const Text(
+                'Case 10: Point de Choc Initial',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Widget interactif du véhicule
+        VehiculePointChocWidget(
+          onPointsChocChanged: (points) {
+            if (mounted) setState(() {
+              _pointsChocSelectionnes = points;
+            });
+          },
+          pointsChocInitiaux: _pointsChocSelectionnes,
+        ),
+      ],
+    );
+  }
+
   void _showChocDialog() {
-    // TODO: Implémenter le dialog pour sélectionner le point de choc
+    // Cette méthode n'est plus utilisée mais on la garde pour compatibilité
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Point de choc initial'),
-        content: const Text('Fonctionnalité en cours de développement'),
+        content: const Text('Utilisez le widget interactif ci-dessus'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1112,3 +1183,4 @@ class _ParticipantFormScreenState extends State<ParticipantFormScreen> {
     }
   }
 }
+

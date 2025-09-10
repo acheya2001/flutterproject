@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../common/widgets/modern_card.dart';
@@ -26,8 +26,7 @@ class ModernConducteurDashboard extends StatefulWidget {
   State<ModernConducteurDashboard> createState() => _ModernConducteurDashboardState();
 }
 
-class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
-    with TickerProviderStateMixin {
+class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>with TickerProviderStateMixin  {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -40,6 +39,9 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _conducteurUid = FirebaseAuth.instance.currentUser?.uid;
     
     _animationController = AnimationController(
@@ -56,6 +58,7 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
     
     _loadVehicles();
     _animationController.forward();
+    });
   }
 
   @override
@@ -120,7 +123,7 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
       print('🔍 [MODERN DEBUG] État mis à jour - vehicles: ${_vehicles.length}, isLoading: $_isLoading');
     } catch (e) {
       print('❌ [MODERN DEBUG] Erreur chargement véhicules: $e');
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -540,7 +543,7 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
                 );
               }).toList(),
               onChanged: (vehicle) {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedVehicle = vehicle;
                 });
               },
@@ -1330,7 +1333,7 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
           if (!isSelected)
             IconButton(
               onPressed: () {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedVehicle = vehicle;
                 });
               },
@@ -2252,3 +2255,4 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>
     return 'N/A';
   }
 }
+

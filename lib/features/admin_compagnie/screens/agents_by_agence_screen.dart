@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/admin_compagnie_agence_service.dart';
 import 'create_agence_only_screen.dart';
@@ -27,8 +27,12 @@ class _AgentsByAgenceScreenState extends State<AgentsByAgenceScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgences();
     _searchController.addListener(_filterAgences);
+    });
   }
 
   @override
@@ -396,8 +400,6 @@ class _AgentsByAgenceScreenState extends State<AgentsByAgenceScreen> {
     );
   }
 
-
-
   /// 🆕 Créer une nouvelle agence
   void _showCreateAgenceDialog() async {
     final result = await Navigator.push(
@@ -454,3 +456,4 @@ class _AgentsByAgenceScreenState extends State<AgentsByAgenceScreen> {
     }
   }
 }
+

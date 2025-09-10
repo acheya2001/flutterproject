@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -11,8 +11,7 @@ class VehiclesSupervisionScreen extends StatefulWidget {
   State<VehiclesSupervisionScreen> createState() => _VehiclesSupervisionScreenState();
 }
 
-class _VehiclesSupervisionScreenState extends State<VehiclesSupervisionScreen>
-    with SingleTickerProviderStateMixin {
+class _VehiclesSupervisionScreenState extends State<VehiclesSupervisionScreen>with SingleTickerProviderStateMixin  {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   
@@ -24,8 +23,12 @@ class _VehiclesSupervisionScreenState extends State<VehiclesSupervisionScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _tabController = TabController(length: 4, vsync: this);
     _loadAgenceInfo();
+    });
   }
 
   @override
@@ -625,7 +628,7 @@ class _VehiclesSupervisionScreenState extends State<VehiclesSupervisionScreen>
                   );
                 }).toList(),
                 onChanged: (value) {
-                  setState(() {
+                  if (mounted) setState(() {
                     selectedAgentId = value;
                   });
                 },
@@ -821,3 +824,4 @@ class _VehiclesSupervisionScreenState extends State<VehiclesSupervisionScreen>
     }
   }
 }
+

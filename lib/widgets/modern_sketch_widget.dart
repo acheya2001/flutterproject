@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:math' as math;
@@ -37,6 +37,22 @@ class _ModernSketchWidgetState extends State<ModernSketchWidget> {
     super.initState();
     if (widget.initialElements != null) {
       _elements = List.from(widget.initialElements!);
+      print('🎨 Éléments initiaux chargés: ${_elements.length}');
+    }
+  }
+
+  @override
+  void didUpdateWidget(ModernSketchWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialElements != oldWidget.initialElements) {
+      setState(() {
+        if (widget.initialElements != null) {
+          _elements = List.from(widget.initialElements!);
+          print('🔄 Éléments mis à jour: ${_elements.length}');
+        } else {
+          _elements.clear();
+        }
+      });
     }
   }
 
@@ -307,8 +323,6 @@ class _ModernSketchWidgetState extends State<ModernSketchWidget> {
     );
   }
 
-
-
   Widget _buildCompactActionButtons() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -483,7 +497,7 @@ class _ModernSketchWidgetState extends State<ModernSketchWidget> {
 
   void _onPanEnd(DragEndDetails details) {
     if (_currentElement != null) {
-      setState(() {
+      if (mounted) setState(() {
         _elements.add(_currentElement!);
         _currentElement = null;
       });
@@ -503,7 +517,7 @@ class _ModernSketchWidgetState extends State<ModernSketchWidget> {
           color: _currentColor,
           strokeWidth: _strokeWidth,
         );
-        setState(() {
+        if (mounted) setState(() {
           _elements.add(element);
         });
         widget.onSketchChanged?.call(_elements);
@@ -520,7 +534,7 @@ class _ModernSketchWidgetState extends State<ModernSketchWidget> {
 
   void _undo() {
     if (_elements.isNotEmpty) {
-      setState(() {
+      if (mounted) setState(() {
         _elements.removeLast();
       });
       widget.onSketchChanged?.call(_elements);
@@ -528,7 +542,7 @@ class _ModernSketchWidgetState extends State<ModernSketchWidget> {
   }
 
   void _clear() {
-    setState(() {
+    if (mounted) setState(() {
       _elements.clear();
     });
     widget.onSketchChanged?.call(_elements);
@@ -605,7 +619,7 @@ class _ModernSketchWidgetState extends State<ModernSketchWidget> {
                     strokeWidth: _strokeWidth,
                     text: textController.text,
                   );
-                  setState(() {
+                  if (mounted) setState(() {
                     _elements.add(element);
                   });
                   widget.onSketchChanged?.call(_elements);
@@ -650,6 +664,34 @@ class SketchElement {
     required this.strokeWidth,
     this.text,
   });
+
+  /// 💾 Convertir en Map pour Firebase
+  Map<String, dynamic> toMap() {
+    return {
+      'type': type.name,
+      'points': points.map((point) => {'dx': point.dx, 'dy': point.dy}).toList(),
+      'color': color.value,
+      'strokeWidth': strokeWidth,
+      'text': text,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
+  }
+
+  /// 📥 Créer depuis Map Firebase
+  factory SketchElement.fromMap(Map<String, dynamic> map) {
+    return SketchElement(
+      type: SketchTool.values.firstWhere(
+        (tool) => tool.name == map['type'],
+        orElse: () => SketchTool.pen,
+      ),
+      points: (map['points'] as List<dynamic>)
+          .map((point) => Offset(point['dx'].toDouble(), point['dy'].toDouble()))
+          .toList(),
+      color: Color(map['color'] as int),
+      strokeWidth: (map['strokeWidth'] as num).toDouble(),
+      text: map['text'] as String?,
+    );
+  }
 }
 
 /// Painter pour dessiner le croquis
@@ -672,6 +714,8 @@ class SketchPainter extends CustomPainter {
     if (currentElement != null) {
       allElements.add(currentElement!);
     }
+
+    print('🎨 SketchPainter: ${allElements.length} éléments à dessiner');
 
     for (final element in allElements) {
       final paint = Paint()
@@ -777,3 +821,4 @@ class SketchPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+

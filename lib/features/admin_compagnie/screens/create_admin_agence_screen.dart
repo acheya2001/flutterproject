@@ -34,11 +34,15 @@ class _CreateAdminAgenceScreenState extends State<CreateAdminAgenceScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAgencesNonAffectees();
+    
+    // Utiliser WidgetsBinding pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAgencesNonAffectees();
 
-    // Listeners pour mettre à jour l'aperçu email
-    _prenomController.addListener(() => setState(() {}));
-    _nomController.addListener(() => setState(() {}));
+      // Listeners pour mettre à jour l'aperçu email
+      _prenomController.addListener(() => setState(() {}));
+      _nomController.addListener(() => setState(() {}));
+    });
   }
 
   @override

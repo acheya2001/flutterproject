@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PaiementContratScreen extends StatefulWidget {
@@ -229,7 +229,7 @@ class _PaiementContratScreenState extends State<PaiementContratScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               child: InkWell(
                 onTap: () {
-                  setState(() {
+                  if (mounted) setState(() {
                     _selectedFrequence = key;
                   });
                 },
@@ -472,3 +472,4 @@ class _PaiementContratScreenState extends State<PaiementContratScreen> {
     }
   }
 }
+

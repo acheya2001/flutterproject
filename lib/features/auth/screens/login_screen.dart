@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/theme/app_theme.dart';
@@ -11,6 +11,7 @@ import '../../admin_compagnie/screens/admin_compagnie_dashboard.dart';
 import 'conducteur_register_simple_screen.dart';
 import '../../admin_agence/screens/modern_admin_agence_dashboard.dart';
 import '../../agent/screens/agent_dashboard_screen.dart';
+import '../../../conducteur/screens/guest_join_session_screen.dart';
 import '../../../debug/check_admin_account.dart';
 import '../../conducteur/presentation/screens/conducteur_registration_screen.dart';
 
@@ -103,7 +104,6 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SafeArea(
           child: Stack(
             children: [
-
 
               // Contenu principal
               SingleChildScrollView(
@@ -206,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : Icons.visibility,
                             ),
                             onPressed: () {
-                              setState(() {
+                              if (mounted) setState(() {
                                 _isPasswordVisible = !_isPasswordVisible;
                               });
                             },
@@ -273,7 +273,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
 
-
                     ],
                   ),
                 ),
@@ -284,27 +283,60 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (widget.userType == 'driver')
                   Container(
                     margin: const EdgeInsets.only(bottom: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    child: Column(
                       children: [
-                        const Text(
-                          'Pas encore de compte ? ',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const ConducteurRegisterSimpleScreen(),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Pas encore de compte ? ',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const ConducteurRegisterSimpleScreen(),
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                'S\'inscrire',
+                                style: TextStyle(
+                                  color: _userTypeColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            );
-                          },
-                          child: Text(
-                            'S\'inscrire',
-                            style: TextStyle(
-                              color: _userTypeColor,
-                              fontWeight: FontWeight.bold,
+                            ),
+                          ],
+                        ),
+
+                        // Bouton Invité pour rejoindre une session
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.symmetric(horizontal: 20),
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const GuestJoinSessionScreen(
+                                    sessionCode: '', // Code vide, sera saisi par l'utilisateur
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.group_add),
+                            label: const Text('Rejoindre en tant qu\'invité'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _userTypeColor,
+                              side: BorderSide(color: _userTypeColor),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                         ),
@@ -364,7 +396,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -447,7 +479,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _isLoading = false;
         });
       }
@@ -603,8 +635,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-
 
   /// 🔐 Effectuer la connexion Firebase réelle
   Future<Map<String, dynamic>> _performFirebaseLogin() async {

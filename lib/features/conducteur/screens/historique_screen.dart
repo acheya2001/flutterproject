@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -9,7 +9,7 @@ class HistoriqueScreen extends StatefulWidget {
   State<HistoriqueScreen> createState() => _HistoriqueScreenState();
 }
 
-class _HistoriqueScreenState extends State<HistoriqueScreen> with TickerProviderStateMixin {
+class _HistoriqueScreenState extends State<HistoriqueScreen>with TickerProviderStateMixin  {
   late TabController _tabController;
   String? _currentUserId;
 
@@ -29,7 +29,7 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> with TickerProvider
   Future<void> _getCurrentUser() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      setState(() {
+      if (mounted) setState(() {
         _currentUserId = user.uid;
       });
     }
@@ -524,3 +524,4 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> with TickerProvider
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 }
+

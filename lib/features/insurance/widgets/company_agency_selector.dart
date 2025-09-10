@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../models/insurance_structure_model.dart';
 import '../services/insurance_structure_service.dart';
 
@@ -34,13 +34,21 @@ class _CompanyAgencySelectorState extends State<CompanyAgencySelector> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _selectedCompanyId = widget.selectedCompanyId;
     _selectedAgencyId = widget.selectedAgencyId;
-    _loadCompanies();
+
+    // Utiliser addPostFrameCallback pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCompanies();
+    });
+    });
   }
 
   Future<void> _loadCompanies() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoadingCompanies = true;
     });
 
@@ -48,7 +56,7 @@ class _CompanyAgencySelectorState extends State<CompanyAgencySelector> {
       print('🔄 Widget: Chargement des compagnies...');
       final companies = await InsuranceStructureService.getActiveCompanies();
       print('📦 Widget: Compagnies reçues: ${companies.length}');
-      setState(() {
+      if (mounted) setState(() {
         _companies = companies;
         _isLoadingCompanies = false;
       });
@@ -60,7 +68,7 @@ class _CompanyAgencySelectorState extends State<CompanyAgencySelector> {
       }
     } catch (e) {
       print('❌ Widget: Erreur chargement compagnies: $e');
-      setState(() {
+      if (mounted) setState(() {
         _isLoadingCompanies = false;
       });
       _showError('Erreur lors du chargement des compagnies: $e');
@@ -68,7 +76,7 @@ class _CompanyAgencySelectorState extends State<CompanyAgencySelector> {
   }
 
   Future<void> _loadAgencies(String companyId) async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoadingAgencies = true;
       _agencies = [];
       _selectedAgencyId = null;
@@ -76,7 +84,7 @@ class _CompanyAgencySelectorState extends State<CompanyAgencySelector> {
 
     try {
       final agencies = await InsuranceStructureService.getAgenciesByCompany(companyId);
-      setState(() {
+      if (mounted) setState(() {
         _agencies = agencies;
         _isLoadingAgencies = false;
       });
@@ -84,14 +92,14 @@ class _CompanyAgencySelectorState extends State<CompanyAgencySelector> {
       // Si une agence était pré-sélectionnée et qu'elle existe toujours
       if (widget.selectedAgencyId != null &&
           agencies.any((a) => (a['agencyId'] ?? a['id']) == widget.selectedAgencyId)) {
-        setState(() {
+        if (mounted) setState(() {
           _selectedAgencyId = widget.selectedAgencyId;
         });
       }
 
       widget.onSelectionChanged(_selectedCompanyId, _selectedAgencyId);
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _isLoadingAgencies = false;
       });
       _showError('Erreur lors du chargement des agences: $e');
@@ -207,7 +215,7 @@ class _CompanyAgencySelectorState extends State<CompanyAgencySelector> {
                     }).toList(),
                     onChanged: (String? newValue) {
                       print('🏢 Compagnie sélectionnée - ID: $newValue');
-                      setState(() {
+                      if (mounted) setState(() {
                         _selectedCompanyId = newValue;
                         _selectedAgencyId = null;
                         _agencies = [];
@@ -302,7 +310,7 @@ class _CompanyAgencySelectorState extends State<CompanyAgencySelector> {
                         : [],
                     onChanged: isEnabled
                         ? (String? newValue) {
-                            setState(() {
+                            if (mounted) setState(() {
                               _selectedAgencyId = newValue;
                             });
                             widget.onSelectionChanged(_selectedCompanyId, newValue);
@@ -391,3 +399,4 @@ class _CompanyAgencySelectorState extends State<CompanyAgencySelector> {
     );
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 👁️ Écran de détails d'une agence
@@ -24,7 +24,11 @@ class _AgenceDetailsScreenState extends State<AgenceDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgenceDetails();
+    });
   }
 
   /// 📊 Charger les détails de l'agence
@@ -629,3 +633,4 @@ class _AgenceDetailsScreenState extends State<AgenceDetailsScreen> {
     );
   }
 }
+

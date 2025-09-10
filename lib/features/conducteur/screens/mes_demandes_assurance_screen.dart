@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/complete_insurance_workflow_service.dart';
@@ -22,12 +22,16 @@ class _MesDemandesAssuranceScreenState extends State<MesDemandesAssuranceScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadDemandes();
+    });
   }
 
   Future<void> _loadDemandes() async {
     try {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = true;
         _error = null;
       });
@@ -37,7 +41,7 @@ class _MesDemandesAssuranceScreenState extends State<MesDemandesAssuranceScreen>
 
       final demandes = await CompleteInsuranceWorkflowService.getConducteurRequests(user.uid);
       
-      setState(() {
+      if (mounted) setState(() {
         _demandes = demandes;
         _isLoading = false;
       });
@@ -45,7 +49,7 @@ class _MesDemandesAssuranceScreenState extends State<MesDemandesAssuranceScreen>
       LoggingService.info('MesDemandesAssuranceScreen', '✅ ${demandes.length} demandes chargées pour conducteur');
     } catch (e) {
       LoggingService.error('MesDemandesAssuranceScreen', '❌ Erreur chargement demandes', e);
-      setState(() {
+      if (mounted) setState(() {
         _error = e.toString();
         _isLoading = false;
       });
@@ -622,3 +626,4 @@ class _MesDemandesAssuranceScreenState extends State<MesDemandesAssuranceScreen>
     );
   }
 }
+

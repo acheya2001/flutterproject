@@ -1,22 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
-import '../../services/accident_session_complete_service.dart';
-import '../../services/user_profile_service.dart';
-import '../../models/accident_session_complete.dart';
-import 'session_waiting_screen.dart';
-import 'vehicle_selection_for_session_screen.dart';
+import '../../models/collaborative_session_model.dart';
+import '../../services/session_code_service.dart';
+import '../../services/collaborative_session_service.dart';
+import 'modern_single_accident_info_screen.dart';
+import 'session_dashboard_screen.dart';
 
-/// 🎯 Écran de création de session et invitation des autres conducteurs
+
+/// 📤 Écran d'invitation pour partager une session collaborative
 class SessionInvitationScreen extends StatefulWidget {
-  final String typeAccident;
-  final int nombreVehicules;
+  final CollaborativeSession session;
 
   const SessionInvitationScreen({
     super.key,
-    required this.typeAccident,
-    required this.nombreVehicules,
+    required this.session,
   });
 
   @override
@@ -25,27 +22,35 @@ class SessionInvitationScreen extends StatefulWidget {
 
 class _SessionInvitationScreenState extends State<SessionInvitationScreen>
     with TickerProviderStateMixin {
-  bool _isCreatingSession = false;
-  AccidentSessionComplete? _session;
   late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(
+    
+    _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: Curves.elasticOut,
+      curve: Curves.easeInOut,
     ));
     
-    _creerSession();
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+    ));
+    
+    _animationController.forward();
   }
 
   @override
@@ -54,85 +59,31 @@ class _SessionInvitationScreenState extends State<SessionInvitationScreen>
     super.dispose();
   }
 
-  Future<void> _creerSession() async {
-    setState(() {
-      _isCreatingSession = true;
-    });
-
-    try {
-      // Récupérer les vraies infos utilisateur
-      final userProfile = await UserProfileService.getCurrentUserProfile();
-      if (userProfile == null) {
-        throw Exception('Impossible de récupérer les informations utilisateur');
-      }
-
-      final session = await AccidentSessionCompleteService.creerNouvelleSession(
-        typeAccident: widget.typeAccident,
-        nombreVehicules: widget.nombreVehicules,
-        nomCreateur: userProfile['nom'] ?? 'Conducteur',
-        prenomCreateur: userProfile['prenom'] ?? 'Utilisateur',
-        emailCreateur: userProfile['email'] ?? '',
-        telephoneCreateur: userProfile['telephone'] ?? '+216 XX XXX XXX',
-      );
-
-      setState(() {
-        _session = session;
-        _isCreatingSession = false;
-      });
-
-      _animationController.forward();
-    } catch (e) {
-      setState(() {
-        _isCreatingSession = false;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur lors de la création: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
-              Colors.blue[400]!,
-              Colors.purple[600]!,
+              Colors.blue[600]!,
+              Colors.blue[800]!,
             ],
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              // Header
-              _buildHeader(),
-              
-              // Contenu principal
+              _buildAppBar(),
               Expanded(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 20),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(30),
-                      topRight: Radius.circular(30),
-                    ),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: _buildContenu(),
                   ),
-                  child: _isCreatingSession
-                      ? _buildLoadingState()
-                      : _session != null
-                          ? _buildInvitationState()
-                          : _buildErrorState(),
                 ),
               ),
             ],
@@ -142,12 +93,11 @@ class _SessionInvitationScreenState extends State<SessionInvitationScreen>
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildAppBar() {
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          // Bouton retour
           Container(
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
@@ -155,177 +105,32 @@ class _SessionInvitationScreenState extends State<SessionInvitationScreen>
             ),
             child: IconButton(
               onPressed: () => Navigator.pop(context),
-              icon: const Icon(
-                Icons.arrow_back,
-                color: Colors.white,
-              ),
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
             ),
           ),
-          
           const SizedBox(width: 16),
-          
-          // Titre
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Création de session',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  '${widget.typeAccident} - ${widget.nombreVehicules} véhicules',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withOpacity(0.8),
-                  ),
-                ),
-              ],
+          const Expanded(
+            child: Text(
+              'Inviter des conducteurs',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-          ),
-          SizedBox(height: 20),
-          Text(
-            'Création de la session en cours...',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInvitationState() {
-    return AnimatedBuilder(
-      animation: _scaleAnimation,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-                
-                // Titre principal
-                const Text(
-                  'Session créée avec succès !',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                
-                const SizedBox(height: 8),
-                
-                const Text(
-                  'Partagez ce code avec les autres conducteurs',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                
-                const SizedBox(height: 30),
-                
-                // Code de session
-                _buildCodeSession(),
-                
-                const SizedBox(height: 30),
-                
-                // QR Code
-                _buildQRCode(),
-                
-                const SizedBox(height: 30),
-                
-                // Options de partage
-                _buildOptionsPartage(),
-                
-                const SizedBox(height: 30),
-                
-                // Statut des conducteurs
-                _buildStatutConducteurs(),
-                
-                const SizedBox(height: 30),
-                
-                // Bouton continuer
-                _buildBoutonContinuer(),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCodeSession() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue[200]!),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'Code de session',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue,
-            ),
-          ),
-          
-          const SizedBox(height: 12),
-          
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue[300]!),
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  _session!.codeSession,
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 4,
-                    color: Colors.blue,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                IconButton(
-                  onPressed: _copierCode,
-                  icon: const Icon(Icons.copy, color: Colors.blue),
-                  tooltip: 'Copier le code',
-                ),
-              ],
+            child: Text(
+              '${widget.session.participants.length}/${widget.session.nombreVehicules}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -333,189 +138,102 @@ class _SessionInvitationScreenState extends State<SessionInvitationScreen>
     );
   }
 
-  Widget _buildQRCode() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'QR Code',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: QrImageView(
-              data: _session!.codeSession,
-              version: QrVersions.auto,
-              size: 150.0,
-              backgroundColor: Colors.white,
-            ),
-          ),
-          
-          const SizedBox(height: 12),
-          
-          const Text(
-            'Scannez avec l\'appareil photo',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOptionsPartage() {
-    return Column(
-      children: [
-        const Text(
-          'Partager avec',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        
-        const SizedBox(height: 16),
-        
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildBoutonPartage(
-              'WhatsApp',
-              Icons.message,
-              Colors.green,
-              _partagerWhatsApp,
-            ),
-            _buildBoutonPartage(
-              'SMS',
-              Icons.sms,
-              Colors.blue,
-              _partagerSMS,
-            ),
-            _buildBoutonPartage(
-              'Email',
-              Icons.email,
-              Colors.orange,
-              _partagerEmail,
-            ),
-            _buildBoutonPartage(
-              'Autre',
-              Icons.share,
-              Colors.purple,
-              _partagerAutre,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBoutonPartage(String titre, IconData icon, Color couleur, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: couleur.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: couleur.withOpacity(0.3)),
-            ),
-            child: Icon(icon, color: couleur, size: 28),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            titre,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: couleur,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatutConducteurs() {
-    return Container(
+  Widget _buildContenu() {
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Carte d'invitation principale
+          _buildCarteInvitation(),
+          
+          const SizedBox(height: 24),
+          
+          // QR Code
+          _buildSectionQRCode(),
+          
+          const SizedBox(height: 24),
+          
+          // Participants actuels
+          _buildSectionParticipants(),
+          
+          const SizedBox(height: 24),
+          
+          // Instructions
+          _buildSectionInstructions(),
+
+          const SizedBox(height: 24),
+
+          // Bouton pour continuer vers le formulaire
+          _buildBoutonContinuer(),
+
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCarteInvitation() {
+    return SessionCodeService.creerCarteInvitation(
+      codeSession: widget.session.codeSession,
+      typeAccident: widget.session.typeAccident,
+      nombreVehicules: widget.session.nombreVehicules,
+      onPartager: _partagerSession,
+      onCopier: _copierCode,
+    );
+  }
+
+  Widget _buildSectionQRCode() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.green[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green[200]!),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          const Text(
-            'Conducteurs connectés',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          
-          const SizedBox(height: 12),
-          
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                '${_session!.conducteurs.length}',
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[100],
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                child: Icon(Icons.qr_code, color: Colors.blue[800]),
               ),
-              const Text(
-                ' / ',
-                style: TextStyle(
-                  fontSize: 24,
-                  color: Colors.grey,
-                ),
-              ),
-              Text(
-                '${widget.nombreVehicules}',
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey,
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'QR Code de session',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
                 ),
               ),
             ],
           ),
-          
-          const SizedBox(height: 8),
-          
+          const SizedBox(height: 16),
+          SessionCodeService.genererQRCodeWidget(
+            codeSession: widget.session.codeSession,
+            typeAccident: widget.session.typeAccident,
+            size: 180,
+          ),
+          const SizedBox(height: 12),
           Text(
-            _session!.conducteurs.length == widget.nombreVehicules
-                ? 'Tous les conducteurs sont connectés !'
-                : 'En attente de ${widget.nombreVehicules - _session!.conducteurs.length} conducteur(s)',
+            'Scannez ce QR code pour rejoindre rapidement',
             style: TextStyle(
+              color: Colors.grey[600],
               fontSize: 14,
-              color: _session!.conducteurs.length == widget.nombreVehicules
-                  ? Colors.green[700]
-                  : Colors.orange[700],
             ),
             textAlign: TextAlign.center,
           ),
@@ -524,145 +242,420 @@ class _SessionInvitationScreenState extends State<SessionInvitationScreen>
     );
   }
 
-  Widget _buildBoutonContinuer() {
-    final tousConnectes = _session!.conducteurs.length == widget.nombreVehicules;
-
-    return Column(
-      children: [
-        // Bouton principal : Commencer maintenant (toujours disponible pour le créateur)
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton(
-            onPressed: _continuer,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue[600],
-              foregroundColor: Colors.white,
-              elevation: 8,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.play_arrow, size: 24),
-                const SizedBox(width: 8),
-                Text(
-                  tousConnectes
-                      ? 'Commencer la déclaration'
-                      : 'Commencer maintenant',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        if (!tousConnectes) ...[
-          const SizedBox(height: 12),
-
-          // Message informatif
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.amber[50],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber[200]!),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.amber[700], size: 20),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Vous pouvez commencer à remplir votre partie du constat. Les autres conducteurs pourront rejoindre et compléter leurs informations plus tard.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+  Widget _buildSectionParticipants() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
-      ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.people, color: Colors.green[800]),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Participants actuels',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...widget.session.participants.map((participant) => _buildParticipantCard(participant)),
+          
+          // Slots vides
+          ...List.generate(
+            widget.session.nombreVehicules - widget.session.participants.length,
+            (index) => _buildSlotVide(index + widget.session.participants.length),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildErrorState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildParticipantCard(SessionParticipant participant) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green[200]!),
+      ),
+      child: Row(
         children: [
-          Icon(
-            Icons.error_outline,
-            color: Colors.red,
-            size: 64,
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.green[600],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Center(
+              child: Text(
+                participant.roleVehicule,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
           ),
-          SizedBox(height: 16),
-          Text(
-            'Erreur lors de la création de la session',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${participant.prenom} ${participant.nom}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  participant.estCreateur ? 'Créateur de session' : 'Participant',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle, color: Colors.green[600], size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  'Rejoint',
+                  style: TextStyle(
+                    color: Colors.green[600],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSlotVide(int index) {
+    final roles = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+    final role = index < roles.length ? roles[index] : 'X';
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.grey[400],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Center(
+              child: Text(
+                role,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'En attente d\'un conducteur...',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 16,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Véhicule $role',
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.schedule, color: Colors.orange[600], size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  'En attente',
+                  style: TextStyle(
+                    color: Colors.orange[600],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionInstructions() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.purple[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.info_outline, color: Colors.purple[800]),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Comment inviter ?',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildEtapeInstruction(
+            numero: '1',
+            titre: 'Partagez le code',
+            description: 'Utilisez le bouton "Partager" ou copiez le code de session',
+            icone: Icons.share,
+          ),
+          _buildEtapeInstruction(
+            numero: '2',
+            titre: 'Les autres téléchargent l\'app',
+            description: 'Ils doivent installer "Constat Tunisie" s\'ils ne l\'ont pas',
+            icone: Icons.download,
+          ),
+          _buildEtapeInstruction(
+            numero: '3',
+            titre: 'Ils rejoignent la session',
+            description: 'En entrant le code ou en scannant le QR code',
+            icone: Icons.qr_code_scanner,
+          ),
+          _buildEtapeInstruction(
+            numero: '4',
+            titre: 'Constat collaboratif',
+            description: 'Chacun remplit sa partie du formulaire',
+            icone: Icons.edit_document,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEtapeInstruction({
+    required String numero,
+    required String titre,
+    required String description,
+    required IconData icone,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.purple[600],
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Center(
+              child: Text(
+                numero,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Icon(icone, color: Colors.purple[600], size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titre,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _partagerSession() {
+    SessionCodeService.partagerCodeSession(
+      codeSession: widget.session.codeSession,
+      typeAccident: widget.session.typeAccident,
+      context: context,
     );
   }
 
   void _copierCode() {
-    Clipboard.setData(ClipboardData(text: _session!.codeSession));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Code copié dans le presse-papiers'),
-        backgroundColor: Colors.green,
+    Clipboard.setData(ClipboardData(text: widget.session.codeSession));
+    SessionCodeService.copierCode(
+      codeSession: widget.session.codeSession,
+      context: context,
+    );
+  }
+
+  Widget _buildBoutonContinuer() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _continuerVersFormulaire,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue[600],
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 4,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.dashboard, size: 24),
+            const SizedBox(width: 12),
+            const Text(
+              'Accéder au dashboard',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Créateur',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _partagerWhatsApp() {
-    final message = 'Code session accident: ${_session!.codeSession}\n'
-        'Type: ${widget.typeAccident}\n'
-        'Rejoignez la session dans l\'app Constat Tunisie';
-    Share.share(message);
-  }
-
-  void _partagerSMS() {
-    final message = 'Code session accident: ${_session!.codeSession}\n'
-        'Type: ${widget.typeAccident}\n'
-        'Rejoignez la session dans l\'app Constat Tunisie';
-    Share.share(message);
-  }
-
-  void _partagerEmail() {
-    final message = 'Code session accident: ${_session!.codeSession}\n'
-        'Type: ${widget.typeAccident}\n'
-        'Rejoignez la session dans l\'app Constat Tunisie';
-    Share.share(message);
-  }
-
-  void _partagerAutre() {
-    final message = 'Code session accident: ${_session!.codeSession}\n'
-        'Type: ${widget.typeAccident}\n'
-        'Rejoignez la session dans l\'app Constat Tunisie';
-    Share.share(message);
-  }
-
-  void _continuer() {
-    // Naviguer vers l'écran de sélection de véhicule pour conducteurs inscrits
+  void _continuerVersFormulaire() {
+    // 🎯 Redirection vers le dashboard de session pour accéder aux boutons (formulaire, croquis, inviter)
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => VehicleSelectionForSessionScreen(
-          session: _session!,
-        ),
+        builder: (context) => SessionDashboardScreen(session: widget.session),
       ),
     );
   }

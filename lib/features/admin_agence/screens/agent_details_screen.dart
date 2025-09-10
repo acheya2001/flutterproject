@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/admin_agence_service.dart';
 import 'edit_agent_screen.dart';
 
@@ -490,7 +490,7 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
       );
 
       if (result['success']) {
-        setState(() {
+        if (mounted) setState(() {
           _agentData['isActive'] = newStatus;
           _agentData['status'] = newStatus ? 'actif' : 'inactif';
         });
@@ -559,3 +559,4 @@ class _AgentDetailsScreenState extends State<AgentDetailsScreen> {
     }
   }
 }
+

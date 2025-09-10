@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
-import 'constat_complet_screen.dart';
+import 'modern_single_accident_info_screen.dart';
 
 /// 🔗 Écran pour rejoindre une session - Conducteur inscrit
 class JoinSessionRegisteredScreen extends StatefulWidget {
@@ -167,7 +167,7 @@ class _JoinSessionRegisteredScreenState extends State<JoinSessionRegisteredScree
               LengthLimitingTextInputFormatter(8),
             ],
             onChanged: (value) {
-              setState(() {
+              if (mounted) setState(() {
                 _errorMessage = null;
               });
             },
@@ -288,20 +288,20 @@ class _JoinSessionRegisteredScreenState extends State<JoinSessionRegisteredScree
     final code = _codeController.text.trim().toUpperCase();
     
     if (code.isEmpty) {
-      setState(() {
+      if (mounted) setState(() {
         _errorMessage = 'Veuillez saisir un code de session';
       });
       return;
     }
 
     if (code.length < 6) {
-      setState(() {
+      if (mounted) setState(() {
         _errorMessage = 'Le code doit contenir au moins 6 caractères';
       });
       return;
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
@@ -316,7 +316,7 @@ class _JoinSessionRegisteredScreenState extends State<JoinSessionRegisteredScree
           .get();
 
       if (sessionQuery.docs.isEmpty) {
-        setState(() {
+        if (mounted) setState(() {
           _errorMessage = 'Code de session invalide ou session expirée';
           _isLoading = false;
         });
@@ -331,7 +331,7 @@ class _JoinSessionRegisteredScreenState extends State<JoinSessionRegisteredScree
       final participants = List<String>.from(sessionData['participants'] ?? []);
       
       if (participants.contains(user.uid)) {
-        setState(() {
+        if (mounted) setState(() {
           _errorMessage = 'Vous participez déjà à cette session';
           _isLoading = false;
         });
@@ -351,20 +351,14 @@ class _JoinSessionRegisteredScreenState extends State<JoinSessionRegisteredScree
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => ConstatCompletScreen(
-            sinistreId: sessionDoc.id,
-            vehiculeSelectionne: null, // Sera sélectionné dans le formulaire
-            accidentType: sessionData['typeAccident'],
-            vehicleCount: sessionData['nombreVehicules'],
-            conducteurLetter: nextLetter,
-            isCollaborative: true,
-            sessionData: sessionData,
+          builder: (context) => ModernSingleAccidentInfoScreen(
+            typeAccident: 'Collision entre deux véhicules',
           ),
         ),
       );
 
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _errorMessage = 'Erreur lors de la connexion à la session: $e';
         _isLoading = false;
       });
@@ -377,3 +371,4 @@ class _JoinSessionRegisteredScreenState extends State<JoinSessionRegisteredScree
     super.dispose();
   }
 }
+

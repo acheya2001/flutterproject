@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../../services/test_data_service.dart';
 import '../../services/tunisian_insurance_calculator.dart';
@@ -337,7 +337,7 @@ class _TestDashboardScreenState extends State<TestDashboardScreen> {
   }
 
   void _clearLog() {
-    setState(() {
+    if (mounted) setState(() {
       _logOutput = '';
     });
   }
@@ -545,3 +545,4 @@ class _TestDashboardScreenState extends State<TestDashboardScreen> {
     );
   }
 }
+

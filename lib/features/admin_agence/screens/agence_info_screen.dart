@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/admin_agence_service.dart';
 import '../../../core/theme/form_styles.dart';
 
@@ -31,7 +31,11 @@ class _AgenceInfoScreenState extends State<AgenceInfoScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgenceData();
+    });
   }
 
   @override
@@ -434,7 +438,7 @@ class _AgenceInfoScreenState extends State<AgenceInfoScreen> {
 
   /// ❌ Annuler les modifications
   void _cancelEditing() {
-    setState(() {
+    if (mounted) setState(() {
       _isEditing = false;
       _loadAgenceData(); // Recharger les données originales
     });
@@ -492,3 +496,4 @@ class _AgenceInfoScreenState extends State<AgenceInfoScreen> {
     }
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -17,7 +17,11 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadUserData();
+    });
   }
 
   /// 📊 Charger les données de l'utilisateur
@@ -35,7 +39,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
           .get();
 
       if (userDoc.exists) {
-        setState(() {
+        if (mounted) setState(() {
           _userData = userDoc.data();
           _userData!['uid'] = user.uid;
           _isLoading = false;
@@ -347,3 +351,4 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
     );
   }
 }
+

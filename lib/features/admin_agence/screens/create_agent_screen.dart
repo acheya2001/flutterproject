@@ -35,8 +35,6 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
     // Plus besoin de génération automatique d'email
   }
 
-
-
   @override
   void dispose() {
     _prenomController.dispose();
@@ -445,8 +443,6 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
     );
   }
 
-
-
   /// 📝 Champ de texte
   Widget _buildTextField({
     required TextEditingController controller,
@@ -546,7 +542,6 @@ class _CreateAgentScreenState extends State<CreateAgentScreen> {
             ),
           ),
         );
-
 
         _cinController.clear();
         _adresseController.clear();

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -390,7 +390,7 @@ class _AssistanceUrgenceWidgetState extends State<AssistanceUrgenceWidget> {
   }
 
   void _changerStatutBlesses(bool blesses) {
-    setState(() {
+    if (mounted) setState(() {
       _blesses = blesses;
     });
     
@@ -476,7 +476,7 @@ class _AssistanceUrgenceWidgetState extends State<AssistanceUrgenceWidget> {
   }
 
   Future<void> _obtenirLocalisation() async {
-    setState(() {
+    if (mounted) setState(() {
       _localisationEnCours = true;
     });
 
@@ -498,14 +498,14 @@ class _AssistanceUrgenceWidgetState extends State<AssistanceUrgenceWidget> {
         timeLimit: const Duration(seconds: 10),
       );
 
-      setState(() {
+      if (mounted) setState(() {
         _position = position;
       });
 
     } catch (e) {
       _afficherErreurLocalisation('Erreur de localisation: $e');
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _localisationEnCours = false;
       });
     }
@@ -532,3 +532,4 @@ class _AssistanceUrgenceWidgetState extends State<AssistanceUrgenceWidget> {
     print('Partage localisation: $message');
   }
 }
+

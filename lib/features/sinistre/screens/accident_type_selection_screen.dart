@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../common/widgets/gradient_background.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import 'vehicle_count_selection_screen.dart';
-import '../../../conducteur/screens/accident_invitation_screen.dart';
-import '../../../conducteur/screens/constat_complet_screen.dart';
+import '../../../conducteur/screens/modern_invitation_screen.dart';
+import '../../../conducteur/screens/modern_single_accident_info_screen.dart';
 
 /// 🚗💥 Écran de sélection du type d'accident - Design moderne
 class AccidentTypeSelectionScreen extends StatefulWidget {
@@ -20,8 +20,7 @@ class AccidentTypeSelectionScreen extends StatefulWidget {
   State<AccidentTypeSelectionScreen> createState() => _AccidentTypeSelectionScreenState();
 }
 
-class _AccidentTypeSelectionScreenState extends State<AccidentTypeSelectionScreen>
-    with TickerProviderStateMixin {
+class _AccidentTypeSelectionScreenState extends State<AccidentTypeSelectionScreen>with TickerProviderStateMixin  {
   String? _selectedType;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -395,7 +394,7 @@ class _AccidentTypeSelectionScreenState extends State<AccidentTypeSelectionScree
   }
 
   void _selectAccidentType(AccidentType type) {
-    setState(() {
+    if (mounted) setState(() {
       _selectedType = type.id;
     });
     
@@ -414,11 +413,9 @@ class _AccidentTypeSelectionScreenState extends State<AccidentTypeSelectionScree
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => AccidentInvitationScreen(
-            sinistreId: widget.sinistreId!,
-            vehiculeSelectionne: widget.vehiculeSelectionne!,
-            accidentType: _selectedType!,
-            vehicleCount: 2, // Fixe à 2 véhicules
+          builder: (context) => const ModernInvitationScreen(
+            typeAccident: 'Collision entre deux véhicules',
+            nombreVehicules: 2,
           ),
         ),
       );
@@ -430,13 +427,8 @@ class _AccidentTypeSelectionScreenState extends State<AccidentTypeSelectionScree
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ConstatCompletScreen(
-            sinistreId: widget.sinistreId,
-            vehiculeSelectionne: widget.vehiculeSelectionne,
-            accidentType: _selectedType!,
-            vehicleCount: 1, // 1 seul véhicule
-            isCollaborative: false,
-            sessionData: null, // Pas de session collaborative
+          builder: (context) => ModernSingleAccidentInfoScreen(
+            typeAccident: _selectedType == 'sortie_route' ? 'Sortie de route' : 'Collision avec objet fixe',
           ),
         ),
       );
@@ -484,3 +476,4 @@ class AccidentType {
     required this.defaultVehicleCount,
   });
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../models/insurance_company.dart';
 import '../../../../services/insurance_company_service.dart';
@@ -42,7 +42,11 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadCompaniesWithAgencies();
+    });
   }
 
   /// 🎨 Obtenir la couleur unique d'une compagnie
@@ -59,7 +63,7 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
 
     try {
       final hierarchy = await SuperAdminHierarchyService.getCompleteHierarchy();
-      setState(() {
+      if (mounted) setState(() {
         _companiesWithAgencies = hierarchy;
       });
 
@@ -369,7 +373,7 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () {
-              setState(() {
+              if (mounted) setState(() {
                 _searchQuery = '';
                 _statusFilter = 'all';
               });
@@ -1396,7 +1400,7 @@ class _CompaniesManagementScreenState extends State<CompaniesManagementScreen> {
 
   /// 🔄 Actualiser les données
   void _refreshData() {
-    setState(() {
+    if (mounted) setState(() {
       // Déclencher une reconstruction pour recharger les données
     });
   }
@@ -2510,3 +2514,4 @@ extension StringExtension on String {
     return "${this[0].toUpperCase()}${substring(1)}";
   }
 }
+

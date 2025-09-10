@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../services/company_management_service.dart';
 
@@ -406,7 +406,7 @@ class _SuperAdminCompanyFormState extends State<SuperAdminCompanyForm> {
               );
             }).toList(),
             onChanged: (value) {
-              setState(() {
+              if (mounted) setState(() {
                 _selectedGouvernorat = value!;
               });
             },
@@ -467,7 +467,7 @@ class _SuperAdminCompanyFormState extends State<SuperAdminCompanyForm> {
           Switch(
             value: _isActive,
             onChanged: (value) {
-              setState(() {
+              if (mounted) setState(() {
                 _isActive = value;
               });
             },
@@ -542,7 +542,7 @@ class _SuperAdminCompanyFormState extends State<SuperAdminCompanyForm> {
   Future<void> _createCompany() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -610,10 +610,11 @@ class _SuperAdminCompanyFormState extends State<SuperAdminCompanyForm> {
       }
     } finally {
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _isLoading = false;
         });
       }
     }
   }
 }
+

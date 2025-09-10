@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/agent_password_reset_service.dart';
 
 /// 🔧 Écran pour réinitialiser le mot de passe des agents
@@ -18,12 +18,16 @@ class _AgentPasswordResetScreenState extends State<AgentPasswordResetScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgentsWithTempPassword();
+    });
   }
 
   Future<void> _loadAgentsWithTempPassword() async {
     final agents = await AgentPasswordResetService.getAgentsWithTemporaryPassword();
-    setState(() {
+    if (mounted) setState(() {
       _agentsWithTempPassword = agents;
     });
   }
@@ -320,3 +324,4 @@ class _AgentPasswordResetScreenState extends State<AgentPasswordResetScreen> {
     super.dispose();
   }
 }
+

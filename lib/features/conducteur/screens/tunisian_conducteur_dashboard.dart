@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/tunisian_insurance_models.dart';
 import '../../../services/tunisian_documents_service.dart';
@@ -25,7 +25,11 @@ class _TunisianConducteurDashboardState extends State<TunisianConducteurDashboar
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadConducteurData();
+    });
   }
 
   @override
@@ -731,3 +735,4 @@ class _TunisianConducteurDashboardState extends State<TunisianConducteurDashboar
     // TODO: Afficher les notifications
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/contract_number_service.dart';
 
@@ -52,7 +52,7 @@ class _ContractNumberWidgetState extends State<ContractNumberWidget> {
         typeContrat: widget.typeContrat,
       );
 
-      setState(() {
+      if (mounted) setState(() {
         _numeroContrat = numero;
         _isUnique = true;
       });
@@ -317,3 +317,4 @@ class _ContractNumberWidgetState extends State<ContractNumberWidget> {
     );
   }
 }
+

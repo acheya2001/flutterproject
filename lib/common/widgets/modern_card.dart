@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 /// 🎨 Widget de carte moderne avec design élégant
 class ModernCard extends StatelessWidget {
@@ -76,8 +76,7 @@ class _HoverableCard extends StatefulWidget {
   State<_HoverableCard> createState() => _HoverableCardState();
 }
 
-class _HoverableCardState extends State<_HoverableCard>
-    with SingleTickerProviderStateMixin {
+class _HoverableCardState extends State<_HoverableCard>with SingleTickerProviderStateMixin  {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   bool _isHovered = false;
@@ -108,13 +107,13 @@ class _HoverableCardState extends State<_HoverableCard>
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) {
-        setState(() {
+        if (mounted) setState(() {
           _isHovered = true;
         });
         _animationController.forward();
       },
       onExit: (_) {
-        setState(() {
+        if (mounted) setState(() {
           _isHovered = false;
         });
         _animationController.reverse();
@@ -151,8 +150,7 @@ class ShimmerCard extends StatefulWidget {
   State<ShimmerCard> createState() => _ShimmerCardState();
 }
 
-class _ShimmerCardState extends State<ShimmerCard>
-    with SingleTickerProviderStateMixin {
+class _ShimmerCardState extends State<ShimmerCard>with SingleTickerProviderStateMixin  {
   late AnimationController _animationController;
   late Animation<double> _animation;
 
@@ -315,8 +313,7 @@ class StatCard extends StatefulWidget {
   State<StatCard> createState() => _StatCardState();
 }
 
-class _StatCardState extends State<StatCard>
-    with SingleTickerProviderStateMixin {
+class _StatCardState extends State<StatCard>with SingleTickerProviderStateMixin  {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
@@ -451,3 +448,4 @@ class _StatCardState extends State<StatCard>
     );
   }
 }
+

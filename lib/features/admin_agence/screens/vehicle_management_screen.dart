@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/vehicle_workflow_service.dart';
@@ -30,7 +30,11 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadData();
+    });
   }
 
   @override
@@ -633,7 +637,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         recherche: _searchController.text,
       );
       
-      setState(() {});
+      if (mounted) setState(() {});
       
     } catch (e) {
       debugPrint('Erreur application filtres: $e');
@@ -714,3 +718,4 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     super.dispose();
   }
 }
+

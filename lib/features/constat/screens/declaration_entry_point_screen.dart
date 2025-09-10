@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class DeclarationEntryPointScreen extends StatefulWidget {
   const DeclarationEntryPointScreen({super.key});
@@ -43,7 +43,7 @@ class _DeclarationEntryPointScreenState extends State<DeclarationEntryPointScree
                 if (_currentStep > 0)
                   ElevatedButton(
                     onPressed: () {
-                      setState(() {
+                      if (mounted) setState(() {
                         _currentStep--;
                       });
                     },
@@ -297,7 +297,7 @@ class _DeclarationEntryPointScreenState extends State<DeclarationEntryPointScree
 
   void _handleNext() {
     if (_currentStep < 2) {
-      setState(() {
+      if (mounted) setState(() {
         _currentStep++;
       });
     } else {

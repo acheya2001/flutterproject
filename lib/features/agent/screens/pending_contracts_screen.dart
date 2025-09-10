@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/contract_service.dart';
@@ -19,7 +19,11 @@ class _PendingContractsScreenState extends State<PendingContractsScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgentInfo();
+    });
   }
 
   Future<void> _loadAgentInfo() async {
@@ -33,7 +37,7 @@ class _PendingContractsScreenState extends State<PendingContractsScreen> {
           .get();
 
       if (agentDoc.exists) {
-        setState(() {
+        if (mounted) setState(() {
           _agenceId = agentDoc.data()!['agenceId'];
           _isLoading = false;
         });
@@ -314,3 +318,4 @@ class _PendingContractsScreenState extends State<PendingContractsScreen> {
     );
   }
 }
+

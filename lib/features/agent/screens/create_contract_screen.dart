@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/contract_service.dart';
@@ -42,7 +42,11 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadCompagnieInfo();
+    });
   }
 
   Future<void> _loadCompagnieInfo() async {
@@ -53,7 +57,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
           .get();
       
       if (agenceDoc.exists) {
-        setState(() {
+        if (mounted) setState(() {
           _compagnieId = agenceDoc.data()!['compagnieId'];
         });
       }
@@ -196,7 +200,7 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
                 );
               }).toList(),
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _typeCouverture = value!;
                 });
               },
@@ -384,3 +388,4 @@ class _CreateContractScreenState extends State<CreateContractScreen> {
     super.dispose();
   }
 }
+

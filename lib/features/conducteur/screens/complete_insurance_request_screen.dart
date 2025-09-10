@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -69,9 +69,13 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _yearController.text = DateTime.now().year.toString();
     _loadCompagnies();
     _loadUserData();
+    });
   }
 
   Future<void> _loadUserData() async {
@@ -80,7 +84,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       final userData = userDoc.data() ?? {};
       
-      setState(() {
+      if (mounted) setState(() {
         _conducteurNameController.text = userData['nom'] ?? '';
         _conducteurPrenomController.text = userData['prenom'] ?? '';
         _conducteurPhoneController.text = userData['telephone'] ?? '';
@@ -98,7 +102,6 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
       LoggingService.error('CompleteInsuranceRequest', 'Erreur chargement compagnies', e);
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -310,7 +313,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
                   DropdownMenuItem(value: 'gpl', child: Text('GPL')),
                 ],
                 onChanged: (value) {
-                  setState(() {
+                  if (mounted) setState(() {
                     _fuelType = value!;
                   });
                 },
@@ -371,7 +374,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
                     value: true,
                     groupValue: _isConducteurOwner,
                     onChanged: (value) {
-                      setState(() {
+                      if (mounted) setState(() {
                         _isConducteurOwner = value!;
                       });
                     },
@@ -383,7 +386,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
                     value: false,
                     groupValue: _isConducteurOwner,
                     onChanged: (value) {
-                      setState(() {
+                      if (mounted) setState(() {
                         _isConducteurOwner = value!;
                       });
                     },
@@ -569,7 +572,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
                   DropdownMenuItem(value: 'autre', child: Text('Autre')),
                 ],
                 onChanged: (value) {
-                  setState(() {
+                  if (mounted) setState(() {
                     _relationToConducteur = value!;
                   });
                 },
@@ -599,7 +602,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
               selectedCompanyId: _selectedCompanyId,
               selectedAgencyId: _selectedAgencyId,
               onSelectionChanged: (companyId, agencyId) {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedCompanyId = companyId;
                   _selectedAgencyId = agencyId;
                 });
@@ -879,7 +882,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
   void _nextStep() {
     if (_currentStep < 3) {
       if (_validateCurrentStep()) {
-        setState(() {
+        if (mounted) setState(() {
           _currentStep++;
         });
         _pageController.nextPage(
@@ -894,7 +897,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
 
   void _previousStep() {
     if (_currentStep > 0) {
-      setState(() {
+      if (mounted) setState(() {
         _currentStep--;
       });
       _pageController.previousPage(
@@ -1011,7 +1014,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
   }
 
   Future<void> _submitInsuranceRequest() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -1082,7 +1085,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
       }
     } finally {
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _isLoading = false;
         });
       }
@@ -1193,7 +1196,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
       helpText: 'Date de première mise en circulation',
     );
     if (date != null) {
-      setState(() {
+      if (mounted) setState(() {
         _firstRegistrationDate = date;
       });
     }
@@ -1208,7 +1211,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
       helpText: 'Date de délivrance du permis',
     );
     if (date != null) {
-      setState(() {
+      if (mounted) setState(() {
         _permisDeliveryDate = date;
       });
     }
@@ -1271,7 +1274,7 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
   }
 
   void _removeVehiclePhoto(int index) {
-    setState(() {
+    if (mounted) setState(() {
       _vehiclePhotos.removeAt(index);
     });
   }
@@ -1298,3 +1301,4 @@ class _CompleteInsuranceRequestScreenState extends State<CompleteInsuranceReques
     super.dispose();
   }
 }
+

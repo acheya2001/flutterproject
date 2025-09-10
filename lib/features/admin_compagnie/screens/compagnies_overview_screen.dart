@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/compagnie_bi_service.dart';
 import 'modern_statistics_screen.dart';
@@ -19,7 +19,11 @@ class _CompagniesOverviewScreenState extends State<CompagniesOverviewScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadCompagnies();
+    });
   }
 
   /// 🏢 Charger toutes les compagnies
@@ -50,7 +54,7 @@ class _CompagniesOverviewScreenState extends State<CompagniesOverviewScreen> {
         }
       }
 
-      setState(() {
+      if (mounted) setState(() {
         _compagnies = compagnies;
         _compagniesStats = stats;
         _isLoading = false;
@@ -456,3 +460,4 @@ class _CompagniesOverviewScreenState extends State<CompagniesOverviewScreen> {
     );
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../conducteur/models/conducteur_vehicle_model.dart';
 import '../../conducteur/services/conducteur_auth_service.dart';
@@ -24,8 +24,12 @@ class _ConstatSelectionScreenState extends State<ConstatSelectionScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _currentUserId = FirebaseAuth.instance.currentUser?.uid;
     _loadVehicles();
+    });
   }
 
   Future<void> _loadVehicles() async {
@@ -33,12 +37,12 @@ class _ConstatSelectionScreenState extends State<ConstatSelectionScreen> {
 
     try {
       final vehicles = await ConducteurAuthService.getConducteurVehicles(_currentUserId!);
-      setState(() {
+      if (mounted) setState(() {
         _vehicles = vehicles;
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
       _showError('Erreur lors du chargement des véhicules: $e');
@@ -403,3 +407,4 @@ class _ConstatSelectionScreenState extends State<ConstatSelectionScreen> {
     );
   }
 }
+

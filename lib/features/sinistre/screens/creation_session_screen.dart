@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../common/widgets/custom_app_bar.dart';
@@ -29,7 +29,11 @@ class _CreationSessionScreenState extends State<CreationSessionScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadUserVehicules();
+    });
   }
 
   Future<void> _loadUserVehicules() async {
@@ -120,7 +124,7 @@ class _CreationSessionScreenState extends State<CreationSessionScreen> {
         }
       }
 
-      setState(() {
+      if (mounted) setState(() {
         _vehicules = vehicules;
         _isLoading = false;
       });
@@ -676,3 +680,4 @@ class _CreationSessionScreenState extends State<CreationSessionScreen> {
     );
   }
 }
+

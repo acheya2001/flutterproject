@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/auto_fill_service.dart';
 
 /// 🚗 Widget de sélection de véhicule avec auto-remplissage
@@ -28,7 +28,11 @@ class _VehicleSelectorWithAutoFillState extends State<VehicleSelectorWithAutoFil
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadVehicles();
+    });
   }
 
   /// 📋 Charger les véhicules du conducteur
@@ -353,3 +357,4 @@ class _VehicleSelectorWithAutoFillState extends State<VehicleSelectorWithAutoFil
     );
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../insurance/models/insurance_structure_model.dart';
 import '../../insurance/services/insurance_structure_service.dart';
@@ -26,9 +26,13 @@ class _PendingVehiclesScreenState extends State<PendingVehiclesScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _currentAgentId = FirebaseAuth.instance.currentUser?.uid;
     _currentAgencyId = widget.agencyId;
     _loadAgencyInfo();
+    });
   }
 
   Future<void> _loadAgencyInfo() async {
@@ -37,7 +41,7 @@ class _PendingVehiclesScreenState extends State<PendingVehiclesScreen> {
       // Logique pour récupérer l'agence de l'agent
     }
     
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = false;
     });
   }
@@ -440,9 +444,8 @@ class _PendingVehiclesScreenState extends State<PendingVehiclesScreen> {
     );
   }
 
-
-
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} à ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
+

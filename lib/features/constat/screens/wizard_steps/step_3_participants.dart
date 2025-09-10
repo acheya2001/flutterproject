@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../models/participant_model.dart';
@@ -318,7 +318,7 @@ class _Step3ParticipantsState extends State<Step3Participants> {
       context: context,
       builder: (context) => _InviteDialog(
         onInvite: (emailOrPhone, role, isOwner) {
-          setState(() {
+          if (mounted) setState(() {
             widget.wizardData.participants.add({
               'emailOrPhone': emailOrPhone,
               'role': role,
@@ -394,7 +394,7 @@ class _Step3ParticipantsState extends State<Step3Participants> {
           ),
           TextButton(
             onPressed: () {
-              setState(() {
+              if (mounted) setState(() {
                 widget.wizardData.participants.removeAt(index);
               });
               Navigator.of(context).pop();
@@ -495,7 +495,7 @@ class _InviteDialogState extends State<_InviteDialog> {
                 );
               }).toList(),
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedRole = value!;
                 });
               },
@@ -508,7 +508,7 @@ class _InviteDialogState extends State<_InviteDialog> {
                 subtitle: const Text('Cette personne est-elle propriétaire de son véhicule ?'),
                 value: _isOwner,
                 onChanged: (value) {
-                  setState(() {
+                  if (mounted) setState(() {
                     _isOwner = value ?? false;
                   });
                 },
@@ -548,3 +548,4 @@ class _InviteDialogState extends State<_InviteDialog> {
     super.dispose();
   }
 }
+

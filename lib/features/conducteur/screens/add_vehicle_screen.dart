@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/vehicule_management_service.dart';
@@ -74,7 +74,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
 
   Future<void> _submitVehicle() async {
     if (_formKey.currentState!.validate()) {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = true;
       });
 
@@ -98,10 +98,11 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
           SnackBar(content: Text('Erreur lors de l\'ajout du véhicule: $e')),
         );
       } finally {
-        setState(() {
+        if (mounted) setState(() {
           _isLoading = false;
         });
       }
     }
   }
 }
+

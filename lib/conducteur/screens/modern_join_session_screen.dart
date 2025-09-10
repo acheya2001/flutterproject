@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/modern_sinistre_service.dart';
 import '../../common/widgets/custom_app_bar.dart';
 import '../../common/widgets/gradient_background.dart';
-import 'constat_form_screen.dart';
+import 'modern_single_accident_info_screen.dart';
 
 /// 🚗 Écran moderne pour conducteur inscrit rejoignant une session
 class ModernJoinSessionScreen extends StatefulWidget {
@@ -57,7 +57,7 @@ class _ModernJoinSessionScreenState extends State<ModernJoinSessionScreen> {
       );
 
       if (result['success']) {
-        setState(() {
+        if (mounted) setState(() {
           _sessionData = result['sessionData'];
           _vehicules = List<Map<String, dynamic>>.from(result['vehicules'] ?? []);
         });
@@ -124,10 +124,8 @@ class _ModernJoinSessionScreenState extends State<ModernJoinSessionScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => ConstatFormScreen(
-          sessionData: _sessionData!,
-          vehiculeSelectionne: vehicule,
-          isInscrit: true,
+        builder: (context) => ModernSingleAccidentInfoScreen(
+          typeAccident: 'Collision entre deux véhicules',
         ),
       ),
     );
@@ -389,3 +387,4 @@ class _ModernJoinSessionScreenState extends State<ModernJoinSessionScreen> {
     );
   }
 }
+

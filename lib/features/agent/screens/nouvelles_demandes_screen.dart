@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/complete_insurance_workflow_service.dart';
@@ -28,19 +28,23 @@ class _NouvellesDemandesScreenState extends State<NouvellesDemandesScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadDemandes();
+    });
   }
 
   Future<void> _loadDemandes() async {
     try {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = true;
         _error = null;
       });
 
       final demandes = await CompleteInsuranceWorkflowService.getAgencyRequests(widget.agenceId);
       
-      setState(() {
+      if (mounted) setState(() {
         _demandes = demandes;
         _isLoading = false;
       });
@@ -48,7 +52,7 @@ class _NouvellesDemandesScreenState extends State<NouvellesDemandesScreen> {
       LoggingService.info('NouvellesDemandesScreen', '✅ ${demandes.length} demandes chargées pour agence ${widget.agenceId}');
     } catch (e) {
       LoggingService.error('NouvellesDemandesScreen', '❌ Erreur chargement demandes agence', e);
-      setState(() {
+      if (mounted) setState(() {
         _error = e.toString();
         _isLoading = false;
       });
@@ -580,7 +584,7 @@ class _ContractCreationDialogState extends State<_ContractCreationDialog> {
                     );
                   }).toList(),
                   onChanged: (value) {
-                    setState(() {
+                    if (mounted) setState(() {
                       _selectedType = value!;
                       _updateGarantiesForType(value);
                     });
@@ -810,3 +814,4 @@ class _ContractCreationDialogState extends State<_ContractCreationDialog> {
     }
   }
 }
+

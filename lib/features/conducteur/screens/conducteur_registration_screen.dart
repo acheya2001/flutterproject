@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/widgets/custom_app_bar.dart';
@@ -50,13 +50,17 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadCompanies();
+    });
   }
 
   Future<void> _loadCompanies() async {
     try {
       final companies = await ConducteurAuthService.getAvailableCompanies();
-      setState(() {
+      if (mounted) setState(() {
         _companies = companies;
       });
     } catch (e) {
@@ -71,7 +75,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
   Future<void> _loadAgencies(String companyId) async {
     try {
       final agencies = await ConducteurAuthService.getAgenciesByCompany(companyId);
-      setState(() {
+      if (mounted) setState(() {
         _agencies = agencies;
         _selectedAgency = null;
       });
@@ -462,7 +466,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
                 );
               }).toList(),
               onChanged: (company) {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedCompany = company;
                   _selectedAgency = null;
                 });
@@ -487,7 +491,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
                 );
               }).toList(),
               onChanged: (agency) {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedAgency = agency;
                 });
               },
@@ -623,7 +627,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
   void _nextStep() {
     if (_currentStep < 3) {
       if (_validateCurrentStep()) {
-        setState(() {
+        if (mounted) setState(() {
           _currentStep++;
         });
         _pageController.nextPage(
@@ -638,7 +642,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
 
   void _previousStep() {
     if (_currentStep > 0) {
-      setState(() {
+      if (mounted) setState(() {
         _currentStep--;
       });
       _pageController.previousPage(
@@ -667,7 +671,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
   }
 
   Future<void> _submitRegistration() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -704,7 +708,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
       }
     } finally {
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _isLoading = false;
         });
       }
@@ -720,7 +724,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
     );
     
     if (date != null) {
-      setState(() {
+      if (mounted) setState(() {
         _dateOfBirth = date;
       });
     }
@@ -729,7 +733,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
   Future<void> _pickProfileImage() async {
     final image = await _picker.pickImage(source: ImageSource.camera);
     if (image != null) {
-      setState(() {
+      if (mounted) setState(() {
         _profileImage = File(image.path);
       });
     }
@@ -765,3 +769,4 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
     super.dispose();
   }
 }
+

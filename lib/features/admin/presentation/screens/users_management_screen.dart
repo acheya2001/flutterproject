@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'admin_compagnie_creation_screen.dart';
 import 'admin_compagnie_list_screen.dart';
 
@@ -10,8 +10,7 @@ class UsersManagementScreen extends StatefulWidget {
   State<UsersManagementScreen> createState() => _UsersManagementScreenState();
 }
 
-class _UsersManagementScreenState extends State<UsersManagementScreen>
-    with SingleTickerProviderStateMixin {
+class _UsersManagementScreenState extends State<UsersManagementScreen>with SingleTickerProviderStateMixin  {
   late TabController _tabController;
   int _selectedIndex = 0;
 
@@ -20,7 +19,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen>
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(() {
-      setState(() {
+      if (mounted) setState(() {
         _selectedIndex = _tabController.index;
       });
     });
@@ -1265,3 +1264,4 @@ class _UsersManagementScreenState extends State<UsersManagementScreen>
     );
   }
 }
+

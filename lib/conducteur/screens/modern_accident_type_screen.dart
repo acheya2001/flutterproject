@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'modern_vehicle_count_screen.dart';
-import 'session_invitation_screen.dart';
-import 'modern_single_accident_info_screen.dart';
-import 'modern_single_accident_info_screen.dart';
 import 'modern_invitation_screen.dart';
-
+import 'modern_single_accident_info_screen.dart';
+import 'collaborative_vehicle_count_screen.dart';
+import 'collaborative_choice_screen.dart';
 
 /// 🎨 Interface moderne de sélection du type d'accident
 class ModernAccidentTypeScreen extends StatefulWidget {
@@ -14,28 +13,20 @@ class ModernAccidentTypeScreen extends StatefulWidget {
   State<ModernAccidentTypeScreen> createState() => _ModernAccidentTypeScreenState();
 }
 
-class _ModernAccidentTypeScreenState extends State<ModernAccidentTypeScreen> 
-    with TickerProviderStateMixin {
+class _ModernAccidentTypeScreenState extends State<ModernAccidentTypeScreen> with TickerProviderStateMixin {
   String? _typeAccidentSelectionne;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
   final List<Map<String, dynamic>> _typesAccidents = [
     {
-      'id': 'collision_deux_vehicules',
-      'titre': 'Collision entre deux véhicules',
-      'description': 'Accident impliquant exactement 2 véhicules',
-      'icon': '⚡',
-      'couleur': Colors.blue,
-      'nombreVehicules': 2,
-    },
-    {
-      'id': 'carambolage',
-      'titre': 'Carambolage',
-      'description': '3 véhicules ou plus impliqués',
-      'icon': '🚗💥🚙',
-      'couleur': Colors.red,
+      'id': 'accident_collaboratif',
+      'titre': 'Accident collaboratif',
+      'description': 'Constat partagé entre plusieurs conducteurs (2 véhicules ou plus)',
+      'icon': '🤝',
+      'couleur': Colors.indigo,
       'nombreVehicules': null, // Sera choisi dans l'écran suivant
+      'isCollaborative': true,
     },
     {
       'id': 'sortie_route',
@@ -364,7 +355,7 @@ class _ModernAccidentTypeScreenState extends State<ModernAccidentTypeScreen>
   }
 
   void _selectionnerType(Map<String, dynamic> type) {
-    setState(() {
+    if (mounted) setState(() {
       _typeAccidentSelectionne = type['id'];
     });
     
@@ -379,13 +370,35 @@ class _ModernAccidentTypeScreenState extends State<ModernAccidentTypeScreen>
 
   void _continuer() {
     if (_typeAccidentSelectionne == null) return;
-    
+
     final typeSelectionne = _typesAccidents.firstWhere(
       (type) => type['id'] == _typeAccidentSelectionne,
     );
-    
-    // Navigation selon le type d'accident
-    if (typeSelectionne['nombreVehicules'] != null) {
+
+    // Vérifier si c'est un accident collaboratif
+    final bool isCollaborative = typeSelectionne['isCollaborative'] ?? false;
+
+    if (isCollaborative) {
+      // Mode collaboratif - aller directement vers la sélection du nombre de véhicules
+      Navigator.push(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              CollaborativeVehicleCountScreen(
+                typeAccident: typeSelectionne['id'],
+              ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            );
+          },
+        ),
+      );
+    } else if (typeSelectionne['nombreVehicules'] != null) {
       // Nombre de véhicules fixe - aller directement à la sélection de véhicule
       _naviguerVersSelectionVehicule(typeSelectionne);
     } else {
@@ -393,7 +406,7 @@ class _ModernAccidentTypeScreenState extends State<ModernAccidentTypeScreen>
       Navigator.push(
         context,
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => 
+          pageBuilder: (context, animation, secondaryAnimation) =>
               ModernVehicleCountScreen(
                 typeAccident: typeSelectionne,
               ),
@@ -413,22 +426,16 @@ class _ModernAccidentTypeScreenState extends State<ModernAccidentTypeScreen>
 
   void _naviguerVersSelectionVehicule(Map<String, dynamic> typeAccident) {
     final String titre = typeAccident['titre'];
+    final bool isCollaborative = typeAccident['isCollaborative'] ?? false;
 
-    // Vérifier si c'est un accident nécessitant une invitation
-    final bool necessiteInvitation = titre.toLowerCase().contains('collision') ||
-                                   titre.toLowerCase().contains('carambolage') ||
-                                   titre.toLowerCase().contains('entre') ||
-                                   titre.toLowerCase().contains('multiple');
-
-    if (necessiteInvitation) {
-      // Naviguer vers l'interface d'invitation moderne
+    if (isCollaborative) {
+      // Mode collaboratif - naviguer vers l'écran de sélection du nombre de véhicules
       Navigator.push(
         context,
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) =>
-              ModernInvitationScreen(
-                typeAccident: titre,
-                nombreVehicules: typeAccident['nombreVehicules'] ?? 2,
+              CollaborativeVehicleCountScreen(
+                typeAccident: typeAccident['id'],
               ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return SlideTransition(
@@ -442,25 +449,54 @@ class _ModernAccidentTypeScreenState extends State<ModernAccidentTypeScreen>
         ),
       );
     } else {
-      // Naviguer vers le formulaire normal
-      Navigator.push(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              ModernSingleAccidentInfoScreen(
-                typeAccident: titre,
-              ),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(1.0, 0.0),
-                end: Offset.zero,
-              ).animate(animation),
-              child: child,
-            );
-          },
-        ),
-      );
+      // Vérifier si c'est un accident nécessitant une invitation (ancien système)
+      final bool necessiteInvitation = titre.toLowerCase().contains('collision') ||
+                                     titre.toLowerCase().contains('carambolage') ||
+                                     titre.toLowerCase().contains('entre') ||
+                                     titre.toLowerCase().contains('multiple');
+
+      if (necessiteInvitation) {
+        // Naviguer vers l'interface d'invitation moderne (ancien système)
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                ModernInvitationScreen(
+                  typeAccident: titre,
+                  nombreVehicules: typeAccident['nombreVehicules'] ?? 2,
+                ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              );
+            },
+          ),
+        );
+      } else {
+        // Naviguer vers le formulaire normal
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                ModernSingleAccidentInfoScreen(
+                  typeAccident: titre,
+                ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              );
+            },
+          ),
+        );
+      }
     }
   }
 
@@ -475,3 +511,4 @@ class _ModernAccidentTypeScreenState extends State<ModernAccidentTypeScreen>
     return !typesUniques.contains(typeAccident);
   }
 }
+

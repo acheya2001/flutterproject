@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 /// 📅 Widget pour sélectionner une date avec un calendrier visuel
@@ -71,7 +71,7 @@ class _DatePickerFieldState extends State<DatePickerField> {
     );
 
     if (picked != null && picked != _selectedDate) {
-      setState(() {
+      if (mounted) setState(() {
         _selectedDate = picked;
         _controller.text = DateFormat('dd/MM/yyyy').format(picked);
       });
@@ -80,7 +80,7 @@ class _DatePickerFieldState extends State<DatePickerField> {
   }
 
   void _clearDate() {
-    setState(() {
+    if (mounted) setState(() {
       _selectedDate = null;
       _controller.clear();
     });
@@ -290,7 +290,7 @@ class _DateRangePickerFieldState extends State<DateRangePickerField> {
     );
 
     if (picked != null) {
-      setState(() {
+      if (mounted) setState(() {
         _selectedRange = picked;
         _updateController();
       });
@@ -337,3 +337,4 @@ class _DateRangePickerFieldState extends State<DateRangePickerField> {
     );
   }
 }
+

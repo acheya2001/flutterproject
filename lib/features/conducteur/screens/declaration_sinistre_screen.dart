@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -613,7 +613,7 @@ class _DeclarationSinistreScreenState extends State<DeclarationSinistreScreen> {
     );
     
     if (date != null) {
-      setState(() {
+      if (mounted) setState(() {
         _selectedDate = date;
         _dateController.text = DateFormat('dd/MM/yyyy').format(date);
       });
@@ -690,3 +690,4 @@ class _DeclarationSinistreScreenState extends State<DeclarationSinistreScreen> {
     }
   }
 }
+

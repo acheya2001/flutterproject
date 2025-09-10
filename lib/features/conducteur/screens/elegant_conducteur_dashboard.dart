@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/conducteur_auth_service.dart';
@@ -13,8 +13,7 @@ class ElegantConducteurDashboard extends StatefulWidget {
   State<ElegantConducteurDashboard> createState() => _ElegantConducteurDashboardState();
 }
 
-class _ElegantConducteurDashboardState extends State<ElegantConducteurDashboard> 
-    with TickerProviderStateMixin {
+class _ElegantConducteurDashboardState extends State<ElegantConducteurDashboard>with TickerProviderStateMixin  {
   int _selectedIndex = 0;
   ConducteurModel? _conducteur;
   List<Map<String, dynamic>> _vehicules = [];
@@ -29,8 +28,12 @@ class _ElegantConducteurDashboardState extends State<ElegantConducteurDashboard>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _initAnimations();
     _loadConducteurData();
+    });
   }
 
   void _initAnimations() {
@@ -60,7 +63,7 @@ class _ElegantConducteurDashboardState extends State<ElegantConducteurDashboard>
         // Charger les données du conducteur
         final conducteurData = await ConducteurAuthService.getConducteurData(user.uid);
         if (conducteurData != null) {
-          setState(() {
+          if (mounted) setState(() {
             _conducteur = ConducteurModel.fromMap(conducteurData);
           });
         }
@@ -77,7 +80,7 @@ class _ElegantConducteurDashboardState extends State<ElegantConducteurDashboard>
     } catch (e) {
       debugPrint('Erreur lors du chargement des données: $e');
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
       _animationController.forward();
@@ -1867,3 +1870,4 @@ class _ElegantConducteurDashboardState extends State<ElegantConducteurDashboard>
     );
   }
 }
+

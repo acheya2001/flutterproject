@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/widgets/custom_button.dart';
@@ -327,7 +327,7 @@ class _Step4AttachmentsState extends State<Step4Attachments> {
       );
 
       if (image != null) {
-        setState(() {
+        if (mounted) setState(() {
           widget.wizardData.attachments.add({
             'file': File(image.path),
             'type': type,
@@ -394,7 +394,7 @@ class _Step4AttachmentsState extends State<Step4Attachments> {
           ),
           TextButton(
             onPressed: () {
-              setState(() {
+              if (mounted) setState(() {
                 widget.wizardData.attachments.removeAt(index);
               });
               Navigator.of(context).pop();
@@ -438,3 +438,4 @@ class _Step4AttachmentsState extends State<Step4Attachments> {
     }
   }
 }
+

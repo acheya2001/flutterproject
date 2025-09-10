@@ -1,14 +1,16 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:signature/signature.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import '../../models/accident_session_complete.dart';
+import '../../models/collaborative_session_model.dart';
 import '../../services/accident_session_complete_service.dart';
+import '../../services/collaborative_session_service.dart';
 
 /// ✍️ Étape 6 : Signatures et finalisation (selon constat papier)
 class AccidentFormStep6Signatures extends StatefulWidget {
-  final AccidentSessionComplete session;
+  final dynamic session; // Peut être CollaborativeSession ou AccidentSessionComplete
 
   const AccidentFormStep6Signatures({
     super.key,
@@ -19,8 +21,7 @@ class AccidentFormStep6Signatures extends StatefulWidget {
   State<AccidentFormStep6Signatures> createState() => _AccidentFormStep6SignaturesState();
 }
 
-class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signatures>
-    with TickerProviderStateMixin {
+class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signatures>with TickerProviderStateMixin  {
   late TabController _tabController;
   bool _isLoading = false;
   String? _monRoleVehicule;
@@ -32,7 +33,12 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _initialiserSignatures();
+    _chargerSignaturesExistantes();
+    });
   }
 
   @override
@@ -47,40 +53,101 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
   void _initialiserSignatures() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final conducteur = widget.session.conducteurs.firstWhere(
+      final participants = _getParticipants();
+      final conducteur = participants.firstWhere(
         (c) => c.userId == user.uid,
-        orElse: () => widget.session.conducteurs.first,
+        orElse: () => participants.first,
       );
       _monRoleVehicule = conducteur.roleVehicule;
     }
 
     // Initialiser les contrôleurs de signature
-    for (final conducteur in widget.session.conducteurs) {
+    for (final conducteur in _getParticipants()) {
       _signaturesControllers[conducteur.roleVehicule] = SignatureController(
         penStrokeWidth: 3,
         penColor: Colors.blue[800]!,
         exportBackgroundColor: Colors.white,
       );
-      
+
       // Vérifier si la signature existe déjà
-      _signaturesValidees[conducteur.roleVehicule] = 
-          widget.session.signatures.containsKey(conducteur.roleVehicule);
+      if (widget.session is AccidentSessionComplete) {
+        _signaturesValidees[conducteur.roleVehicule] =
+            (widget.session as AccidentSessionComplete).signatures.containsKey(conducteur.roleVehicule);
+      } else {
+        _signaturesValidees[conducteur.roleVehicule] = false;
+      }
     }
 
     _tabController = TabController(
-      length: widget.session.conducteurs.length,
+      length: _getParticipants().length,
       vsync: this,
     );
 
     // Aller directement à l'onglet de l'utilisateur
     if (_monRoleVehicule != null) {
-      final index = widget.session.conducteurs.indexWhere(
+      final index = _getParticipants().indexWhere(
         (c) => c.roleVehicule == _monRoleVehicule,
       );
       if (index >= 0) {
         _tabController.index = index;
       }
     }
+  }
+
+  List<ConducteurSession> _getParticipants() {
+    if (widget.session is CollaborativeSession) {
+      // Convertir SessionParticipant vers ConducteurSession
+      final collaborativeSession = widget.session as CollaborativeSession;
+      return collaborativeSession.participants.map((participant) {
+        return ConducteurSession(
+          userId: participant.userId,
+          nom: participant.nom,
+          prenom: participant.prenom,
+          email: participant.email,
+          telephone: participant.telephone,
+          roleVehicule: participant.roleVehicule,
+          estCreateur: participant.estCreateur,
+          aRejoint: participant.statut == ParticipantStatus.rejoint,
+          estInscrit: participant.type == ParticipantType.inscrit,
+          dateRejoint: participant.dateRejoint,
+        );
+      }).toList();
+    } else {
+      return (widget.session as AccidentSessionComplete).conducteurs;
+    }
+  }
+
+  /// 📅 Obtenir la date d'accident selon le type de session
+  DateTime _getDateAccident() {
+    if (widget.session is AccidentSessionComplete) {
+      return (widget.session as AccidentSessionComplete).infosGenerales.dateAccident;
+    } else if (widget.session is CollaborativeSession) {
+      // Pour les sessions collaboratives, utiliser une date par défaut ou récupérer depuis Firestore
+      return DateTime.now(); // TODO: Récupérer depuis donneesCommunes
+    }
+    return DateTime.now();
+  }
+
+  /// 📍 Obtenir le lieu d'accident selon le type de session
+  String _getLieuAccident() {
+    if (widget.session is AccidentSessionComplete) {
+      return (widget.session as AccidentSessionComplete).infosGenerales.lieuAccident;
+    } else if (widget.session is CollaborativeSession) {
+      // Pour les sessions collaboratives, utiliser une valeur par défaut ou récupérer depuis Firestore
+      return 'Lieu non spécifié'; // TODO: Récupérer depuis donneesCommunes
+    }
+    return 'Lieu non spécifié';
+  }
+
+  /// 🚑 Obtenir l'information sur les blessés selon le type de session
+  bool _getBlesses() {
+    if (widget.session is AccidentSessionComplete) {
+      return (widget.session as AccidentSessionComplete).infosGenerales.blesses;
+    } else if (widget.session is CollaborativeSession) {
+      // Pour les sessions collaboratives, utiliser une valeur par défaut ou récupérer depuis Firestore
+      return false; // TODO: Récupérer depuis donneesCommunes
+    }
+    return false;
   }
 
   @override
@@ -98,7 +165,7 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
-          tabs: widget.session.conducteurs.map((conducteur) {
+          tabs: _getParticipants().map((conducteur) {
             final estMonVehicule = conducteur.roleVehicule == _monRoleVehicule;
             final estSigne = _signaturesValidees[conducteur.roleVehicule] ?? false;
             
@@ -139,7 +206,7 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: widget.session.conducteurs.map((conducteur) {
+              children: _getParticipants().map((conducteur) {
                 return _buildSignatureForm(conducteur);
               }).toList(),
             ),
@@ -154,7 +221,7 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
 
   Widget _buildProgressBar() {
     final nbSignatures = _signaturesValidees.values.where((v) => v).length;
-    final totalSignatures = widget.session.conducteurs.length;
+    final totalSignatures = _getParticipants().length;
     
     return Container(
       padding: const EdgeInsets.all(16),
@@ -327,9 +394,9 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
             
             _buildResumeRow('Type d\'accident', widget.session.typeAccident),
             _buildResumeRow('Nombre de véhicules', '${widget.session.nombreVehicules}'),
-            _buildResumeRow('Date', _formatDate(widget.session.infosGenerales.dateAccident)),
-            _buildResumeRow('Lieu', widget.session.infosGenerales.lieuAccident),
-            _buildResumeRow('Blessés', widget.session.infosGenerales.blesses ? 'Oui' : 'Non'),
+            _buildResumeRow('Date', _formatDate(_getDateAccident())),
+            _buildResumeRow('Lieu', _getLieuAccident()),
+            _buildResumeRow('Blessés', _getBlesses() ? 'Oui' : 'Non'),
             
             const SizedBox(height: 12),
             
@@ -426,34 +493,7 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
                 color: estSigne ? Colors.grey[100] : Colors.white,
               ),
               child: estSigne
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green[600],
-                            size: 48,
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Signature validée',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                          Text(
-                            'Signé le ${_formatDate(DateTime.now())}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
+                  ? _buildSignatureExistante(conducteur.roleVehicule)
                   : peutSigner
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(8),
@@ -626,6 +666,186 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
     return '${date.day}/${date.month}/${date.year}';
   }
 
+  /// 📥 Charger les signatures existantes depuis Firebase
+  Future<void> _chargerSignaturesExistantes() async {
+    try {
+      if (widget.session is CollaborativeSession) {
+        // Charger depuis la session collaborative
+        final signatures = await CollaborativeSessionService.obtenirToutesLesSignatures(widget.session.id);
+
+        for (final signatureData in signatures) {
+          final roleVehicule = signatureData['roleVehicule'] as String?;
+          final signatureBase64 = signatureData['signatureBase64'] as String?;
+
+          if (roleVehicule != null && signatureBase64 != null) {
+            // Marquer comme validée
+            if (mounted) setState(() {
+              _signaturesValidees[roleVehicule] = true;
+            });
+
+            // Charger l'image de signature dans le contrôleur
+            try {
+              final signatureBytes = base64Decode(signatureBase64);
+              final controller = _signaturesControllers[roleVehicule];
+              if (controller != null) {
+                // Note: SignatureController ne permet pas de charger une image existante
+                // On marque juste comme validée pour l'instant
+                print('✅ Signature chargée pour $roleVehicule');
+              }
+            } catch (e) {
+              print('❌ Erreur chargement signature $roleVehicule: $e');
+            }
+          }
+        }
+      } else if (widget.session is AccidentSessionComplete) {
+        // Charger depuis la session complète
+        final session = widget.session as AccidentSessionComplete;
+        for (final entry in session.signatures.entries) {
+          if (mounted) setState(() {
+            _signaturesValidees[entry.key] = true;
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ Erreur chargement signatures: $e');
+    }
+  }
+
+  /// 🖼️ Construire l'affichage d'une signature existante
+  Widget _buildSignatureExistante(String roleVehicule) {
+    return FutureBuilder<String?>(
+      future: _obtenirSignatureBase64(roleVehicule),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        if (snapshot.hasData && snapshot.data != null) {
+          try {
+            final signatureBytes = base64Decode(snapshot.data!);
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.green[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.green[50],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      signatureBytes,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green[600], size: 16),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'Signature validée',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                ElevatedButton.icon(
+                  onPressed: () => _modifierSignature(roleVehicule),
+                  icon: const Icon(Icons.edit, size: 14),
+                  label: const Text('Modifier', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    minimumSize: const Size(0, 32),
+                  ),
+                ),
+              ],
+            );
+          } catch (e) {
+            print('❌ Erreur décodage signature: $e');
+          }
+        }
+
+        // Fallback si pas de signature ou erreur
+        return const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 48,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Signature validée',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 📥 Obtenir la signature en base64 depuis Firebase
+  Future<String?> _obtenirSignatureBase64(String roleVehicule) async {
+    try {
+      if (widget.session is CollaborativeSession) {
+        final signatures = await CollaborativeSessionService.obtenirToutesLesSignatures(widget.session.id);
+        final signature = signatures.firstWhere(
+          (s) => s['roleVehicule'] == roleVehicule,
+          orElse: () => <String, dynamic>{},
+        );
+        return signature['signatureBase64'] as String?;
+      } else if (widget.session is AccidentSessionComplete) {
+        final session = widget.session as AccidentSessionComplete;
+        return session.signatures[roleVehicule];
+      }
+    } catch (e) {
+      print('❌ Erreur obtention signature: $e');
+    }
+    return null;
+  }
+
+  /// ✏️ Modifier une signature existante
+  void _modifierSignature(String roleVehicule) {
+    if (mounted) setState(() {
+      _signaturesValidees[roleVehicule] = false;
+    });
+
+    // Effacer le contrôleur de signature
+    final controller = _signaturesControllers[roleVehicule];
+    if (controller != null) {
+      controller.clear();
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Vous pouvez maintenant modifier votre signature'),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _validerSignature(String roleVehicule, SignatureController controller) async {
     if (controller.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -638,18 +858,30 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
     }
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('Utilisateur non connecté');
+
       // Convertir la signature en base64
       final signature = await controller.toPngBytes();
       final signatureBase64 = base64Encode(signature!);
 
-      // Sauvegarder la signature
-      await AccidentSessionCompleteService.ajouterSignature(
-        widget.session.id,
-        roleVehicule,
-        signatureBase64,
-      );
+      // Sauvegarder la signature selon le type de session
+      if (widget.session is CollaborativeSession) {
+        await CollaborativeSessionService.ajouterSignature(
+          sessionId: widget.session.id,
+          userId: user.uid,
+          signatureBase64: signatureBase64,
+          roleVehicule: roleVehicule,
+        );
+      } else {
+        await AccidentSessionCompleteService.ajouterSignature(
+          widget.session.id,
+          roleVehicule,
+          signatureBase64,
+        );
+      }
 
-      setState(() {
+      if (mounted) setState(() {
         _signaturesValidees[roleVehicule] = true;
       });
 
@@ -674,7 +906,7 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
   }
 
   void _finaliserConstat() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -701,7 +933,8 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
             actions: [
               ElevatedButton(
                 onPressed: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
+                  // Retourner à l'étape précédente avec un résultat positif
+                  Navigator.of(context).pop(true);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green[600],
@@ -722,9 +955,10 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
         );
       }
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
   }
 }
+

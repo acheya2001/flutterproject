@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -34,7 +34,11 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadSessionData();
+    });
   }
 
   Future<void> _loadSessionData() async {
@@ -529,7 +533,7 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
       
       final invitation = await _sessionService.createInvitation(widget.sessionId, nextRole);
       
-      setState(() {
+      if (mounted) setState(() {
         _invitations.add(invitation);
         _isLoading = false;
       });
@@ -558,7 +562,7 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
       
       final invitation = await _sessionService.createInvitation(widget.sessionId, nextRole);
       
-      setState(() {
+      if (mounted) setState(() {
         _invitations.add(invitation);
         _isLoading = false;
       });
@@ -767,3 +771,4 @@ class _QRCodeDialog extends StatelessWidget {
     );
   }
 }
+

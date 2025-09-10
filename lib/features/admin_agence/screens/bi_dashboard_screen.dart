@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/agence_bi_service.dart';
 import '../../../services/export_service.dart';
 import '../../../services/admin_agence_contract_service.dart';
@@ -25,14 +25,18 @@ class _BIDashboardScreenState extends State<BIDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadStatistics();
+    });
   }
 
   /// 📊 Charger les statistiques
   Future<void> _loadStatistics() async {
     try {
       final stats = await AgenceBIService.getAgenceStatistics(widget.agenceId);
-      setState(() {
+      if (mounted) setState(() {
         _statistics = stats;
         _isLoading = false;
       });
@@ -797,5 +801,5 @@ class _BIDashboardScreenState extends State<BIDashboardScreen> {
     }
   }
 
-
 }
+

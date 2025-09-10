@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../models/constat_officiel_model.dart';
 
 /// 📝 Widget pour les circonstances de l'accident
@@ -258,7 +258,7 @@ class _ConstatCircumstancesWidgetState extends State<ConstatCircumstancesWidget>
                 child: Checkbox(
                   value: isSelected,
                   onChanged: canEdit ? (value) {
-                    setState(() {
+                    if (mounted) setState(() {
                       _selectedCircumstances[partie.partieId]![circumstance] = value ?? false;
                     });
                     _updateCircumstances();

@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../features/insurance/models/digital_contract_model.dart';
 import '../../../features/insurance/models/insurance_structure_model.dart';
 import '../../../services/digital_contract_service.dart';
+
 // import '../../../common/widgets/custom_app_bar.dart';
 // import '../../../common/widgets/loading_overlay.dart';
 
@@ -134,7 +135,7 @@ class _ContractCreationScreenState extends State<ContractCreationScreen> {
         break;
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _calculatedPrime = basePrime;
     });
   }
@@ -252,7 +253,7 @@ class _ContractCreationScreenState extends State<ContractCreationScreen> {
               value: type,
               groupValue: _selectedContractType,
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedContractType = value!;
                   _updateGarantiesForContractType();
                 });
@@ -299,7 +300,7 @@ class _ContractCreationScreenState extends State<ContractCreationScreen> {
                 ),
                 value: isSelected,
                 onChanged: isRC ? null : (value) {
-                  setState(() {
+                  if (mounted) setState(() {
                     _selectedGaranties[key] = value ?? false;
                     _calculatePrime();
                   });
@@ -340,7 +341,7 @@ class _ContractCreationScreenState extends State<ContractCreationScreen> {
                 );
               }).toList(),
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedPaymentFrequency = value!;
                 });
               },
@@ -537,3 +538,4 @@ class _ContractCreationScreenState extends State<ContractCreationScreen> {
     }
   }
 }
+

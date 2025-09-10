@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../common/widgets/gradient_background.dart';
 import '../../../common/widgets/custom_app_bar.dart';
 import 'accident_type_selection_screen.dart';
-import '../../../conducteur/screens/vehicle_selection_enhanced_screen.dart';
-import '../../../conducteur/screens/constat_complet_screen.dart';
+import '../../../conducteur/screens/modern_accident_type_screen.dart';
+import '../../../conducteur/screens/modern_single_accident_info_screen.dart';
 
 /// 🚗 Écran de sélection du nombre de véhicules - Design moderne
 class VehicleCountSelectionScreen extends StatefulWidget {
@@ -22,8 +22,7 @@ class VehicleCountSelectionScreen extends StatefulWidget {
   State<VehicleCountSelectionScreen> createState() => _VehicleCountSelectionScreenState();
 }
 
-class _VehicleCountSelectionScreenState extends State<VehicleCountSelectionScreen>
-    with TickerProviderStateMixin {
+class _VehicleCountSelectionScreenState extends State<VehicleCountSelectionScreen>with TickerProviderStateMixin  {
   late int _vehicleCount;
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
@@ -250,7 +249,7 @@ class _VehicleCountSelectionScreenState extends State<VehicleCountSelectionScree
               max: 6.0,
               divisions: widget.accidentType.id == 'carambolage' ? 3 : 4,
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _vehicleCount = value.round();
                 });
                 _animateVehicleChange();
@@ -427,11 +426,8 @@ class _VehicleCountSelectionScreenState extends State<VehicleCountSelectionScree
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => ConstatCompletScreen(
-          sinistreId: widget.sinistreId,
-          vehiculeSelectionne: widget.vehiculeSelectionne,
-          isCollaborative: false,
-          sessionData: null, // Pas de session collaborative
+        pageBuilder: (context, animation, secondaryAnimation) => ModernSingleAccidentInfoScreen(
+          typeAccident: 'Accident multiple',
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
@@ -446,3 +442,4 @@ class _VehicleCountSelectionScreenState extends State<VehicleCountSelectionScree
     );
   }
 }
+

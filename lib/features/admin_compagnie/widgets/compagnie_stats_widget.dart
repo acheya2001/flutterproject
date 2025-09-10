@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/compagnie_bi_service.dart';
 
 /// 📊 Widget des statistiques d'une compagnie
@@ -23,7 +23,11 @@ class _CompagnieStatsWidgetState extends State<CompagnieStatsWidget> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadStatistics();
+    });
   }
 
   /// 📊 Charger les statistiques
@@ -33,7 +37,7 @@ class _CompagnieStatsWidgetState extends State<CompagnieStatsWidget> {
       
       final stats = await CompagnieBIService.getCompagnieStatistics(widget.compagnieId);
       
-      setState(() {
+      if (mounted) setState(() {
         _statistics = stats;
         _isLoading = false;
       });
@@ -325,3 +329,4 @@ class _CompagnieStatsWidgetState extends State<CompagnieStatsWidget> {
     );
   }
 }
+

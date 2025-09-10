@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/admin_agence_management_service.dart';
 import 'create_admin_agence_screen.dart';
@@ -27,7 +27,11 @@ class _AssignAdminAgenceScreenState extends State<AssignAdminAgenceScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAvailableAdmins();
+    });
   }
 
   /// 📊 Charger les admins disponibles
@@ -39,7 +43,7 @@ class _AssignAdminAgenceScreenState extends State<AssignAdminAgenceScreen> {
         compagnieId: widget.userData['compagnieId'],
       );
       
-      setState(() {
+      if (mounted) setState(() {
         _availableAdmins = admins;
       });
     } catch (e) {
@@ -578,7 +582,7 @@ class _AssignAdminAgenceScreenState extends State<AssignAdminAgenceScreen> {
                 size: 28,
               ),
         onTap: () {
-          setState(() {
+          if (mounted) setState(() {
             _selectedAdmin = isSelected ? null : admin;
           });
         },
@@ -701,3 +705,4 @@ class _AssignAdminAgenceScreenState extends State<AssignAdminAgenceScreen> {
     }
   }
 }
+

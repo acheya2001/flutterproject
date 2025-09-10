@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/admin_agence_contract_service.dart';
 
 /// 📄 Écran de détails d'un contrat pour Admin Agence
@@ -23,14 +23,18 @@ class _ContractDetailsScreenState extends State<ContractDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadContractDetails();
+    });
   }
 
   /// 📄 Charger les détails complets du contrat
   Future<void> _loadContractDetails() async {
     try {
       final details = await AdminAgenceContractService.getContractDetails(widget.contractId);
-      setState(() {
+      if (mounted) setState(() {
         _fullContractData = details;
         _isLoading = false;
       });
@@ -723,3 +727,4 @@ class _ContractDetailsScreenState extends State<ContractDetailsScreen> {
     );
   }
 }
+

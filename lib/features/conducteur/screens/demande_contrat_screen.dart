@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
@@ -18,8 +18,7 @@ class DemandeContratScreen extends StatefulWidget {
   State<DemandeContratScreen> createState() => _DemandeContratScreenState();
 }
 
-class _DemandeContratScreenState extends State<DemandeContratScreen>
-    with TickerProviderStateMixin {
+class _DemandeContratScreenState extends State<DemandeContratScreen>with TickerProviderStateMixin  {
   late TabController _tabController;
   final _formKey = GlobalKey<FormState>();
   
@@ -127,10 +126,14 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _tabController = TabController(length: 3, vsync: this);
     _loadUserData();
     print('🚀 Démarrage du chargement des compagnies...');
     _loadCompagnies();
+    });
   }
 
   @override
@@ -161,7 +164,7 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
     }
 
     // Toujours remplir l'email en premier
-    setState(() {
+    if (mounted) setState(() {
       _emailController.text = user.email ?? '';
     });
 
@@ -271,7 +274,7 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
     } catch (e) {
       print('❌ Erreur chargement données: $e');
       // En cas d'erreur, au moins garder l'email
-      setState(() {
+      if (mounted) setState(() {
         _emailController.text = user.email ?? '';
       });
     }
@@ -444,14 +447,14 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
   }
 
   Future<void> _loadCompagnies() async {
-    setState(() {
+    if (mounted) setState(() {
       _debugMessage = 'Connexion à Firebase...';
       _hasError = false;
     });
 
     try {
       // Test simple : charger toutes les compagnies
-      setState(() {
+      if (mounted) setState(() {
         _debugMessage = 'Chargement collection compagnies...';
       });
 
@@ -464,7 +467,7 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
       });
 
       if (snapshot.docs.isEmpty) {
-        setState(() {
+        if (mounted) setState(() {
           _debugMessage = 'AUCUNE compagnie trouvée dans Firebase!';
           _hasError = true;
           _isLoadingCompagnies = false;
@@ -494,7 +497,7 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
       }
 
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _debugMessage = 'ERREUR: $e';
         _hasError = true;
         _isLoadingCompagnies = false;
@@ -504,7 +507,7 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
   }
 
   Future<void> _loadAgences(String compagnieId) async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoadingAgences = true;
     });
 
@@ -547,7 +550,7 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
       }
     } catch (e) {
       print('❌ Erreur lors du chargement des agences: $e');
-      setState(() {
+      if (mounted) setState(() {
         _isLoadingAgences = false;
       });
     }
@@ -1193,7 +1196,7 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
                             }).toList(),
                             onChanged: (value) {
                               print('🎨 Compagnie sélectionnée: $value');
-                              setState(() {
+                              if (mounted) setState(() {
                                 _selectedCompagnie = value;
                                 _selectedAgence = null;
                                 _agences.clear();
@@ -1342,7 +1345,7 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
                     margin: const EdgeInsets.only(bottom: 12),
                     child: InkWell(
                       onTap: () {
-                        setState(() {
+                        if (mounted) setState(() {
                           _selectedFormuleAssurance = formule['value'];
                         });
                       },
@@ -1906,7 +1909,7 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
       return;
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -2090,13 +2093,11 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
         ),
       );
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
   }
-
-
 
   /// 📸 Upload une image vers Firebase Storage
   Future<String?> _uploadImageToFirebase(File imageFile, String type) async {
@@ -2124,3 +2125,4 @@ class _DemandeContratScreenState extends State<DemandeContratScreen>
     }
   }
 }
+

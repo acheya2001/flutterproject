@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -20,8 +20,7 @@ class ModernInvitationScreen extends StatefulWidget {
   State<ModernInvitationScreen> createState() => _ModernInvitationScreenState();
 }
 
-class _ModernInvitationScreenState extends State<ModernInvitationScreen>
-    with TickerProviderStateMixin {
+class _ModernInvitationScreenState extends State<ModernInvitationScreen>with TickerProviderStateMixin  {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -69,7 +68,7 @@ class _ModernInvitationScreenState extends State<ModernInvitationScreen>
     for (int i = 0; i < 6; i++) {
       _codeSession += random.nextInt(10).toString();
     }
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   @override
@@ -500,3 +499,4 @@ class _ModernInvitationScreenState extends State<ModernInvitationScreen>
     );
   }
 }
+

@@ -1,12 +1,14 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/accident_session_complete.dart';
+import '../../models/collaborative_session_model.dart';
 import '../../services/accident_session_complete_service.dart';
-import 'accident_form_step5_croquis.dart';
+import '../../services/collaborative_session_service.dart';
+import 'accident_form_step6_signatures.dart';
 
 /// 📝 Étape 4 : Circonstances de l'accident (selon constat papier)
 class AccidentFormStep4Circonstances extends StatefulWidget {
-  final AccidentSessionComplete session;
+  final dynamic session; // Peut être CollaborativeSession ou AccidentSessionComplete
 
   const AccidentFormStep4Circonstances({
     super.key,
@@ -17,8 +19,7 @@ class AccidentFormStep4Circonstances extends StatefulWidget {
   State<AccidentFormStep4Circonstances> createState() => _AccidentFormStep4CirconstancesState();
 }
 
-class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circonstances>
-    with TickerProviderStateMixin {
+class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circonstances>with TickerProviderStateMixin  {
   late TabController _tabController;
   bool _isLoading = false;
   String? _monRoleVehicule;
@@ -140,38 +141,117 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
 
   void _initialiserCirconstances() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final conducteur = widget.session.conducteurs.firstWhere(
-        (c) => c.userId == user.uid,
-        orElse: () => widget.session.conducteurs.first,
-      );
-      _monRoleVehicule = conducteur.roleVehicule;
-    }
 
-    // Initialiser les circonstances pour chaque véhicule
-    for (final conducteur in widget.session.conducteurs) {
-      _circonstancesSelectionnees[conducteur.roleVehicule] = [];
-    }
-
-    // Pré-remplir avec les données existantes
-    final circonstancesExistantes = widget.session.circonstances.circonstancesParVehicule;
-    for (final entry in circonstancesExistantes.entries) {
-      _circonstancesSelectionnees[entry.key] = List.from(entry.value);
-    }
-
-    _tabController = TabController(
-      length: widget.session.conducteurs.length,
-      vsync: this,
-    );
-
-    // Aller directement à l'onglet de l'utilisateur
-    if (_monRoleVehicule != null) {
-      final index = widget.session.conducteurs.indexWhere(
-        (c) => c.roleVehicule == _monRoleVehicule,
-      );
-      if (index >= 0) {
-        _tabController.index = index;
+    if (widget.session is CollaborativeSession) {
+      // Pour les sessions collaboratives
+      final session = widget.session as CollaborativeSession;
+      if (user != null) {
+        final participant = session.participants.firstWhere(
+          (p) => p.userId == user.uid,
+          orElse: () => session.participants.first,
+        );
+        _monRoleVehicule = participant.roleVehicule;
       }
+
+      // Initialiser les circonstances pour chaque participant
+      for (final participant in session.participants) {
+        _circonstancesSelectionnees[participant.roleVehicule] = [];
+      }
+
+      _tabController = TabController(
+        length: session.participants.length,
+        vsync: this,
+      );
+
+      // Aller directement à l'onglet de l'utilisateur
+      if (_monRoleVehicule != null) {
+        final index = session.participants.indexWhere(
+          (p) => p.roleVehicule == _monRoleVehicule,
+        );
+        if (index >= 0) {
+          _tabController.index = index;
+        }
+      }
+    } else {
+      // Pour les sessions AccidentSessionComplete (ancien système)
+      final session = widget.session as AccidentSessionComplete;
+      if (user != null) {
+        final conducteur = session.conducteurs.firstWhere(
+          (c) => c.userId == user.uid,
+          orElse: () => session.conducteurs.first,
+        );
+        _monRoleVehicule = conducteur.roleVehicule;
+      }
+
+      // Initialiser les circonstances pour chaque véhicule
+      for (final conducteur in session.conducteurs) {
+        _circonstancesSelectionnees[conducteur.roleVehicule] = [];
+      }
+
+      // Pré-remplir avec les données existantes
+      final circonstancesExistantes = session.circonstances.circonstancesParVehicule;
+      for (final entry in circonstancesExistantes.entries) {
+        _circonstancesSelectionnees[entry.key] = List.from(entry.value);
+      }
+
+      _tabController = TabController(
+        length: session.conducteurs.length,
+        vsync: this,
+      );
+
+      // Aller directement à l'onglet de l'utilisateur
+      if (_monRoleVehicule != null) {
+        final index = session.conducteurs.indexWhere(
+          (c) => c.roleVehicule == _monRoleVehicule,
+        );
+        if (index >= 0) {
+          _tabController.index = index;
+        }
+      }
+    }
+  }
+
+  /// 🔄 Obtenir la liste des participants selon le type de session
+  List<dynamic> _getParticipants() {
+    if (widget.session is CollaborativeSession) {
+      // Convertir SessionParticipant vers ConducteurSession
+      final collaborativeSession = widget.session as CollaborativeSession;
+      return collaborativeSession.participants.map((participant) {
+        return ConducteurSession(
+          userId: participant.userId,
+          nom: participant.nom,
+          prenom: participant.prenom,
+          email: participant.email,
+          telephone: participant.telephone,
+          roleVehicule: participant.roleVehicule,
+          estCreateur: participant.estCreateur,
+          aRejoint: participant.statut == ParticipantStatus.rejoint,
+          estInscrit: participant.type == ParticipantType.inscrit,
+          dateRejoint: participant.dateRejoint,
+        );
+      }).toList();
+    } else {
+      return (widget.session as AccidentSessionComplete).conducteurs;
+    }
+  }
+
+  /// 🔄 Obtenir le code de session selon le type
+  String _getSessionCode() {
+    if (widget.session is CollaborativeSession) {
+      return (widget.session as CollaborativeSession).codeSession;
+    } else {
+      return (widget.session as AccidentSessionComplete).codeSession;
+    }
+  }
+
+  /// 🔄 Obtenir le nom du participant selon le type
+  String _getParticipantName(dynamic participant) {
+    if (participant.prenom != null && participant.nom != null) {
+      return '${participant.prenom} ${participant.nom}';
+    } else if (participant.email != null) {
+      return participant.email;
+    } else {
+      return 'Participant ${participant.roleVehicule}';
     }
   }
 
@@ -190,9 +270,9 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
-          tabs: widget.session.conducteurs.map((conducteur) {
-            final estMonVehicule = conducteur.roleVehicule == _monRoleVehicule;
-            final nbCirconstances = _circonstancesSelectionnees[conducteur.roleVehicule]?.length ?? 0;
+          tabs: _getParticipants().map((participant) {
+            final estMonVehicule = participant.roleVehicule == _monRoleVehicule;
+            final nbCirconstances = _circonstancesSelectionnees[participant.roleVehicule]?.length ?? 0;
             
             return Tab(
               child: Container(
@@ -208,7 +288,7 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Véhicule ${conducteur.roleVehicule}',
+                          'Véhicule ${participant.roleVehicule}',
                           style: const TextStyle(color: Colors.white, fontSize: 12),
                         ),
                         if (estMonVehicule) ...[
@@ -258,8 +338,8 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: widget.session.conducteurs.map((conducteur) {
-                return _buildCirconstancesForm(conducteur);
+              children: _getParticipants().map((participant) {
+                return _buildCirconstancesForm(participant);
               }).toList(),
             ),
           ),
@@ -291,7 +371,7 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
               ),
               const Spacer(),
               Text(
-                'Session: ${widget.session.codeSession}',
+                'Session: ${_getSessionCode()}',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.blue[600],
@@ -310,10 +390,11 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
     );
   }
 
-  Widget _buildCirconstancesForm(ConducteurSession conducteur) {
-    final estMonVehicule = conducteur.roleVehicule == _monRoleVehicule;
+  Widget _buildCirconstancesForm(dynamic participant) {
+    final roleVehicule = participant.roleVehicule;
+    final estMonVehicule = roleVehicule == _monRoleVehicule;
     final peutModifier = estMonVehicule;
-    final circonstancesVehicule = _circonstancesSelectionnees[conducteur.roleVehicule] ?? [];
+    final circonstancesVehicule = _circonstancesSelectionnees[roleVehicule] ?? [];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -321,17 +402,17 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // En-tête du véhicule
-          _buildVehiculeHeader(conducteur, estMonVehicule),
-          
+          _buildVehiculeHeader(participant, estMonVehicule),
+
           const SizedBox(height: 24),
-          
+
           // Instructions
           _buildInstructions(peutModifier),
-          
+
           const SizedBox(height: 24),
-          
+
           // Liste des circonstances
-          _buildListeCirconstances(conducteur.roleVehicule, peutModifier),
+          _buildListeCirconstances(roleVehicule, peutModifier),
           
           const SizedBox(height: 24),
           
@@ -345,8 +426,9 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
     );
   }
 
-  Widget _buildVehiculeHeader(ConducteurSession conducteur, bool estMonVehicule) {
-    final nbCirconstances = _circonstancesSelectionnees[conducteur.roleVehicule]?.length ?? 0;
+  Widget _buildVehiculeHeader(dynamic participant, bool estMonVehicule) {
+    final roleVehicule = participant.roleVehicule;
+    final nbCirconstances = _circonstancesSelectionnees[roleVehicule]?.length ?? 0;
     
     return Container(
       padding: const EdgeInsets.all(20),
@@ -371,7 +453,7 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
             ),
             child: Center(
               child: Text(
-                conducteur.roleVehicule,
+                roleVehicule,
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -388,7 +470,7 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Circonstances Véhicule ${conducteur.roleVehicule}',
+                  'Circonstances Véhicule ${roleVehicule}',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -396,7 +478,7 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
                   ),
                 ),
                 Text(
-                  '${conducteur.prenom} ${conducteur.nom}',
+                  _getParticipantName(participant),
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.white,
@@ -719,20 +801,33 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
   }
 
   Future<void> _sauvegarder() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('Utilisateur non connecté');
+
       // Sauvegarder seulement les circonstances de l'utilisateur actuel
       if (_monRoleVehicule != null) {
         final circonstances = _circonstancesSelectionnees[_monRoleVehicule] ?? [];
-        
-        await AccidentSessionCompleteService.mettreAJourCirconstances(
-          widget.session.id,
-          _monRoleVehicule!,
-          circonstances,
-        );
+
+        // Vérifier si c'est une session collaborative
+        if (widget.session is CollaborativeSession) {
+          await CollaborativeSessionService.mettreAJourCirconstances(
+            sessionId: widget.session.id,
+            userId: user.uid,
+            roleVehicule: _monRoleVehicule!,
+            circonstances: circonstances,
+          );
+        } else {
+          await AccidentSessionCompleteService.mettreAJourCirconstances(
+            widget.session.id,
+            _monRoleVehicule!,
+            circonstances,
+          );
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -744,6 +839,7 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
         }
       }
     } catch (e) {
+      print('❌ Erreur mise à jour circonstances: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -753,7 +849,7 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
         );
       }
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -768,7 +864,7 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => AccidentFormStep5Croquis(
+          builder: (context) => AccidentFormStep6Signatures(
             session: widget.session,
           ),
         ),
@@ -776,3 +872,4 @@ class _AccidentFormStep4CirconstancesState extends State<AccidentFormStep4Circon
     }
   }
 }
+

@@ -1,9 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/vehicule_model.dart';
 import '../../services/vehicule_service.dart';
-import 'accident_creation_wizard.dart';
-import 'carambolage_wizard.dart';
+// Anciens wizards supprimés - utiliser modern_accident_type_screen.dart
 import 'modern_accident_type_screen.dart';
 import 'guest_join_session_screen.dart';
 import '../../features/auth/presentation/screens/guest_access_screen.dart';
@@ -28,7 +27,11 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _chargerMesVehicules();
+    });
   }
 
   Future<void> _chargerMesVehicules() async {
@@ -49,7 +52,7 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
     } catch (e) {
       print('Erreur chargement véhicules: $e');
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoadingVehicules = false;
       });
     }
@@ -206,7 +209,7 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
             ),
             child: AssistanceUrgenceWidget(
               onBlessesChanged: (blesses) {
-                setState(() {
+                if (mounted) setState(() {
                   _blesses = blesses;
                 });
               },
@@ -666,7 +669,7 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
           ),
           IconButton(
             onPressed: () {
-              setState(() {
+              if (mounted) setState(() {
                 _typeAccidentSelectionne = null;
                 _nombreVehiculesSelectionne = null;
               });
@@ -799,15 +802,11 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
   }
 
   void _selectionnerVehicule(VehiculeModel vehicule, {int? nombreVehicules}) {
-    // Naviguer vers l'assistant de création d'accident avec le véhicule sélectionné
+    // Naviguer vers l'écran moderne de type d'accident
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AccidentCreationWizard(
-          vehiculeSelectionne: vehicule,
-          estProprietaire: true, // Par défaut, on assume que c'est le propriétaire
-          nombreVehiculesInitial: nombreVehicules,
-        ),
+        builder: (context) => const ModernAccidentTypeScreen(),
       ),
     );
   }
@@ -957,7 +956,7 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
 
   // Actions pour les différents types d'accidents
   void _creerAccidentSimple() {
-    setState(() {
+    if (mounted) setState(() {
       _typeAccidentSelectionne = 'simple';
       _nombreVehiculesSelectionne = 2;
     });
@@ -973,7 +972,7 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
   }
 
   void _creerAccidentMultiple() {
-    setState(() {
+    if (mounted) setState(() {
       _typeAccidentSelectionne = 'multiple';
       _nombreVehiculesSelectionne = null; // Sera choisi dans l'assistant
     });
@@ -988,7 +987,7 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
   }
 
   void _creerCarambolage() {
-    setState(() {
+    if (mounted) setState(() {
       _typeAccidentSelectionne = 'carambolage';
       _nombreVehiculesSelectionne = null; // Sera choisi dans l'assistant
     });
@@ -1027,7 +1026,7 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
 
   void _afficherSelectionVehicule() {
     // Faire défiler vers la section des véhicules pour accident simple
-    setState(() {
+    if (mounted) setState(() {
       // Forcer le rebuild pour mettre à jour l'affichage
     });
 
@@ -1044,9 +1043,7 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AccidentCreationWizard(
-          nombreVehiculesInitial: nombreVehicules,
-        ),
+        builder: (context) => const ModernAccidentTypeScreen(),
       ),
     );
   }
@@ -1055,7 +1052,7 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const CarambolageWizard(),
+        builder: (context) => const ModernAccidentTypeScreen(),
       ),
     );
   }
@@ -1287,3 +1284,4 @@ class _AccidentDeclarationScreenState extends State<AccidentDeclarationScreen> {
     );
   }
 }
+

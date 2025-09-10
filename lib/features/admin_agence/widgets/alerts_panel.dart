@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/admin_agence_alerts_service.dart';
+import '../../../common/mixins/safe_state_mixin.dart';
 
 /// 🚨 Widget pour afficher les alertes de l'agence
 class AlertsPanel extends StatefulWidget {
@@ -16,21 +17,25 @@ class AlertsPanel extends StatefulWidget {
   State<AlertsPanel> createState() => _AlertsPanelState();
 }
 
-class _AlertsPanelState extends State<AlertsPanel> {
+class _AlertsPanelState extends State<AlertsPanel> with SafeStateMixin {
   Map<String, dynamic>? _alerts;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAlerts();
+    });
   }
 
   /// 🚨 Charger les alertes
   Future<void> _loadAlerts() async {
     try {
       final alerts = await AdminAgenceAlertsService.getAgenceAlerts(widget.agenceId);
-      setState(() {
+      if (mounted) setState(() {
         _alerts = alerts;
         _isLoading = false;
       });
@@ -414,3 +419,4 @@ class _AlertsPanelState extends State<AlertsPanel> {
     }
   }
 }
+

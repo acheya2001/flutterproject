@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../conducteur/models/vehicule_model.dart';
@@ -26,7 +26,11 @@ class _PendingVehiclesManagementScreenState extends State<PendingVehiclesManagem
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadUserInfo();
+    });
   }
 
   Future<void> _loadUserInfo() async {
@@ -99,7 +103,7 @@ class _PendingVehiclesManagementScreenState extends State<PendingVehiclesManagem
         vehicles.add(vehicleData);
       }
 
-      setState(() {
+      if (mounted) setState(() {
         _pendingVehicles = vehicles;
         _isLoading = false;
       });
@@ -1555,7 +1559,7 @@ class _ContractCreationScreenState extends State<ContractCreationScreen> {
               value: type,
               groupValue: _selectedContractType,
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _selectedContractType = value!;
                   _calculatePrime(); // Recalculer la prime
                 });
@@ -1777,3 +1781,4 @@ class _ContractCreationScreenState extends State<ContractCreationScreen> {
     super.dispose();
   }
 }
+

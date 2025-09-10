@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../services/admin_compagnie_crud_service.dart';
 
@@ -31,7 +31,11 @@ class _AdminCompagnieDetailsScreenState extends State<AdminCompagnieDetailsScree
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAdminData();
+    });
   }
 
   @override
@@ -828,3 +832,4 @@ class _AdminCompagnieDetailsScreenState extends State<AdminCompagnieDetailsScree
     );
   }
 }
+

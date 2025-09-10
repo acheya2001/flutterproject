@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../services/agent_service.dart';
 
 /// 🚨 Écran de gestion des sinistres
@@ -23,7 +23,11 @@ class _SinistresScreenState extends State<SinistresScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadSinistres();
+    });
   }
 
   /// 🚨 Charger les sinistres
@@ -376,3 +380,4 @@ class _SinistresScreenState extends State<SinistresScreen> {
     }
   }
 }
+

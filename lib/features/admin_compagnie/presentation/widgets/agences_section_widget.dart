@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../../services/admin_compagnie_service.dart';
 
 class AgencesSectionWidget extends StatefulWidget {
@@ -23,26 +23,30 @@ class _AgencesSectionWidgetState extends State<AgencesSectionWidget> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgences();
+    });
   }
 
   /// 🏢 Charger les agences
   Future<void> _loadAgences() async {
     try {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = true;
         _error = null;
       });
 
       final agences = await AdminCompagnieService.getAgences(widget.compagnieId);
       
-      setState(() {
+      if (mounted) setState(() {
         _agences = agences;
         _isLoading = false;
       });
 
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _error = e.toString();
         _isLoading = false;
       });
@@ -404,3 +408,4 @@ class _AgencesSectionWidgetState extends State<AgencesSectionWidget> {
     );
   }
 }
+

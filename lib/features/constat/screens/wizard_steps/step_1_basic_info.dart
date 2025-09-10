@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../models/sinistre_model.dart';
@@ -314,7 +314,7 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
     );
     
     if (date != null) {
-      setState(() {
+      if (mounted) setState(() {
         _selectedDate = date;
       });
       _updateDateTime();
@@ -328,7 +328,7 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
     );
     
     if (time != null) {
-      setState(() {
+      if (mounted) setState(() {
         _selectedTime = time;
       });
       _updateDateTime();
@@ -348,14 +348,14 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
   }
 
   Future<void> _getCurrentLocation() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoadingLocation = true;
     });
 
     try {
       final position = await Geolocator.getCurrentPosition();
       
-      setState(() {
+      if (mounted) setState(() {
         widget.wizardData.location = SinistreLocation(
           lat: position.latitude,
           lng: position.longitude,
@@ -378,7 +378,7 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
         );
       }
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoadingLocation = false;
       });
     }
@@ -404,3 +404,4 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
     super.dispose();
   }
 }
+

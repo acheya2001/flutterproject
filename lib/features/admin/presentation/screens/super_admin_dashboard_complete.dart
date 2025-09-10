@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../models/insurance_company.dart';
 import '../../../../services/insurance_company_service.dart';
@@ -22,15 +22,23 @@ class _SuperAdminDashboardCompleteState extends State<SuperAdminDashboardComplet
   @override
   void initState() {
     super.initState();
-    _loadStats();
-    _initializeData();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+
+    // Utiliser addPostFrameCallback pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadStats();
+      _initializeData();
+    });
+    });
   }
 
   Future<void> _loadStats() async {
     try {
       final systemStats = await InsuranceCompanyService.getSystemStats();
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           stats = systemStats;
           isLoading = false;
         });
@@ -521,3 +529,4 @@ class _SuperAdminDashboardCompleteState extends State<SuperAdminDashboardComplet
     );
   }
 }
+

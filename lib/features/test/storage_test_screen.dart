@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import '../../services/cloudinary_storage_service.dart';
@@ -192,7 +192,7 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     
     if (pickedFile != null) {
-      setState(() {
+      if (mounted) setState(() {
         _selectedImage = File(pickedFile.path);
         _testResults = '';
       });
@@ -202,7 +202,7 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
   Future<void> _testCloudinary() async {
     if (_selectedImage == null) return;
     
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _testResults += '\n🌐 Test Cloudinary...\n';
     });
@@ -224,13 +224,13 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
         }
       });
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _testResults += '❌ Cloudinary: ERROR\n';
         _testResults += 'Erreur: $e\n';
       });
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = false;
     });
   }
@@ -238,7 +238,7 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
   Future<void> _testImgur() async {
     if (_selectedImage == null) return;
     
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _testResults += '\n🌍 Test Imgur...\n';
     });
@@ -260,13 +260,13 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
         }
       });
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _testResults += '❌ Imgur: ERROR\n';
         _testResults += 'Erreur: $e\n';
       });
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = false;
     });
   }
@@ -274,7 +274,7 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
   Future<void> _testSupabase() async {
     if (_selectedImage == null) return;
     
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _testResults += '\n📦 Test Supabase...\n';
     });
@@ -295,13 +295,13 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
         }
       });
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _testResults += '❌ Supabase: ERROR\n';
         _testResults += 'Erreur: $e\n';
       });
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = false;
     });
   }
@@ -309,7 +309,7 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
   Future<void> _testHybrid() async {
     if (_selectedImage == null) return;
     
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _testResults += '\n🔄 Test Système Hybride...\n';
     });
@@ -333,14 +333,15 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
         }
       });
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _testResults += '❌ Système Hybride: ERROR\n';
         _testResults += 'Erreur: $e\n';
       });
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = false;
     });
   }
 }
+

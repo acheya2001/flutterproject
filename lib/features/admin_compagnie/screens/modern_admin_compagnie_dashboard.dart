@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../common/widgets/modern_card.dart';
@@ -22,8 +22,7 @@ class ModernAdminCompagnieDashboard extends StatefulWidget {
   State<ModernAdminCompagnieDashboard> createState() => _ModernAdminCompagnieDashboardState();
 }
 
-class _ModernAdminCompagnieDashboardState extends State<ModernAdminCompagnieDashboard>
-    with TickerProviderStateMixin {
+class _ModernAdminCompagnieDashboardState extends State<ModernAdminCompagnieDashboard>with TickerProviderStateMixin  {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -39,6 +38,9 @@ class _ModernAdminCompagnieDashboardState extends State<ModernAdminCompagnieDash
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -53,6 +55,7 @@ class _ModernAdminCompagnieDashboardState extends State<ModernAdminCompagnieDash
     
     _loadDashboardData();
     _animationController.forward();
+    });
   }
 
   @override
@@ -117,12 +120,12 @@ class _ModernAdminCompagnieDashboardState extends State<ModernAdminCompagnieDash
         },
       ];
 
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     } catch (e) {
       print('❌ Erreur chargement dashboard: $e');
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -1277,7 +1280,7 @@ class _CreateAgenceDialogState extends State<_CreateAgenceDialog> {
   Future<void> _createAgence() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -1300,7 +1303,7 @@ class _CreateAgenceDialogState extends State<_CreateAgenceDialog> {
         ),
       );
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -1347,3 +1350,4 @@ class _CreateAgenceDialogState extends State<_CreateAgenceDialog> {
     super.dispose();
   }
 }
+

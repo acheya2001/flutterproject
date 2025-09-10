@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/debug_service.dart';
 import '../../../services/agent_assignment_ai_service.dart';
@@ -108,9 +108,6 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
         elevation: 0,
         actions: [
 
-
-
-
           IconButton(
             icon: const Icon(Icons.analytics),
             onPressed: () => _showAgentBalanceStats(),
@@ -121,7 +118,7 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
             icon: const Icon(Icons.refresh),
             onPressed: () {
               print('🔄 Rechargement manuel des demandes');
-              setState(() {});
+              if (mounted) setState(() {});
             },
             tooltip: 'Recharger',
           ),
@@ -251,7 +248,7 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
       selected: isSelected,
       onSelected: (selected) {
         print('🔄 Changement filtre: $value (sélectionné: $selected)');
-        setState(() {
+        if (mounted) setState(() {
           _selectedFilter = value;
         });
       },
@@ -2327,3 +2324,4 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
     }
   }
 }
+

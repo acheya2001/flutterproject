@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../models/sinistre_model.dart';
@@ -30,25 +30,29 @@ class _Step2VehiclesState extends State<Step2Vehicles> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadConducteurVehicles();
+    });
   }
 
   Future<void> _loadConducteurVehicles() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoadingVehicles = true;
     });
 
     try {
       final vehicles = await ConducteurAuthService.getConducteurVehicles(currentUser.uid);
-      setState(() {
+      if (mounted) setState(() {
         _conducteurVehicles = vehicles;
         _isLoadingVehicles = false;
       });
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _isLoadingVehicles = false;
       });
       if (mounted) {
@@ -405,7 +409,7 @@ class _Step2VehiclesState extends State<Step2Vehicles> {
       model: conducteurVehicle.model,
     );
 
-    setState(() {
+    if (mounted) setState(() {
       widget.wizardData.vehicles.add(sinistreVehicle);
     });
 
@@ -437,7 +441,7 @@ class _Step2VehiclesState extends State<Step2Vehicles> {
       builder: (context) => _VehicleDialog(
         isOwner: isOwner,
         onSave: (vehicle) {
-          setState(() {
+          if (mounted) setState(() {
             widget.wizardData.vehicles.add(vehicle);
           });
         },
@@ -452,7 +456,7 @@ class _Step2VehiclesState extends State<Step2Vehicles> {
         vehicle: vehicle,
         isOwner: vehicle.isOwnerBoolean,
         onSave: (updatedVehicle) {
-          setState(() {
+          if (mounted) setState(() {
             widget.wizardData.vehicles[index] = updatedVehicle;
           });
         },
@@ -473,7 +477,7 @@ class _Step2VehiclesState extends State<Step2Vehicles> {
           ),
           TextButton(
             onPressed: () {
-              setState(() {
+              if (mounted) setState(() {
                 widget.wizardData.vehicles.removeAt(index);
               });
               Navigator.of(context).pop();
@@ -622,3 +626,4 @@ class _VehicleDialogState extends State<_VehicleDialog> {
     super.dispose();
   }
 }
+

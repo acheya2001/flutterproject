@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/super_admin_service.dart';
 
@@ -26,8 +26,12 @@ class _ModernCompagnieManagementScreenState extends State<ModernCompagnieManagem
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadCompagnies();
     _searchController.addListener(_filterCompagnies);
+    });
   }
 
   @override
@@ -663,3 +667,4 @@ class _ModernCompagnieManagementScreenState extends State<ModernCompagnieManagem
     // TODO: Implémenter la création de compagnie
   }
 }
+

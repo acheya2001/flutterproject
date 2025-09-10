@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../features/insurance/models/insurance_structure_model.dart';
 import '../../../services/digital_contract_service.dart';
+
 // import '../../../common/widgets/custom_app_bar.dart';
 // import '../../../common/widgets/loading_overlay.dart';
 
@@ -25,7 +26,11 @@ class _VehicleValidationScreenState extends State<VehicleValidationScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadUserInfo();
+    });
   }
 
   Future<void> _loadUserInfo() async {
@@ -37,7 +42,7 @@ class _VehicleValidationScreenState extends State<VehicleValidationScreen> {
       final userData = userDoc.data();
       
       if (userData != null) {
-        setState(() {
+        if (mounted) setState(() {
           _agenceId = userData['agenceId'];
           _isLoading = false;
         });
@@ -503,3 +508,4 @@ class _VehicleValidationScreenState extends State<VehicleValidationScreen> {
     );
   }
 }
+

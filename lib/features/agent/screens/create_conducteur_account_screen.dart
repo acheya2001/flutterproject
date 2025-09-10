@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/email_notification_service.dart';
@@ -541,7 +541,7 @@ class _CreateConducteurAccountScreenState extends State<CreateConducteurAccountS
       return;
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _errorMessage = '';
     });
@@ -657,7 +657,7 @@ class _CreateConducteurAccountScreenState extends State<CreateConducteurAccountS
       }
     } finally {
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _isLoading = false;
         });
       }
@@ -681,7 +681,7 @@ class _CreateConducteurAccountScreenState extends State<CreateConducteurAccountS
   }
 
   void _showError(String message) {
-    setState(() {
+    if (mounted) setState(() {
       _errorMessage = message;
     });
 
@@ -695,10 +695,11 @@ class _CreateConducteurAccountScreenState extends State<CreateConducteurAccountS
     // Effacer le message d'erreur après 5 secondes
     Future.delayed(const Duration(seconds: 5), () {
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _errorMessage = '';
         });
       }
     });
   }
 }
+

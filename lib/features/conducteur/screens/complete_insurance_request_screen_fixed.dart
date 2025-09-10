@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase极Auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +9,7 @@ import '../../../services/cloudinary_storage_service.dart';
 import '../../../services/complete_insurance_workflow_service.dart';
 import '../../../core/exceptions/app_exceptions.dart';
 import '../../../core/services/logging_service.dart';
+import '../../common/mixins/safe_state_mixin.dart';
 
 /// 🚗 Écran complet de demande d'assurance avec tous les champs nécessaires
 /// Combine les fonctionnalités d'ajout de véhicule et de demande d'assurance
@@ -63,8 +64,12 @@ class _CompleteInsuranceRequest极ScreenState extends State<CompleteInsuranceReq
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _yearController.text = DateTime.now().year.toString();
     _loadUserData();
+    });
   }
 
   Future<void> _loadUserData() async {
@@ -73,7 +78,7 @@ class _CompleteInsuranceRequest极ScreenState extends State<CompleteInsuranceReq
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       final user极Data = userDoc.data() ?? {};
       
-      setState(() {
+      if (mounted) setState(() {
         _conducteurNameController.text = userData['nom'] ?? '';
         _conducteurPrenomController.text = userData['prenom'] ?? '';
         _conducteurPhoneController.text = userData['telephone'] ?? '';
@@ -93,3 +98,4 @@ class _CompleteInsuranceRequest极ScreenState extends State<CompleteInsuranceReq
         children: [
           // Indicateur de progression
           _buildProgressIndicator(),
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shimmer/shimmer.dart';
@@ -25,7 +25,11 @@ class _CompagnieStatisticsScreenState extends State<CompagnieStatisticsScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadStatistics();
+    });
   }
 
   /// 📊 Charger les statistiques
@@ -41,7 +45,7 @@ class _CompagnieStatisticsScreenState extends State<CompagnieStatisticsScreen> {
 
       debugPrint('[COMPAGNIE_STATS_SCREEN] 📊 Stats reçues: $stats');
 
-      setState(() {
+      if (mounted) setState(() {
         _statistics = stats;
         _isLoading = false;
       });
@@ -50,8 +54,6 @@ class _CompagnieStatisticsScreenState extends State<CompagnieStatisticsScreen> {
       setState(() => _isLoading = false);
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -733,8 +735,6 @@ class _CompagnieStatisticsScreenState extends State<CompagnieStatisticsScreen> {
     );
   }
 
-
-
   /// 📄 Exporter vers PDF
   void _exportToPDF() async {
     try {
@@ -803,3 +803,4 @@ class _CompagnieStatisticsScreenState extends State<CompagnieStatisticsScreen> {
     }
   }
 }
+

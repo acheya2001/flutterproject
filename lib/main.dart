@@ -18,6 +18,8 @@ import 'core/config/app_config.dart';
 import 'core/services/logging_service.dart';
 import 'features/splash/presentation/screens/splash_screen.dart';
 import 'features/auth/presentation/screens/user_type_selection_screen_elegant.dart';
+import 'test_nouvelles_sections.dart';
+import 'demo_formulaire_moderne.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/conducteur_login_screen.dart';
 
@@ -214,6 +216,10 @@ class ConstatTunisieApp extends StatelessWidget {
         '/add-vehicle-insurance': (context) => const AddVehicleForInsuranceScreen(),
         '/mes-demandes-assurance': (context) => const MesDemandesAssuranceScreen(),
         '/complete-insurance-request': (context) => const CompleteInsuranceRequestScreen(),
+
+        // Routes de test et démonstration
+        '/test-nouvelles-sections': (context) => const TestNouvellesSections(),
+        '/demo-formulaire-moderne': (context) => const DemoFormulaireModerne(),
       },
 
     );

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/accident_session_complete.dart';
 import '../../services/accident_session_complete_service.dart';
@@ -19,8 +19,7 @@ class AccidentFormStep3Assurance extends StatefulWidget {
   State<AccidentFormStep3Assurance> createState() => _AccidentFormStep3AssuranceState();
 }
 
-class _AccidentFormStep3AssuranceState extends State<AccidentFormStep3Assurance>
-    with TickerProviderStateMixin {
+class _AccidentFormStep3AssuranceState extends State<AccidentFormStep3Assurance>with TickerProviderStateMixin  {
   late TabController _tabController;
   bool _isLoading = false;
   String? _monRoleVehicule;
@@ -364,7 +363,7 @@ class _AccidentFormStep3AssuranceState extends State<AccidentFormStep3Assurance>
                 );
               }).toList(),
               onChanged: peutModifier ? (value) {
-                setState(() {
+                if (mounted) setState(() {
                   assuranceData.societeAssurance = value ?? '';
                 });
               } : null,
@@ -571,7 +570,7 @@ class _AccidentFormStep3AssuranceState extends State<AccidentFormStep3Assurance>
                 Switch(
                   value: assuranceData.assureDifferent,
                   onChanged: peutModifier ? (value) {
-                    setState(() {
+                    if (mounted) setState(() {
                       assuranceData.assureDifferent = value;
                     });
                   } : null,
@@ -726,7 +725,7 @@ class _AccidentFormStep3AssuranceState extends State<AccidentFormStep3Assurance>
   }
 
   Future<void> _sauvegarder() async {
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
     });
 
@@ -760,7 +759,7 @@ class _AccidentFormStep3AssuranceState extends State<AccidentFormStep3Assurance>
         );
       }
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -1165,3 +1164,4 @@ class AssuranceFormData {
     adresseAssureController.dispose();
   }
 }
+

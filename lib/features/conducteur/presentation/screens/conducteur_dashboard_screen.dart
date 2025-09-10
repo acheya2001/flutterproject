@@ -8,6 +8,7 @@ import 'dart:convert';
 import '../../../../conducteur/screens/accident_declaration_screen.dart';
 import '../../../sinistre/screens/sinistre_choix_rapide_screen.dart';
 
+
 /// 🚗 Dashboard moderne du conducteur
 class ConducteurDashboardScreen extends StatefulWidget {
   const ConducteurDashboardScreen({Key? key}) : super(key: key);
@@ -23,27 +24,31 @@ class _ConducteurDashboardScreenState extends State<ConducteurDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
 
-    // Timeout de sécurité pour forcer l'affichage
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted && _isLoading) {
-        print('[CONDUCTEUR_DASHBOARD] ⏰ Timeout - forçage affichage');
-        setState(() {
-          _isLoading = false;
-          _userData ??= {
-            'uid': 'default',
-            'email': 'conducteur@test.com',
-            'nom': 'Conducteur',
-            'prenom': 'Test',
-            'telephone': '+216 98 123 456',
-            'cin': '12345678',
-            'adresse': 'Tunis, Tunisie',
-            'userType': 'conducteur',
-            'createdAt': DateTime.now().toIso8601String(),
-          };
-        });
-      }
+    // Utiliser addPostFrameCallback pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadUserData();
+
+      // Timeout de sécurité pour forcer l'affichage
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted && _isLoading) {
+          print('[CONDUCTEUR_DASHBOARD] ⏰ Timeout - forçage affichage');
+          setState(() {
+            _isLoading = false;
+            _userData ??= {
+              'uid': 'default',
+              'email': 'conducteur@test.com',
+              'nom': 'Conducteur',
+              'prenom': 'Test',
+              'telephone': '+216 98 123 456',
+              'cin': '12345678',
+              'adresse': 'Tunis, Tunisie',
+              'userType': 'conducteur',
+              'createdAt': DateTime.now().toIso8601String(),
+            };
+          });
+        }
+      });
     });
   }
 

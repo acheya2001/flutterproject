@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/super_admin_hierarchy_service.dart';
+import '../widgets/cleanup_admin_widget.dart';
 
 /// 👑 Dashboard Super Admin avec vue hiérarchique intégrée
 class SuperAdminDashboard extends StatefulWidget {
@@ -20,7 +21,11 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadData();
+    });
   }
 
   /// 📊 Charger toutes les données
@@ -41,7 +46,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
       final hierarchy = await SuperAdminHierarchyService.getCompleteHierarchy();
       final stats = await SuperAdminHierarchyService.getGlobalStats();
 
-      setState(() {
+      if (mounted) setState(() {
         _compagnies = hierarchy;
         _globalStats = stats;
       });
@@ -146,7 +151,11 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
           // Statistiques globales
           _buildGlobalStatsCard(),
           const SizedBox(height: 24),
-          
+
+          // 🧹 Outils de nettoyage des données
+          const CleanupAdminWidget(),
+          const SizedBox(height: 24),
+
           // Section Compagnies avec vue hiérarchique
           _buildCompagniesSection(),
         ],
@@ -746,5 +755,5 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
     );
   }
 
-
 }
+

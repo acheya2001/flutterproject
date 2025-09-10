@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RenouvellementContratScreen extends StatefulWidget {
@@ -236,7 +236,7 @@ class _RenouvellementContratScreenState extends State<RenouvellementContratScree
               margin: const EdgeInsets.only(bottom: 12),
               child: InkWell(
                 onTap: () {
-                  setState(() {
+                  if (mounted) setState(() {
                     _nouvelleFormule = key;
                   });
                 },
@@ -355,7 +355,7 @@ class _RenouvellementContratScreenState extends State<RenouvellementContratScree
               margin: const EdgeInsets.only(bottom: 12),
               child: InkWell(
                 onTap: () {
-                  setState(() {
+                  if (mounted) setState(() {
                     _nouvelleFrequence = key;
                   });
                 },
@@ -450,7 +450,7 @@ class _RenouvellementContratScreenState extends State<RenouvellementContratScree
             subtitle: const Text('Renouveler automatiquement chaque année'),
             value: _renouvellementAutomatique,
             onChanged: (value) {
-              setState(() {
+              if (mounted) setState(() {
                 _renouvellementAutomatique = value;
               });
             },
@@ -623,7 +623,7 @@ class _RenouvellementContratScreenState extends State<RenouvellementContratScree
   }
 
   Future<void> _processRenewal() async {
-    setState(() {
+    if (mounted) setState(() {
       _isProcessing = true;
     });
 
@@ -666,9 +666,10 @@ class _RenouvellementContratScreenState extends State<RenouvellementContratScree
         ),
       );
     } finally {
-      setState(() {
+      if (mounted) setState(() {
         _isProcessing = false;
       });
     }
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/contract_documents_widget.dart';
@@ -21,7 +21,11 @@ class _MyContractsScreenState extends State<MyContractsScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadConducteurInfo();
+    });
   }
 
   Future<void> _loadConducteurInfo() async {
@@ -394,3 +398,4 @@ class _MyContractsScreenState extends State<MyContractsScreen> {
     return '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year}';
   }
 }
+

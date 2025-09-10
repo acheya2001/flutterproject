@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../models/constat_officiel_model.dart';
 
 /// 📋 Widget pour l'en-tête du constat (informations générales)
@@ -233,7 +233,7 @@ class _ConstatHeaderWidgetState extends State<ConstatHeaderWidget> {
               'Y a-t-il des blessés (même légers) ?',
               _blesses,
               (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _blesses = value;
                 });
                 _updateConstat();
@@ -255,7 +255,7 @@ class _ConstatHeaderWidgetState extends State<ConstatHeaderWidget> {
               'Y a-t-il des dégâts matériels autres que ceux aux véhicules A et B ?',
               _degatsMateriels,
               (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _degatsMateriels = value;
                 });
                 _updateConstat();
@@ -277,7 +277,7 @@ class _ConstatHeaderWidgetState extends State<ConstatHeaderWidget> {
               'Y a-t-il des témoins ?',
               _temoins,
               (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _temoins = value;
                 });
                 _updateConstat();

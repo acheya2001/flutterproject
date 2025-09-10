@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/agent_assignment_ai_service.dart';
 
@@ -150,7 +150,7 @@ class _DemandesManagementScreenState extends State<DemandesManagementScreen> {
       ),
       selected: isSelected,
       onSelected: (selected) {
-        setState(() {
+        if (mounted) setState(() {
           _selectedFilter = value;
         });
       },
@@ -568,3 +568,4 @@ class _DemandesManagementScreenState extends State<DemandesManagementScreen> {
     );
   }
 }
+

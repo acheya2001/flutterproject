@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../services/company_structure_service.dart';
@@ -37,7 +37,11 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadData();
+    });
   }
 
   Future<void> _loadData() async {
@@ -65,7 +69,7 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
       _checkForDuplicatesInBackground();
 
       if (mounted) {
-        setState(() {
+        if (mounted) setState(() {
           _companies = List<Map<String, dynamic>>.from(report['companies']);
           _statistics = report['statistics'];
           _admins = admins;
@@ -1957,7 +1961,7 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
         debugPrint('[ADMIN_COMPAGNIE_LIST] ⚠️ $duplicateCount compagnies avec doublons détectées');
 
         // Mettre à jour le compteur de doublons
-        setState(() {
+        if (mounted) setState(() {
           _duplicateCompaniesCount = duplicateCount;
         });
 
@@ -1993,14 +1997,14 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
         }
       } else {
         // Aucun doublon détecté, réinitialiser le compteur
-        setState(() {
+        if (mounted) setState(() {
           _duplicateCompaniesCount = 0;
         });
       }
     } catch (e) {
       debugPrint('[ADMIN_COMPAGNIE_LIST] ❌ Erreur vérification doublons: $e');
       // En cas d'erreur, réinitialiser le compteur
-      setState(() {
+      if (mounted) setState(() {
         _duplicateCompaniesCount = 0;
       });
     }
@@ -4082,7 +4086,6 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
       debugPrint('🔄 ========== FIN SYNCHRONISATION ==========');
       debugPrint('');
 
-
       debugPrint('');
       debugPrint('📊 RÉSULTAT SYNCHRONISATION:');
       debugPrint('✅ Success: ${result['success']}');
@@ -4356,8 +4359,6 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
       ),
     );
   }
-
-
 
   /// 🔗 CORRIGER LES LIAISONS EXISTANTES
   Future<void> _fixExistingLinks() async {
@@ -5860,8 +5861,6 @@ class _AdminCompagnieListScreenState extends State<AdminCompagnieListScreen> {
     _showSuccessSnackBar('Collection mise à jour: $collectionName');
     _loadData(); // Recharger les données
   }
-
-
 
   /// 🔍 Détecter les compagnies en double
   Future<void> _detectDuplicates() async {
@@ -7551,5 +7550,5 @@ class _CreateAlternativeAdminDialogState extends State<_CreateAlternativeAdminDi
     );
   }
 
-
 }
+

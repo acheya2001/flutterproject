@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/tunisian_insurance_models.dart';
@@ -332,7 +332,7 @@ class _TunisianContractCreationScreenState extends State<TunisianContractCreatio
                     divisions: 62,
                     label: '$_ageConducteur ans',
                     onChanged: (value) {
-                      setState(() {
+                      if (mounted) setState(() {
                         _ageConducteur = value.round();
                       });
                       _calculerPrimeInitiale();
@@ -375,7 +375,7 @@ class _TunisianContractCreationScreenState extends State<TunisianContractCreatio
               title: Text(doc['nom']),
               value: doc['verifie'],
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   doc['verifie'] = value ?? false;
                 });
               },
@@ -389,7 +389,7 @@ class _TunisianContractCreationScreenState extends State<TunisianContractCreatio
 
   /// 💰 Calculer la prime initiale
   void _calculerPrimeInitiale() {
-    setState(() {
+    if (mounted) setState(() {
       _calculPrime = TunisianInsuranceCalculator.calculerPrime(
         typeVehicule: widget.vehiculeData['typeVehicule'] ?? 'voiture',
         puissanceFiscale: widget.vehiculeData['puissanceFiscale'] ?? 5,
@@ -469,7 +469,7 @@ class _TunisianContractCreationScreenState extends State<TunisianContractCreatio
                 DropdownMenuItem(value: 'autre', child: Text('Autre ville')),
               ],
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _zoneGeographique = value!;
                 });
                 _calculerPrimeInitiale();
@@ -491,7 +491,7 @@ class _TunisianContractCreationScreenState extends State<TunisianContractCreatio
                 DropdownMenuItem(value: 'lourd', child: Text('4+ accidents')),
               ],
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _niveauAntecedents = value!;
                 });
                 _calculerPrimeInitiale();
@@ -648,7 +648,7 @@ class _TunisianContractCreationScreenState extends State<TunisianContractCreatio
                       value: type,
                       groupValue: _typeCouverture,
                       onChanged: (value) {
-                        setState(() {
+                        if (mounted) setState(() {
                           _typeCouverture = value!;
                         });
                         _calculerPrimeInitiale();
@@ -921,7 +921,7 @@ class _TunisianContractCreationScreenState extends State<TunisianContractCreatio
               value: type,
               groupValue: _typePaiement,
               onChanged: (value) {
-                setState(() {
+                if (mounted) setState(() {
                   _typePaiement = value!;
                 });
               },
@@ -956,7 +956,7 @@ class _TunisianContractCreationScreenState extends State<TunisianContractCreatio
                 value: freq,
                 groupValue: _frequencePaiement,
                 onChanged: (value) {
-                  setState(() {
+                  if (mounted) setState(() {
                     _frequencePaiement = value!;
                   });
                 },
@@ -1299,3 +1299,4 @@ class _TunisianContractCreationScreenState extends State<TunisianContractCreatio
     super.dispose();
   }
 }
+

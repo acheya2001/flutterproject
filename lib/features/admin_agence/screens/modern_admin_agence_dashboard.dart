@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/admin_agence_service.dart';
@@ -24,8 +24,7 @@ class ModernAdminAgenceDashboard extends StatefulWidget {
   State<ModernAdminAgenceDashboard> createState() => _ModernAdminAgenceDashboardState();
 }
 
-class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
-    with TickerProviderStateMixin {
+class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>with TickerProviderStateMixin  {
   int _selectedIndex = 0;
   Map<String, dynamic>? _agenceData;
   Map<String, dynamic> _stats = {};
@@ -37,6 +36,9 @@ class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -45,6 +47,7 @@ class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
     _loadAllData();
+    });
   }
 
   @override
@@ -3192,7 +3195,7 @@ class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
                     );
                   }).toList(),
                   onChanged: (value) {
-                    setState(() {
+                    if (mounted) setState(() {
                       selectedAgentId = value;
                     });
                   },

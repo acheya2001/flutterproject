@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../common/widgets/custom_app_bar.dart';
@@ -19,7 +19,11 @@ class _AgenceSinistresRecusScreenState extends State<AgenceSinistresRecusScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgenceId();
+    });
   }
 
   Future<void> _loadAgenceId() async {
@@ -32,7 +36,7 @@ class _AgenceSinistresRecusScreenState extends State<AgenceSinistresRecusScreen>
             .get();
         
         if (userDoc.exists) {
-          setState(() {
+          if (mounted) setState(() {
             _agenceId = userDoc.data()?['agenceId'];
           });
         }
@@ -113,7 +117,7 @@ class _AgenceSinistresRecusScreenState extends State<AgenceSinistresRecusScreen>
       label: Text(label),
       selected: isSelected,
       onSelected: (selected) {
-        setState(() {
+        if (mounted) setState(() {
           _selectedFilter = value;
         });
       },
@@ -482,3 +486,4 @@ class _AgenceSinistresRecusScreenState extends State<AgenceSinistresRecusScreen>
     );
   }
 }
+

@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../models/sinistre_model.dart';
 import '../../services/sinistre_service.dart';
 import '../../services/accident_session_complete_service.dart';
 import '../../models/accident_session_complete.dart';
-import '../../widgets/simple_sketch_widget.dart';
+import '../../widgets/modern_sketch_widget.dart';
 
 /// 🚨 Écran de détails d'un sinistre
 class SinistreDetailsScreen extends StatefulWidget {
@@ -18,8 +18,7 @@ class SinistreDetailsScreen extends StatefulWidget {
   State<SinistreDetailsScreen> createState() => _SinistreDetailsScreenState();
 }
 
-class _SinistreDetailsScreenState extends State<SinistreDetailsScreen>
-    with SingleTickerProviderStateMixin {
+class _SinistreDetailsScreenState extends State<SinistreDetailsScreen>with SingleTickerProviderStateMixin  {
   late TabController _tabController;
   AccidentSessionComplete? _session;
   bool _isLoading = true;
@@ -27,8 +26,12 @@ class _SinistreDetailsScreenState extends State<SinistreDetailsScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _tabController = TabController(length: 4, vsync: this);
     _loadSessionData();
+    });
   }
 
   @override
@@ -41,11 +44,11 @@ class _SinistreDetailsScreenState extends State<SinistreDetailsScreen>
   Future<void> _loadSessionData() async {
     try {
       _session = await AccidentSessionCompleteService.obtenirSession(widget.sinistre.sessionId);
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
       });
     }
@@ -254,7 +257,7 @@ class _SinistreDetailsScreenState extends State<SinistreDetailsScreen>
             child: Card(
               child: Padding(
                 padding: const EdgeInsets.all(8),
-                child: SimpleSketchWidget(
+                child: ModernSketchWidget(
                   width: double.infinity,
                   height: double.infinity,
                   isReadOnly: true,
@@ -758,3 +761,4 @@ class _SinistreDetailsScreenState extends State<SinistreDetailsScreen>
     );
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/admin_compagnie_stats_service.dart';
 import '../widgets/real_time_sync_indicator.dart';
@@ -27,7 +27,11 @@ class _AgencesOverviewScreenState extends State<AgencesOverviewScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Utiliser safeInit pour éviter setState pendant build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadAgencesData();
+    });
   }
 
   /// 📊 Charger toutes les données des agences
@@ -60,7 +64,7 @@ class _AgencesOverviewScreenState extends State<AgencesOverviewScreen> {
         debugPrint('[ADMIN_COMPAGNIE] 📋 Agence: ${agenceData['nom']} - ${agenceStats['totalAgents']} agents');
       }
 
-      setState(() {
+      if (mounted) setState(() {
         _agences = agences;
         _agencesStats = stats;
         _isLoading = false;
@@ -656,7 +660,7 @@ class _AgencesOverviewScreenState extends State<AgencesOverviewScreen> {
   Future<void> _refreshAgenceStats(String agenceId) async {
     try {
       final newStats = await _getAgenceStatistics(agenceId);
-      setState(() {
+      if (mounted) setState(() {
         _agencesStats[agenceId] = newStats;
         _lastUpdate = DateTime.now();
         _isConnected = true;
@@ -669,7 +673,7 @@ class _AgencesOverviewScreenState extends State<AgencesOverviewScreen> {
         ),
       );
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _isConnected = false;
       });
 
@@ -746,3 +750,4 @@ class _AgencesOverviewScreenState extends State<AgencesOverviewScreen> {
     }
   }
 }
+
