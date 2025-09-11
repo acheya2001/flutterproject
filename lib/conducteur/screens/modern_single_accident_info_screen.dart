@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import '../../services/accident_session_complete_service.dart';
@@ -34,6 +35,8 @@ class ModernSingleAccidentInfoScreen extends StatefulWidget {
   final String? roleVehicule;
   final bool isCreator; // Nouveau : indique si c'est le créateur de la session
   final bool isRegisteredUser; // Nouveau : indique si l'utilisateur est inscrit
+  final bool readOnly; // 🔒 Mode lecture seule
+  final String? participantId; // 👤 ID du participant à consulter
 
   const ModernSingleAccidentInfoScreen({
     super.key,
@@ -43,6 +46,8 @@ class ModernSingleAccidentInfoScreen extends StatefulWidget {
     this.roleVehicule,
     this.isCreator = false,
     this.isRegisteredUser = true,
+    this.readOnly = false,
+    this.participantId,
   });
 
   @override
@@ -119,6 +124,8 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
   bool get _estCreateur => widget.isCreator;
   bool get _estUtilisateurInscrit => widget.isRegisteredUser;
   bool get _estModeCollaboratif => widget.isCollaborative;
+  bool get _estModeReadOnly => widget.readOnly; // 🔒 Mode lecture seule
+  String? get _participantIdConsulte => widget.participantId; // 👤 Participant consulté
   Map<String, dynamic>? _donneesCommunes; // Données partagées par le créateur
   final List<String> _pointsChocDisponibles = [
     'Avant gauche', 'Avant centre', 'Avant droit',
@@ -431,26 +438,51 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                   children: [
                     Row(
                       children: [
-                        const Expanded(
-                          child: Text(
-                            'Déclaration d\'accident',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _estModeReadOnly ? 'Consultation d\'accident' : 'Déclaration d\'accident',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (_estModeReadOnly) ...[
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.orange, width: 1),
+                                  ),
+                                  child: const Text(
+                                    '🔒 Mode lecture seule',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         // Bouton de test pour recharger les données
-                        IconButton(
-                          onPressed: _chargerDonneesConducteur,
-                          icon: const Icon(
-                            Icons.refresh,
-                            color: Colors.white,
-                            size: 20,
+                        if (!_estModeReadOnly)
+                          IconButton(
+                            onPressed: _chargerDonneesConducteur,
+                            icon: const Icon(
+                              Icons.refresh,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            tooltip: 'Recharger les données',
                           ),
-                          tooltip: 'Recharger les données',
-                        ),
                       ],
                     ),
                     Text(
@@ -792,8 +824,20 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         const SizedBox(height: 24),
         _buildTemoinsSection(),
         const SizedBox(height: 24),
-        // Sélection de véhicule depuis les contrats
-        _buildSelectionVehiculeSection(),
+
+        // 🎯 LOGIQUE SELON LE TYPE D'UTILISATEUR
+        if (_estUtilisateurInscrit) ...[
+          // CONDUCTEUR INSCRIT : Sélection de véhicule depuis les contrats
+          _buildSelectionVehiculeSection(),
+        ] else ...[
+          // CONDUCTEUR NON INSCRIT : Saisie manuelle complète
+          _buildSaisieVehiculeManuelleSection(),
+          const SizedBox(height: 24),
+          _buildSaisieContratAssuranceSection(),
+          const SizedBox(height: 24),
+          _buildSaisieConducteurSection(),
+        ],
+
         const SizedBox(height: 24),
         // 🚗 Gestion propriétaire/conducteur
         _buildProprietaireConducteurSection(),
@@ -1067,11 +1111,11 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _ouvrirEditeurCroquis,
-                  icon: const Icon(Icons.draw),
-                  label: const Text('Ouvrir l\'éditeur de croquis'),
+                  onPressed: _estModeReadOnly ? null : _ouvrirEditeurCroquis,
+                  icon: Icon(_estModeReadOnly ? Icons.visibility : Icons.draw),
+                  label: Text(_estModeReadOnly ? 'Voir le croquis' : 'Ouvrir l\'éditeur de croquis'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple[600],
+                    backgroundColor: _estModeReadOnly ? Colors.grey[400] : Colors.purple[600],
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
                     shape: RoundedRectangleBorder(
@@ -1212,11 +1256,17 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _signerConstat,
-                icon: Icon(_signatureData != null ? Icons.edit : Icons.draw),
-                label: Text(_signatureData != null ? 'Modifier la signature' : 'Signer le constat'),
+                onPressed: _estModeReadOnly ? null : _signerConstat,
+                icon: Icon(_estModeReadOnly
+                    ? Icons.visibility
+                    : (_signatureData != null ? Icons.edit : Icons.draw)),
+                label: Text(_estModeReadOnly
+                    ? 'Voir la signature'
+                    : (_signatureData != null ? 'Modifier la signature' : 'Signer le constat')),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _signatureData != null ? Colors.orange[600] : Colors.green[600],
+                  backgroundColor: _estModeReadOnly
+                      ? Colors.grey[400]
+                      : (_signatureData != null ? Colors.orange[600] : Colors.green[600]),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
                   shape: RoundedRectangleBorder(
@@ -1354,11 +1404,11 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           if (_etapeActuelle > 2)
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: _allerEtapePrecedente,
+                onPressed: _estModeReadOnly ? null : _allerEtapePrecedente,
                 icon: const Icon(Icons.arrow_back),
                 label: const Text('Précédent'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[600],
+                  backgroundColor: _estModeReadOnly ? Colors.grey[400] : Colors.grey[600],
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -1367,15 +1417,21 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
           if (_etapeActuelle > 2) const SizedBox(width: 16),
 
-          // Bouton Suivant/Terminer
+          // Bouton Suivant/Terminer - En mode lecture seule, on affiche "Fermer"
           Expanded(
             flex: _etapeActuelle == 2 ? 1 : 1,
             child: ElevatedButton.icon(
-              onPressed: _etapeActuelle == _nombreEtapes ? _continuer : _allerEtapeSuivante,
-              icon: Icon(_etapeActuelle == _nombreEtapes ? Icons.check : Icons.arrow_forward),
-              label: Text(_etapeActuelle == _nombreEtapes ? 'Terminer' : 'Suivant'),
+              onPressed: _estModeReadOnly
+                  ? () => Navigator.pop(context)
+                  : (_etapeActuelle == _nombreEtapes ? _continuer : _allerEtapeSuivante),
+              icon: Icon(_estModeReadOnly
+                  ? Icons.close
+                  : (_etapeActuelle == _nombreEtapes ? Icons.check : Icons.arrow_forward)),
+              label: Text(_estModeReadOnly
+                  ? 'Fermer'
+                  : (_etapeActuelle == _nombreEtapes ? 'Terminer' : 'Suivant')),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _getCouleurTypeAccident(),
+                backgroundColor: _estModeReadOnly ? Colors.grey[600] : _getCouleurTypeAccident(),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
@@ -1496,13 +1552,14 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                         borderRadius: BorderRadius.circular(12),
                       ),
                       prefixIcon: const Icon(Icons.calendar_today),
-                      // Ajouter un indicateur si le champ est pré-rempli
-                      suffixIcon: (_estModeCollaboratif && !_estCreateur && _donneesCommunes != null)
+                      // Ajouter un indicateur si le champ est pré-rempli ou en lecture seule
+                      suffixIcon: (_estModeCollaboratif && !_estCreateur && _donneesCommunes != null) || _estModeReadOnly
                           ? Icon(Icons.lock_outline, color: Colors.grey[400], size: 16)
                           : null,
                     ),
                     readOnly: true,
-                    onTap: (_estModeCollaboratif && !_estCreateur && _donneesCommunes != null)
+                    enabled: !_estModeReadOnly,
+                    onTap: (_estModeCollaboratif && !_estCreateur && _donneesCommunes != null) || _estModeReadOnly
                         ? null
                         : _selectionnerDate,
                     validator: (value) {
@@ -1523,13 +1580,14 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                         borderRadius: BorderRadius.circular(12),
                       ),
                       prefixIcon: const Icon(Icons.access_time),
-                      // Ajouter un indicateur si le champ est pré-rempli
-                      suffixIcon: (_estModeCollaboratif && !_estCreateur && _donneesCommunes != null)
+                      // Ajouter un indicateur si le champ est pré-rempli ou en lecture seule
+                      suffixIcon: (_estModeCollaboratif && !_estCreateur && _donneesCommunes != null) || _estModeReadOnly
                           ? Icon(Icons.lock_outline, color: Colors.grey[400], size: 16)
                           : null,
                     ),
                     readOnly: true,
-                    onTap: (_estModeCollaboratif && !_estCreateur && _donneesCommunes != null)
+                    enabled: !_estModeReadOnly,
+                    onTap: (_estModeCollaboratif && !_estCreateur && _donneesCommunes != null) || _estModeReadOnly
                         ? null
                         : _selectionnerHeure,
                     validator: (value) {
@@ -1601,8 +1659,12 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                 ),
                 prefixIcon: const Icon(Icons.location_on),
                 hintText: 'Ex: Avenue Habib Bourguiba, Tunis',
+                suffixIcon: _estModeReadOnly
+                    ? Icon(Icons.lock_outline, color: Colors.grey[400], size: 16)
+                    : null,
               ),
               maxLines: 2,
+              enabled: !_estModeReadOnly,
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Lieu requis';
@@ -1616,16 +1678,20 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _obtenirPositionGPS,
+                onPressed: _estModeReadOnly ? null : _obtenirPositionGPS,
                 icon: Icon(_lieuGps == null || _lieuGps!.isEmpty ? Icons.my_location : Icons.location_on),
                 label: Text(
-                  _lieuGps == null || _lieuGps!.isEmpty
-                    ? '📍 Obtenir position GPS'
-                    : '✅ Position GPS obtenue',
+                  _estModeReadOnly
+                    ? '🔒 Position GPS (lecture seule)'
+                    : (_lieuGps == null || _lieuGps!.isEmpty
+                        ? '📍 Obtenir position GPS'
+                        : '✅ Position GPS obtenue'),
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _lieuGps == null || _lieuGps!.isEmpty ? Colors.blue[600] : Colors.green[600],
+                  backgroundColor: _estModeReadOnly
+                    ? Colors.grey[400]
+                    : (_lieuGps == null || _lieuGps!.isEmpty ? Colors.blue[600] : Colors.green[600]),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -1728,7 +1794,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                       title: const Text('Oui'),
                       value: true,
                       groupValue: _blesses,
-                      onChanged: (value) {
+                      onChanged: _estModeReadOnly ? null : (value) {
                         if (mounted) {
                           setState(() {
                             _blesses = value!;
@@ -1753,7 +1819,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                       title: const Text('Non'),
                       value: false,
                       groupValue: _blesses,
-                      onChanged: (value) {
+                      onChanged: _estModeReadOnly ? null : (value) {
                         if (mounted) {
                           setState(() {
                             _blesses = value!;
@@ -1828,15 +1894,16 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: _ajouterTemoin,
-                  icon: Icon(
-                    Icons.add_circle,
-                    color: _getCouleurTypeAccident(),
-                    size: 28,
+                if (!_estModeReadOnly)
+                  IconButton(
+                    onPressed: _ajouterTemoin,
+                    icon: Icon(
+                      Icons.add_circle,
+                      color: _getCouleurTypeAccident(),
+                      size: 28,
+                    ),
+                    tooltip: 'Ajouter un témoin',
                   ),
-                  tooltip: 'Ajouter un témoin',
-                ),
               ],
             ),
             
@@ -1934,11 +2001,12 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
             ),
           ),
           
-          IconButton(
-            onPressed: () => _supprimerTemoin(index),
-            icon: const Icon(Icons.delete, color: Colors.red),
-            iconSize: 20,
-          ),
+          if (!_estModeReadOnly)
+            IconButton(
+              onPressed: () => _supprimerTemoin(index),
+              icon: const Icon(Icons.delete, color: Colors.red),
+              iconSize: 20,
+            ),
         ],
       ),
     );
@@ -2868,8 +2936,8 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         // Croquis
         'croquisData': _croquisData,
 
-        // Signature
-        'signatureData': _signatureData != null ? 'Signé' : null,
+        // Signature - Sauvegarder les vraies données
+        'signatureData': _signatureData != null ? base64Encode(_signatureData!) : null,
 
         // Métadonnées
         'dateTermine': DateTime.now().toIso8601String(),
@@ -3548,7 +3616,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                     Radio<bool>(
                       value: true,
                       groupValue: _proprietaireConduit,
-                      onChanged: (value) {
+                      onChanged: _estModeReadOnly ? null : (value) {
                         if (mounted) {
                           setState(() {
                             _proprietaireConduit = value!;
@@ -3573,7 +3641,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                     Radio<bool>(
                       value: false,
                       groupValue: _proprietaireConduit,
-                      onChanged: (value) {
+                      onChanged: _estModeReadOnly ? null : (value) {
                         if (mounted) {
                           setState(() {
                             _proprietaireConduit = value!;
@@ -3678,7 +3746,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                     Radio<bool>(
                       value: true,
                       groupValue: _conducteurAPermis,
-                      onChanged: (value) {
+                      onChanged: _estModeReadOnly ? null : (value) {
                         if (mounted) {
                           setState(() {
                             _conducteurAPermis = value!;
@@ -3697,7 +3765,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                     Radio<bool>(
                       value: false,
                       groupValue: _conducteurAPermis,
-                      onChanged: (value) {
+                      onChanged: _estModeReadOnly ? null : (value) {
                         if (mounted) {
                           setState(() {
                             _conducteurAPermis = value!;
@@ -3872,11 +3940,15 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         TextFormField(
           controller: _circonstancesController,
           maxLines: 5,
+          enabled: !_estModeReadOnly,
           decoration: InputDecoration(
-            hintText: 'Décrivez ce qui s\'est passé...',
+            hintText: _estModeReadOnly ? 'Lecture seule' : 'Décrivez ce qui s\'est passé...',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+            suffixIcon: _estModeReadOnly
+                ? Icon(Icons.lock_outline, color: Colors.grey[400], size: 16)
+                : null,
           ),
         ),
       ],
@@ -5842,6 +5914,24 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           }
         }
 
+        // 🔥 SIGNATURE - Restauration critique
+        if (donneesFormulaire['signatureData'] != null) {
+          final signatureString = donneesFormulaire['signatureData'];
+          if (signatureString is String && signatureString.isNotEmpty && signatureString != 'null') {
+            try {
+              // Si c'est une chaîne base64, la décoder
+              if (signatureString.startsWith('data:image') || signatureString.length > 100) {
+                _signatureData = base64Decode(signatureString.split(',').last);
+              } else if (signatureString == 'Signé') {
+                // Marquer comme signé même sans données d'image
+                print('✅ Signature marquée comme signée');
+              }
+            } catch (e) {
+              print('⚠️ Erreur décodage signature: $e');
+            }
+          }
+        }
+
         // Étapes validées
         if (etat['etapesValidees'] != null) {
           final etapesListe = List<bool>.from(etat['etapesValidees']);
@@ -6270,14 +6360,18 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       child: TextField(
         controller: controller,
         maxLines: maxLines,
-        onChanged: (value) => _sauvegarderAutomatiquement(),
+        enabled: !_estModeReadOnly,
+        onChanged: _estModeReadOnly ? null : (value) => _sauvegarderAutomatiquement(),
         decoration: InputDecoration(
           labelText: label,
-          hintText: hintText,
-          prefixIcon: Icon(icone, color: Colors.grey[600]),
+          hintText: _estModeReadOnly ? 'Lecture seule' : hintText,
+          prefixIcon: Icon(icone, color: _estModeReadOnly ? Colors.grey[400] : Colors.grey[600]),
+          suffixIcon: _estModeReadOnly
+              ? Icon(Icons.lock_outline, color: Colors.grey[400], size: 16)
+              : null,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.all(16),
-          labelStyle: TextStyle(color: Colors.grey[700]),
+          labelStyle: TextStyle(color: _estModeReadOnly ? Colors.grey[400] : Colors.grey[700]),
           hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
         ),
         style: const TextStyle(fontSize: 15, height: 1.4),
@@ -6973,6 +7067,275 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           ),
         );
       },
+    );
+  }
+
+  /// 🚗 Section saisie véhicule manuelle (pour conducteurs non inscrits)
+  Widget _buildSaisieVehiculeManuelleSection() {
+    return _buildSection(
+      'Informations du véhicule',
+      Icons.directions_car,
+      [Column(
+        children: [
+          // Immatriculation
+          TextFormField(
+            controller: _immatriculationController,
+            enabled: !_estModeReadOnly,
+            decoration: InputDecoration(
+              labelText: 'Immatriculation *',
+              hintText: _estModeReadOnly ? 'Lecture seule' : 'Ex: 123 TUN 456',
+              prefixIcon: Icon(Icons.confirmation_number, color: _estModeReadOnly ? Colors.grey[400] : null),
+              suffixIcon: _estModeReadOnly
+                  ? Icon(Icons.lock_outline, color: Colors.grey[400], size: 16)
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Veuillez saisir l\'immatriculation';
+              }
+              return null;
+            },
+            onChanged: _estModeReadOnly ? null : (value) => _sauvegarderAutomatiquement(),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Marque et Modèle
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _marqueController,
+                  enabled: !_estModeReadOnly,
+                  decoration: InputDecoration(
+                    labelText: 'Marque *',
+                    hintText: _estModeReadOnly ? 'Lecture seule' : 'Ex: Peugeot',
+                    prefixIcon: Icon(Icons.branding_watermark, color: _estModeReadOnly ? Colors.grey[400] : null),
+                    suffixIcon: _estModeReadOnly
+                        ? Icon(Icons.lock_outline, color: Colors.grey[400], size: 16)
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Marque requise';
+                    }
+                    return null;
+                  },
+                  onChanged: _estModeReadOnly ? null : (value) => _sauvegarderAutomatiquement(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: _modeleController,
+                  enabled: !_estModeReadOnly,
+                  decoration: InputDecoration(
+                    labelText: 'Modèle *',
+                    hintText: _estModeReadOnly ? 'Lecture seule' : 'Ex: 208',
+                    prefixIcon: Icon(Icons.model_training, color: _estModeReadOnly ? Colors.grey[400] : null),
+                    suffixIcon: _estModeReadOnly
+                        ? Icon(Icons.lock_outline, color: Colors.grey[400], size: 16)
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Modèle requis';
+                    }
+                    return null;
+                  },
+                  onChanged: _estModeReadOnly ? null : (value) => _sauvegarderAutomatiquement(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      )],
+    );
+  }
+
+  /// 🏢 Section saisie contrat et assurance (pour conducteurs non inscrits)
+  Widget _buildSaisieContratAssuranceSection() {
+    return _buildSection(
+      'Contrat d\'assurance',
+      Icons.description,
+      [Column(
+        children: [
+          // Compagnie d'assurance
+          TextFormField(
+            controller: _compagnieController,
+            decoration: InputDecoration(
+              labelText: 'Compagnie d\'assurance *',
+              hintText: 'Ex: STAR Assurances',
+              prefixIcon: const Icon(Icons.business),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Veuillez saisir la compagnie d\'assurance';
+              }
+              return null;
+            },
+            onChanged: (value) => _sauvegarderAutomatiquement(),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Agence et Numéro de contrat
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _agenceController,
+                  decoration: InputDecoration(
+                    labelText: 'Agence',
+                    hintText: 'Ex: Tunis Centre',
+                    prefixIcon: const Icon(Icons.location_city),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onChanged: (value) => _sauvegarderAutomatiquement(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: _numeroContratController,
+                  decoration: InputDecoration(
+                    labelText: 'N° Contrat *',
+                    hintText: 'Ex: 123456789',
+                    prefixIcon: const Icon(Icons.numbers),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'N° contrat requis';
+                    }
+                    return null;
+                  },
+                  onChanged: (value) => _sauvegarderAutomatiquement(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      )],
+    );
+  }
+
+  /// 👤 Section saisie conducteur (pour conducteurs non inscrits)
+  Widget _buildSaisieConducteurSection() {
+    return _buildSection(
+      'Informations du conducteur',
+      Icons.person,
+      [Column(
+        children: [
+          // Nom et Prénom
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _nomConducteurController,
+                  decoration: InputDecoration(
+                    labelText: 'Nom *',
+                    hintText: 'Ex: Ben Ali',
+                    prefixIcon: const Icon(Icons.person_outline),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Nom requis';
+                    }
+                    return null;
+                  },
+                  onChanged: (value) => _sauvegarderAutomatiquement(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: _prenomConducteurController,
+                  decoration: InputDecoration(
+                    labelText: 'Prénom *',
+                    hintText: 'Ex: Ahmed',
+                    prefixIcon: const Icon(Icons.person),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Prénom requis';
+                    }
+                    return null;
+                  },
+                  onChanged: (value) => _sauvegarderAutomatiquement(),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Téléphone et Adresse
+          TextFormField(
+            controller: _telephoneController,
+            decoration: InputDecoration(
+              labelText: 'Téléphone *',
+              hintText: 'Ex: +216 12 345 678',
+              prefixIcon: const Icon(Icons.phone),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            keyboardType: TextInputType.phone,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Téléphone requis';
+              }
+              return null;
+            },
+            onChanged: (value) => _sauvegarderAutomatiquement(),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextFormField(
+            controller: _adresseController,
+            decoration: InputDecoration(
+              labelText: 'Adresse *',
+              hintText: 'Ex: 123 Avenue Habib Bourguiba, Tunis',
+              prefixIcon: const Icon(Icons.home),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            maxLines: 2,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Adresse requise';
+              }
+              return null;
+            },
+            onChanged: (value) => _sauvegarderAutomatiquement(),
+          ),
+        ],
+      )],
     );
   }
 

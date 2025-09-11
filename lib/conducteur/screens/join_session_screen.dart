@@ -6,6 +6,7 @@ import '../../models/collaborative_session_model.dart';
 import '../../services/collaborative_session_service.dart';
 import '../../services/conducteur_data_service.dart';
 import 'collaborative_form_screen.dart';
+import 'modern_single_accident_info_screen.dart';
 import 'guest_form_screen.dart';
 
 /// 🔗 Écran pour rejoindre une session collaborative
@@ -484,9 +485,12 @@ class _JoinSessionScreenState extends State<JoinSessionScreen>with TickerProvide
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => CollaborativeFormScreen(
+              builder: (context) => ModernSingleAccidentInfoScreen(
+                typeAccident: session.typeAccident,
                 session: session,
+                isCollaborative: true,
                 isCreator: false,
+                isRegisteredUser: true,
               ),
             ),
           );

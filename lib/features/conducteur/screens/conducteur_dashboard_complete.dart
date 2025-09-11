@@ -18,6 +18,7 @@ import '../../../conducteur/screens/guest_join_session_screen.dart';
 import '../../../conducteur/screens/registered_join_session_screen.dart';
 import '../../../conducteur/screens/sinistre_details_screen.dart';
 import '../../../conducteur/screens/accident_choice_screen.dart';
+import '../../../conducteur/screens/session_details_screen.dart';
 import '../../../services/form_status_service.dart';
 import '../../../services/collaborative_session_service.dart';
 import '../../../models/collaborative_session_model.dart';
@@ -30,6 +31,7 @@ import '../../../conducteur/screens/accident_choice_screen.dart';
 import '../../../conducteur/screens/modern_single_accident_info_screen.dart';
 import '../../../conducteur/screens/modern_accident_type_screen.dart';
 import '../../../conducteur/screens/join_session_registered_screen.dart';
+import '../../../conducteur/screens/accident_session_choice_screen.dart';
 import '../../../services/conducteur_data_service.dart';
 
 import 'notifications_screen.dart';
@@ -55,6 +57,11 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
   List<Map<String, dynamic>> _sinistres = [];
   bool _isLoading = true;
   String _nomConducteur = 'Conducteur';
+
+  // Variables pour la gestion des sessions collaboratives
+  bool _isSelectionMode = false;
+  Set<String> _selectedSessions = <String>{};
+  List<CollaborativeSession> _allSessions = [];
 
   @override
   void initState() {
@@ -131,6 +138,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           _loadDemandes(user.uid),
           _loadVehicules(user.uid),
           _loadSinistres(user.uid),
+          _chargerSessionsCollaborativesNouvelle(),
         ]);
       } else {
         // Mode offline - charger depuis SharedPreferences
@@ -825,6 +833,11 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
             tooltip: '🚨 CRÉER SINISTRES TEST',
           ),
           IconButton(
+            icon: const Icon(Icons.group_add, color: Colors.purple),
+            onPressed: _creerSessionTest,
+            tooltip: '👥 CRÉER SESSION COLLABORATIVE TEST',
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => Navigator.pushReplacementNamed(context, '/'),
           ),
@@ -838,7 +851,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                 _buildAccueilPage(),
                 _buildDemandesPage(),
                 _buildVehiculesPage(),
-                _buildSinistresPage(),
+                _buildDetailsSessionPage(),
                 _buildProfilPage(),
               ],
             ),
@@ -861,38 +874,9 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
             icon: Icon(Icons.directions_car),
             label: 'Véhicules',
           ),
-          BottomNavigationBarItem(
-            icon: Stack(
-              children: [
-                const Icon(Icons.warning),
-                if (_sinistres.isNotEmpty)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Text(
-                        '${_sinistres.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            label: 'Sinistres',
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.info_outline),
+            label: 'Détails session',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.person),
@@ -2638,7 +2622,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     );
   }
 
-  Widget _buildSinistresPage() {
+  /// 📋 Page dédiée aux détails de sessions collaboratives
+  Widget _buildDetailsSessionPage() {
     return Container(
       color: Colors.grey[50],
       child: SingleChildScrollView(
@@ -2646,28 +2631,23 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // En-tête avec statistiques
-            _buildSinistresHeader(),
+            // En-tête spécialisé pour les sessions
+            _buildSessionsHeader(),
+
+            const SizedBox(height: 24),
+
+            // 👥 Sessions Collaboratives (section principale)
+            _buildSessionsCollaborativesSection(),
+
+            const SizedBox(height: 24),
+
+            // Actions rapides pour sessions
+            _buildSessionsActions(),
 
             const SizedBox(height: 24),
 
             // Mes Formulaires en cours (Brouillons)
             _buildMesFormulairesSection(),
-
-            const SizedBox(height: 24),
-
-            // 👥 Sessions Collaboratives
-            _buildSessionsCollaborativesSection(),
-
-            const SizedBox(height: 24),
-
-            // Actions rapides
-            _buildSinistresActions(),
-
-            const SizedBox(height: 24),
-
-            // Liste des sinistres
-            _buildSinistresList(),
 
             const SizedBox(height: 24),
 
@@ -4006,7 +3986,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                   ),
                 ),
                 IconButton(
-                  onPressed: () => _chargerSessionsCollaboratives(),
+                  onPressed: () => _chargerSessionsCollaborativesNouvelle(),
                   icon: const Icon(
                     Icons.refresh,
                     color: Colors.white,
@@ -4062,9 +4042,9 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           ElevatedButton.icon(
-                            onPressed: () => _creerNouvelleSession(),
+                            onPressed: () => _creerSessionTest(),
                             icon: const Icon(Icons.add, size: 16),
-                            label: const Text('Créer'),
+                            label: const Text('Créer Test'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.purple[600],
                               foregroundColor: Colors.white,
@@ -4145,13 +4125,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
             .toList());
   }
 
-  /// 🔄 Charger les sessions collaboratives
-  Future<void> _chargerSessionsCollaboratives() async {
-    // Cette méthode est appelée par le bouton refresh
-    // Le StreamBuilder se charge automatiquement du rechargement
-    if (mounted) { setState(() {});
-  }
-  }
+
 
   /// 📊 Statistiques des sessions collaboratives
   Widget _buildStatistiquesCollaboratives(List<CollaborativeSession> sessions) {
@@ -4372,12 +4346,12 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
   }
 
   void _creerNouveauConstat() {
-    // Navigation vers le formulaire moderne élégant avec design et animations
+    // Navigation vers la page de choix de session (créer ou rejoindre)
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            const ModernAccidentTypeScreen(),
+            const AccidentSessionChoiceScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: Tween<Offset>(
@@ -6547,13 +6521,17 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     final String statusText = _getSessionStatusText(session.statut);
     final int participantsCount = session.participants.length;
     final int maxParticipants = session.nombreVehicules;
+    final bool isSelected = _selectedSessions.contains(session.id);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isSelected ? Colors.purple[50] : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(
+          color: isSelected ? Colors.purple[300]! : Colors.grey[200]!,
+          width: isSelected ? 2 : 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -6563,7 +6541,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         ],
       ),
       child: InkWell(
-        onTap: () => _ouvrirSessionCollaborative(session),
+        onTap: () => _isSelectionMode
+          ? _toggleSessionSelection(session.id!)
+          : _ouvrirSessionCollaborative(session),
+        onLongPress: () => _toggleSessionSelection(session.id!),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -6573,6 +6554,15 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               // En-tête avec code et statut
               Row(
                 children: [
+                  // Checkbox de sélection (visible en mode sélection)
+                  if (_isSelectionMode) ...[
+                    Checkbox(
+                      value: isSelected,
+                      onChanged: (bool? value) => _toggleSessionSelection(session.id!),
+                      activeColor: Colors.purple[600],
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -6654,29 +6644,65 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               const SizedBox(height: 12),
 
               // Actions
-              Row(
+              Column(
                 children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _voirParticipants(session),
-                      icon: const Icon(Icons.people, size: 16),
-                      label: const Text('Participants'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.purple[600],
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _voirParticipants(session),
+                          icon: const Icon(Icons.people, size: 16),
+                          label: const Text('Participants'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.purple[600],
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _ouvrirSessionCollaborative(session),
+                          icon: const Icon(Icons.open_in_new, size: 16),
+                          label: const Text('Ouvrir'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.purple[600],
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _ouvrirSessionCollaborative(session),
-                      icon: const Icon(Icons.open_in_new, size: 16),
-                      label: const Text('Ouvrir'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple[600],
-                        foregroundColor: Colors.white,
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _voirDetailsSession(session),
+                          icon: const Icon(Icons.info_outline, size: 16),
+                          label: const Text('Voir détails'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.indigo[600],
+                            side: BorderSide(color: Colors.indigo[300]!),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      // Bouton de suppression individuelle (visible seulement si pas en mode sélection)
+                      if (!_isSelectionMode)
+                        Expanded(
+                          flex: 1,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _supprimerSessionIndividuelle(session),
+                            icon: const Icon(Icons.delete_outline, size: 16),
+                            label: const Text('Suppr.'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red[600],
+                              side: BorderSide(color: Colors.red[300]!),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -6803,6 +6829,593 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         builder: (context) => SessionDashboardScreen(session: session),
       ),
     );
+  }
+
+  /// 📋 Voir les détails complets de la session
+  void _voirDetailsSession(CollaborativeSession session) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SessionDetailsScreen(
+          session: session,
+          currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
+        ),
+      ),
+    );
+  }
+
+  /// 📊 En-tête pour les sessions collaboratives
+  Widget _buildSessionsHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.indigo[600]!,
+            Colors.purple[600]!,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // En-tête principal avec boutons de gestion
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.group_work,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isSelectionMode ? 'Mode Sélection' : 'Sessions Collaboratives',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      _isSelectionMode
+                        ? '${_selectedSessions.length} session(s) sélectionnée(s)'
+                        : 'Gérez vos constats collaboratifs et suivez leur progression',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Boutons de gestion
+              if (!_isSelectionMode) ...[
+                IconButton(
+                  onPressed: () => setState(() => _isSelectionMode = true),
+                  icon: const Icon(Icons.checklist, color: Colors.white),
+                  tooltip: 'Mode sélection',
+                ),
+                IconButton(
+                  onPressed: () => _chargerSessionsCollaborativesNouvelle(),
+                  icon: const Icon(Icons.refresh, color: Colors.white),
+                  tooltip: 'Actualiser',
+                ),
+              ] else ...[
+                IconButton(
+                  onPressed: _selectedSessions.isEmpty ? null : _supprimerSessionsSelectionnees,
+                  icon: const Icon(Icons.delete, color: Colors.white),
+                  tooltip: 'Supprimer sélection',
+                ),
+                IconButton(
+                  onPressed: _selectionnerToutesLesSessions,
+                  icon: const Icon(Icons.select_all, color: Colors.white),
+                  tooltip: 'Tout sélectionner',
+                ),
+                IconButton(
+                  onPressed: () => setState(() {
+                    _isSelectionMode = false;
+                    _selectedSessions.clear();
+                  }),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  tooltip: 'Annuler',
+                ),
+              ],
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Statistiques des sessions
+          StreamBuilder<List<CollaborativeSession>>(
+            stream: _getSessionsCollaborativesStream(),
+            builder: (context, snapshot) {
+              final sessions = snapshot.data ?? [];
+              final sessionsActives = sessions.where((s) => s.statut == SessionStatus.en_cours).length;
+              final sessionsTerminees = sessions.where((s) => s.statut == SessionStatus.finalise).length;
+
+              return Row(
+                children: [
+                  Expanded(
+                    child: _buildStatBadge('Total', sessions.length.toString(), Icons.list),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatBadge('Actives', sessionsActives.toString(), Icons.pending),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatBadge('Terminées', sessionsTerminees.toString(), Icons.check_circle),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ⚡ Actions rapides pour les sessions
+  Widget _buildSessionsActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Actions rapides',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildDashboardActionButton(
+                'Créer Session',
+                'Nouveau constat collaboratif',
+                Icons.add_circle,
+                Colors.purple,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AccidentSessionChoiceScreen(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildDashboardActionButton(
+                'Rejoindre',
+                'Rejoindre une session',
+                Icons.group_add,
+                Colors.indigo,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const JoinSessionScreen(),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildDashboardActionButton(
+                'Test Session',
+                'Créer session de test',
+                Icons.science,
+                Colors.orange,
+                _creerSessionTest,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildDashboardActionButton(
+                'Historique',
+                'Toutes mes sessions',
+                Icons.history,
+                Colors.teal,
+                () => {
+                  // TODO: Implémenter l'historique des sessions
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Historique des sessions - À implémenter'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  )
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 🔄 Charger les sessions collaboratives (nouvelle version)
+  Future<void> _chargerSessionsCollaborativesNouvelle() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('collaborative_sessions')
+          .where('createurUserId', isEqualTo: user.uid)
+          .get();
+
+      setState(() {
+        _allSessions = snapshot.docs.map((doc) {
+          final data = doc.data();
+          return CollaborativeSession.fromMap(data, doc.id);
+        }).toList();
+      });
+    } catch (e) {
+      print('❌ Erreur chargement sessions: $e');
+    }
+  }
+
+  /// ✅ Basculer la sélection d'une session
+  void _toggleSessionSelection(String sessionId) {
+    setState(() {
+      if (_selectedSessions.contains(sessionId)) {
+        _selectedSessions.remove(sessionId);
+      } else {
+        _selectedSessions.add(sessionId);
+      }
+    });
+  }
+
+  /// 📋 Sélectionner toutes les sessions
+  void _selectionnerToutesLesSessions() {
+    setState(() {
+      if (_selectedSessions.length == _allSessions.length) {
+        // Si toutes sont sélectionnées, tout désélectionner
+        _selectedSessions.clear();
+      } else {
+        // Sinon, tout sélectionner
+        _selectedSessions.clear();
+        for (final session in _allSessions) {
+          if (session.id != null) {
+            _selectedSessions.add(session.id!);
+          }
+        }
+      }
+    });
+  }
+
+  /// 🗑️ Supprimer les sessions sélectionnées
+  Future<void> _supprimerSessionsSelectionnees() async {
+    if (_selectedSessions.isEmpty) return;
+
+    // Dialogue de confirmation
+    final bool? confirmer = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.red[600]),
+              const SizedBox(width: 8),
+              const Text('Confirmer la suppression'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Êtes-vous sûr de vouloir supprimer ${_selectedSessions.length} session(s) collaborative(s) ?',
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.red[600], size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Cette action est irréversible. Toutes les données associées seront perdues.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[600],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Supprimer'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmer == true) {
+      await _executerSuppressionSessions();
+    }
+  }
+
+  /// 🗑️ Exécuter la suppression des sessions
+  Future<void> _executerSuppressionSessions() async {
+    try {
+      setState(() => _isLoading = true);
+
+      int sessionsSupprimes = 0;
+      final List<String> erreursSuppressions = [];
+
+      for (final sessionId in _selectedSessions) {
+        try {
+          // Supprimer la session de Firestore
+          await FirebaseFirestore.instance
+              .collection('collaborative_sessions')
+              .doc(sessionId)
+              .delete();
+
+          // Supprimer les états de formulaires associés
+          final statesSnapshot = await FirebaseFirestore.instance
+              .collection('collaborative_session_states')
+              .where('sessionId', isEqualTo: sessionId)
+              .get();
+
+          for (final stateDoc in statesSnapshot.docs) {
+            await stateDoc.reference.delete();
+          }
+
+          sessionsSupprimes++;
+          print('✅ Session supprimée: $sessionId');
+        } catch (e) {
+          erreursSuppressions.add('Session $sessionId: $e');
+          print('❌ Erreur suppression session $sessionId: $e');
+        }
+      }
+
+      // Réinitialiser le mode sélection
+      setState(() {
+        _isSelectionMode = false;
+        _selectedSessions.clear();
+        _isLoading = false;
+      });
+
+      // Afficher le résultat
+      if (mounted) {
+        if (erreursSuppressions.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text('✅ $sessionsSupprimes session(s) supprimée(s) avec succès'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('⚠️ $sessionsSupprimes session(s) supprimée(s)'),
+                  if (erreursSuppressions.isNotEmpty)
+                    Text('❌ ${erreursSuppressions.length} erreur(s)'),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erreur lors de la suppression: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 🗑️ Supprimer une session individuelle
+  Future<void> _supprimerSessionIndividuelle(CollaborativeSession session) async {
+    final bool? confirmer = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.red[600]),
+              const SizedBox(width: 8),
+              const Text('Supprimer la session'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Supprimer la session "${session.codeSession}" ?'),
+              const SizedBox(height: 8),
+              Text(
+                'Type: ${session.typeAccident}',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+              Text(
+                'Participants: ${session.participants.length}',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[600],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Supprimer'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmer == true && session.id != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('collaborative_sessions')
+            .doc(session.id!)
+            .delete();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ Session "${session.codeSession}" supprimée'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('❌ Erreur: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  /// 🧪 Créer une session de test
+  Future<void> _creerSessionTest() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Utilisateur non connecté'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Générer un code de session unique
+      final codeSession = 'TEST${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+
+      // Créer la session de test
+      final sessionData = {
+        'codeSession': codeSession,
+        'qrCodeData': 'https://constat-tunisie.com/join/$codeSession',
+        'typeAccident': 'Accident collaboratif test',
+        'nombreVehicules': 2,
+        'statut': 'creation',
+        'conducteurCreateur': user.uid,
+        'participants': [
+          {
+            'userId': user.uid,
+            'nom': 'Vous',
+            'email': user.email ?? 'test@example.com',
+            'estCreateur': true,
+            'statut': 'en_cours',
+            'dateRejointe': FieldValue.serverTimestamp(),
+          }
+        ],
+        'progression': {
+          'participantsRejoints': 1,
+          'formulairesTermines': 0,
+          'croquisValide': false,
+          'signaturesCompletes': false,
+        },
+        'parametres': {
+          'autorisationModification': true,
+          'validationCroquisRequise': true,
+          'notificationsActivees': true,
+        },
+        'dateCreation': FieldValue.serverTimestamp(),
+        'dateModification': FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance
+          .collection('collaborative_sessions')
+          .add(sessionData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Session test créée avec le code: $codeSession'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Erreur création session test: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

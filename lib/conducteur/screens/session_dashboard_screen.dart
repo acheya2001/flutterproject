@@ -3,10 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/collaborative_session_model.dart';
 import '../../services/collaborative_session_service.dart';
+import '../../services/collaborative_data_sync_service.dart';
 import '../../services/signature_otp_service.dart';
 import '../../services/conducteur_data_service.dart';
 import 'session_invitation_screen.dart';
 import 'collaborative_form_screen.dart';
+import 'consultation_mutuelle_screen.dart';
+import 'collaborative_sketch_validation_screen.dart';
 import 'modern_single_accident_info_screen.dart';
 import 'modern_collaborative_sketch_screen.dart';
 
@@ -14,6 +17,7 @@ import 'participant_form_view_screen.dart';
 import 'signature_otp_screen.dart';
 import '../../utils/safe_snackbar.dart';
 import 'modern_single_accident_info_screen_minimal.dart';
+import '../../widgets/collaborative_participants_status_widget.dart';
 
 /// 📊 Dashboard de gestion de session collaborative
 class SessionDashboardScreen extends StatefulWidget {
@@ -908,6 +912,8 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
               typeAccident: sessionData.typeAccident,
               session: sessionData,
               isCollaborative: true,
+              isCreator: true,
+              isRegisteredUser: true,
             );
           },
         ),
@@ -1342,9 +1348,11 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
               context,
               MaterialPageRoute(
                 builder: (context) => ModernSingleAccidentInfoScreen(
-                  typeAccident: sessionData['typeAccident'] ?? 'Accident collaboratif',
+                  typeAccident: widget.session.typeAccident,
                   session: widget.session,
                   isCollaborative: true,
+                  isCreator: true,
+                  isRegisteredUser: true,
                 ),
               ),
             ),
