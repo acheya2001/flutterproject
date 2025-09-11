@@ -50,7 +50,7 @@ class _ConducteurDashboardTestState extends State<ConducteurDashboardTest> {
       if (user == null) return;
 
       final sessionsQuery = await FirebaseFirestore.instance
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .where('createurId', isEqualTo: user.uid)
           .orderBy('dateCreation', descending: true)
           .limit(10)

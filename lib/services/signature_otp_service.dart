@@ -205,7 +205,7 @@ class SignatureOTPService {
   static Future<void> _envoyerAuxCompagnies(String sessionId, String pdfUrl) async {
     try {
       // Récupérer les données de la session
-      final sessionDoc = await _firestore.collection('collaborative_sessions').doc(sessionId).get();
+      final sessionDoc = await _firestore.collection('sessions_collaboratives').doc(sessionId).get();
       
       if (!sessionDoc.exists) return;
 

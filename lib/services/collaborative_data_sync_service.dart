@@ -5,7 +5,7 @@ import '../models/collaborative_session_model.dart';
 /// 🔄 Service de synchronisation des données communes pour sessions collaboratives
 class CollaborativeDataSyncService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static const String _sessionsCollection = 'collaborative_sessions';
+  static const String _sessionsCollection = 'sessions_collaboratives';
 
   /// 📝 Sauvegarder les données communes (remplies par le créateur A)
   static Future<void> sauvegarderDonneesCommunes({
@@ -18,7 +18,7 @@ class CollaborativeDataSyncService {
       await _firestore.collection(_sessionsCollection).doc(sessionId).update({
         'donneesCommunes': {
           ...donneesCommunes,
-          'dateModification': FieldValue.serverTimestamp(),
+          'dateModification': DateTime.now().toIso8601String(),
           'modifiePar': FirebaseAuth.instance.currentUser?.uid,
         },
       });
@@ -81,8 +81,10 @@ class CollaborativeDataSyncService {
       for (int i = 0; i < participants.length; i++) {
         if (participants[i]['userId'] == participantId) {
           participants[i]['formulaireStatus'] = nouveauStatut.name;
+          participants[i]['formulaireComplete'] = nouveauStatut == FormulaireStatus.termine;
           if (nouveauStatut == FormulaireStatus.termine) {
-            participants[i]['dateFormulaireFini'] = FieldValue.serverTimestamp();
+            participants[i]['dateFormulaireFini'] = DateTime.now().toIso8601String();
+            participants[i]['statut'] = 'formulaire_fini';
           }
           break;
         }
@@ -94,7 +96,7 @@ class CollaborativeDataSyncService {
       await _firestore.collection(_sessionsCollection).doc(sessionId).update({
         'participants': participants,
         'progression': progression,
-        'dateModification': FieldValue.serverTimestamp(),
+        'dateModification': DateTime.now().toIso8601String(),
       });
       
       print('✅ [SYNC] Statut participant mis à jour');
@@ -110,24 +112,32 @@ class CollaborativeDataSyncService {
     int formulairesTermines = 0;
     int croquisValides = 0;
     int signaturesEffectuees = 0;
-    
+
     for (final participant in participants) {
       final statut = participant['statut'] as String?;
       final formulaireStatus = participant['formulaireStatus'] as String?;
-      
-      if (statut == 'rejoint' || statut == 'formulaire_fini' || statut == 'signe') {
+      final aRejoint = participant['aRejoint'] as bool? ?? false;
+      final formulaireComplete = participant['formulaireComplete'] as bool? ?? false;
+      final croquisValide = participant['croquisValide'] as bool? ?? false;
+      final aSigne = participant['aSigne'] as bool? ?? false;
+
+      // Compter les participants qui ont rejoint
+      if (aRejoint || statut == 'rejoint' || statut == 'formulaire_fini' || statut == 'signe') {
         participantsRejoints++;
       }
-      
-      if (formulaireStatus == 'termine') {
+
+      // Compter les formulaires terminés
+      if (formulaireComplete || formulaireStatus == 'termine' || statut == 'formulaire_fini' || statut == 'signe') {
         formulairesTermines++;
       }
-      
-      if (statut == 'croquis_valide' || statut == 'signe') {
+
+      // Compter les croquis validés
+      if (croquisValide || statut == 'croquis_valide' || statut == 'signe') {
         croquisValides++;
       }
-      
-      if (statut == 'signe') {
+
+      // Compter les signatures
+      if (aSigne || statut == 'signe') {
         signaturesEffectuees++;
       }
     }
@@ -156,7 +166,7 @@ class CollaborativeDataSyncService {
       await _firestore.collection(_sessionsCollection).doc(sessionId).update({
         'croquis': {
           ...croquisData,
-          'dateModification': FieldValue.serverTimestamp(),
+          'dateModification': DateTime.now().toIso8601String(),
           'creePar': FirebaseAuth.instance.currentUser?.uid,
         },
       });
@@ -196,7 +206,7 @@ class CollaborativeDataSyncService {
         'participantId': participantId,
         'accepte': accepte,
         'commentaire': commentaire,
-        'dateValidation': FieldValue.serverTimestamp(),
+        'dateValidation': DateTime.now().toIso8601String(),
       };
       
       await _firestore.collection(_sessionsCollection).doc(sessionId).update({
@@ -249,7 +259,7 @@ class CollaborativeDataSyncService {
           .doc(participantId)
           .set({
         ...donneesFormulaire,
-        'dateModification': FieldValue.serverTimestamp(),
+        'dateModification': DateTime.now().toIso8601String(),
         'participantId': participantId,
       }, SetOptions(merge: true));
       

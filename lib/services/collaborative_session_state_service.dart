@@ -16,7 +16,7 @@ class CollaborativeSessionStateService {
   }) async {
     try {
       await _firestore
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(sessionId)
           .collection('participants_data')
           .doc(participantId)
@@ -42,7 +42,7 @@ class CollaborativeSessionStateService {
   }) async {
     try {
       final doc = await _firestore
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(sessionId)
           .collection('participants_data')
           .doc(participantId)
@@ -65,7 +65,7 @@ class CollaborativeSessionStateService {
   }) async {
     try {
       final snapshot = await _firestore
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(sessionId)
           .collection('participants_data')
           .get();
@@ -113,7 +113,7 @@ class CollaborativeSessionStateService {
     try {
       // Charger la session
       final sessionDoc = await _firestore
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(sessionId)
           .get();
 
@@ -181,7 +181,7 @@ class CollaborativeSessionStateService {
     required String sessionId,
   }) {
     return _firestore
-        .collection('collaborative_sessions')
+        .collection('sessions_collaboratives')
         .doc(sessionId)
         .collection('participants_data')
         .snapshots()
@@ -197,7 +197,7 @@ class CollaborativeSessionStateService {
   }) async {
     try {
       await _firestore
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(sessionId)
           .collection('participants_data')
           .doc(participantId)
@@ -232,7 +232,7 @@ class CollaborativeSessionStateService {
     try {
       // Supprimer toutes les données des participants
       final participantsSnapshot = await _firestore
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(sessionId)
           .collection('participants_data')
           .get();
@@ -243,7 +243,7 @@ class CollaborativeSessionStateService {
       }
 
       // Supprimer la session elle-même
-      batch.delete(_firestore.collection('collaborative_sessions').doc(sessionId));
+      batch.delete(_firestore.collection('sessions_collaboratives').doc(sessionId));
 
       await batch.commit();
       print('✅ Session $sessionId nettoyée');

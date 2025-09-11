@@ -393,10 +393,9 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
       // FORCER la mise à jour de l'interface
       if (mounted) {
-        if (mounted) { setState(() {
+        setState(() {
           // Force rebuild avec nouvelles données
         });
-        }
       }
 
     } catch (e) {
@@ -884,17 +883,165 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           ),
         ],
       ),
-      floatingActionButton: _selectedIndex == 1
-          ? FloatingActionButton.extended(
-              onPressed: () => Navigator.pushNamed(context, '/conducteur/nouvelle-demande'),
-              backgroundColor: Colors.blue[700],
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text(
-                'Nouvelle Demande',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      floatingActionButton: _buildFloatingActionButton(),
+    );
+  }
+
+  /// 🎯 Bouton d'action flottant adaptatif
+  Widget? _buildFloatingActionButton() {
+    // Mode sélection des sessions (onglet Détails session)
+    if (_selectedIndex == 3 && _isSelectionMode) {
+      return _buildSelectionModeFloatingActions();
+    }
+
+    // Bouton nouvelle demande (onglet Demandes)
+    if (_selectedIndex == 1) {
+      return FloatingActionButton.extended(
+        onPressed: () => Navigator.pushNamed(context, '/conducteur/nouvelle-demande'),
+        backgroundColor: Colors.blue[700],
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text(
+          'Nouvelle Demande',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
+    return null;
+  }
+
+  /// 🎯 Actions flottantes pour le mode sélection
+  Widget _buildSelectionModeFloatingActions() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Bouton Sélectionner tout/Désélectionner tout
+          FloatingActionButton(
+            heroTag: "select_all",
+            onPressed: _selectionnerToutesLesSessions,
+            backgroundColor: Colors.indigo[600],
+            child: Icon(
+              _selectedSessions.length == _allSessions.length
+                ? Icons.deselect
+                : Icons.select_all,
+              color: Colors.white,
+            ),
+            tooltip: _selectedSessions.length == _allSessions.length
+              ? 'Tout désélectionner'
+              : 'Tout sélectionner',
+          ),
+
+          const SizedBox(height: 12),
+
+          // Bouton Supprimer (avec badge du nombre)
+          Stack(
+            children: [
+              FloatingActionButton(
+                heroTag: "delete_selected",
+                onPressed: _selectedSessions.isEmpty ? null : _supprimerSessionsSelectionnees,
+                backgroundColor: _selectedSessions.isEmpty ? Colors.grey : Colors.red[600],
+                child: Icon(
+                  Icons.delete,
+                  color: Colors.white,
+                ),
               ),
-            )
-          : null,
+              if (_selectedSessions.isNotEmpty)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[600],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 24,
+                      minHeight: 24,
+                    ),
+                    child: Text(
+                      _selectedSessions.length.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Bouton Annuler
+          FloatingActionButton(
+            heroTag: "cancel_selection",
+            onPressed: () => setState(() {
+              _isSelectionMode = false;
+              _selectedSessions.clear();
+            }),
+            backgroundColor: Colors.grey[600],
+            child: const Icon(Icons.close, color: Colors.white),
+            tooltip: 'Annuler sélection',
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 💡 Message d'aide pour le mode sélection
+  Widget _buildSelectionModeHelp() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, color: Colors.blue[600], size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Mode Sélection Activé',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[800],
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Appuyez sur les sessions pour les sélectionner. Utilisez les boutons flottants pour sélectionner tout ou supprimer.',
+                  style: TextStyle(
+                    color: Colors.blue[700],
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => setState(() {
+              _isSelectionMode = false;
+              _selectedSessions.clear();
+            }),
+            icon: Icon(Icons.close, color: Colors.blue[600]),
+            tooltip: 'Fermer le mode sélection',
+          ),
+        ],
+      ),
     );
   }
 
@@ -1197,8 +1344,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
         // Mettre à jour l'interface
         if (mounted) {
-          if (mounted) { setState(() {});
-        }
+          setState(() {});
         }
       }
     } catch (e) {
@@ -2636,23 +2782,13 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
             const SizedBox(height: 24),
 
-            // 👥 Sessions Collaboratives (section principale)
+            // Message d'aide pour le mode sélection
+            if (_isSelectionMode) _buildSelectionModeHelp(),
+
+            // 👥 Sessions Collaboratives (section principale uniquement)
             _buildSessionsCollaborativesSection(),
 
             const SizedBox(height: 24),
-
-            // Actions rapides pour sessions
-            _buildSessionsActions(),
-
-            const SizedBox(height: 24),
-
-            // Mes Formulaires en cours (Brouillons)
-            _buildMesFormulairesSection(),
-
-            const SizedBox(height: 24),
-
-            // Sessions de constat en cours
-            _buildSessionsEnCours(),
           ],
         ),
       ),
@@ -3986,7 +4122,12 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                   ),
                 ),
                 IconButton(
-                  onPressed: () => _chargerSessionsCollaborativesNouvelle(),
+                  onPressed: () async {
+                    print('🔄 Rafraîchissement manuel des sessions...');
+                    await _chargerSessionsCollaborativesNouvelle();
+                    // Forcer le rebuild du StreamBuilder
+                    if (mounted) setState(() {});
+                  },
                   icon: const Icon(
                     Icons.refresh,
                     color: Colors.white,
@@ -4110,22 +4251,57 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     return '${text.substring(0, maxLength)}...';
   }
 
-  /// 🔄 Stream des sessions collaboratives
+  /// 🔄 Stream des sessions collaboratives (avec cache)
+  Stream<List<CollaborativeSession>>? _sessionsStream;
+
   Stream<List<CollaborativeSession>> _getSessionsCollaborativesStream() {
+    // Utiliser le stream en cache s'il existe déjà
+    if (_sessionsStream != null) return _sessionsStream!;
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
 
-    return FirebaseFirestore.instance
+    // print('🔄 Création du stream pour utilisateur: ${user.uid}');
+
+    _sessionsStream = FirebaseFirestore.instance
         .collection('collaborative_sessions')
         .where('conducteurCreateur', isEqualTo: user.uid)
         .orderBy('dateCreation', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => CollaborativeSession.fromMap(doc.data(), doc.id))
-            .toList());
+        .map((snapshot) {
+          // print('📡 Stream reçu: ${snapshot.docs.length} documents');
+
+          final sessions = snapshot.docs
+              .map((doc) {
+                try {
+                  return CollaborativeSession.fromMap(doc.data(), doc.id);
+                } catch (e) {
+                  print('❌ Erreur parsing session ${doc.id}: $e');
+                  return null;
+                }
+              })
+              .where((session) => session != null)
+              .cast<CollaborativeSession>()
+              .toList();
+
+          // print('✅ Sessions parsées: ${sessions.length}');
+
+          // Mettre à jour _allSessions sans setState pour éviter la boucle
+          _allSessions = sessions;
+          // print('🔄 _allSessions mis à jour: ${_allSessions.length}');
+
+          return sessions;
+        });
+
+    return _sessionsStream!;
   }
 
-
+  @override
+  void dispose() {
+    // Nettoyer le stream pour éviter les fuites mémoire
+    _sessionsStream = null;
+    super.dispose();
+  }
 
   /// 📊 Statistiques des sessions collaboratives
   Widget _buildStatistiquesCollaboratives(List<CollaborativeSession> sessions) {
@@ -5177,17 +5353,19 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               onPressed: () async {
                 print('🎯 BOUTON VRAIES DONNÉES OBSERVÉES CLIQUÉ');
 
-                if (mounted) { setState(() {
-                  _isLoading = true;
-                });
+                if (mounted) {
+                  setState(() {
+                    _isLoading = true;
+                  });
                 }
 
                 try {
                   _vehicules = await ConducteurDataService.recupererAvecVraisNumeros();
 
-                  if (mounted) { setState(() {
-                    _isLoading = false;
-                  });
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    });
                   }
 
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -5199,9 +5377,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                   );
                 } catch (e) {
                   print('❌ Erreur vraies données: $e');
-                  if (mounted) { setState(() {
-                    _isLoading = false;
-                  });
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    });
                   }
                 }
               },
@@ -5273,19 +5452,20 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               return _estContratValide(contrat);
             }).take(3).toList();
 
-            if (kDebugMode) {
-              print('🔍 [DEBUG ACCUEIL] Total documents: ${allContrats.length}');
-              print('🔍 [DEBUG ACCUEIL] Contrats nettoyés: ${contratsNettoyes.length}');
-              print('🔍 [DEBUG ACCUEIL] Contrats valides affichés: ${contrats.length}');
+            // Debug temporairement désactivé pour éviter la boucle infinie
+            // if (kDebugMode) {
+            //   print('🔍 [DEBUG ACCUEIL] Total documents: ${allContrats.length}');
+            //   print('🔍 [DEBUG ACCUEIL] Contrats nettoyés: ${contratsNettoyes.length}');
+            //   print('🔍 [DEBUG ACCUEIL] Contrats valides affichés: ${contrats.length}');
 
-              for (final contrat in contrats) {
-                final marque = _formatTexte(contrat['marque']);
-                final modele = _formatTexte(contrat['modele']);
-                final immat = _formatImmatriculation(contrat['immatriculation']);
-                final numero = _formatNumeroContrat(contrat['numeroContrat'], contrat['id']);
-                print('  ✅ Contrat ${contrat['id']}: $marque $modele ($immat) - ${contrat['statut']} - N°$numero');
-              }
-            }
+            //   for (final contrat in contrats) {
+            //     final marque = _formatTexte(contrat['marque']);
+            //     final modele = _formatTexte(contrat['modele']);
+            //     final immat = _formatImmatriculation(contrat['immatriculation']);
+            //     final numero = _formatNumeroContrat(contrat['numeroContrat'], contrat['id']);
+            //     print('  ✅ Contrat ${contrat['id']}: $marque $modele ($immat) - ${contrat['statut']} - N°$numero');
+            //   }
+            // }
 
             if (contrats.isEmpty) {
               return _buildNoContractsHomeCard();
@@ -6523,19 +6703,22 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     final int maxParticipants = session.nombreVehicules;
     final bool isSelected = _selectedSessions.contains(session.id);
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: isSelected ? Colors.purple[50] : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isSelected ? Colors.purple[300]! : Colors.grey[200]!,
+          color: isSelected ? Colors.purple[600]! : Colors.grey[200]!,
           width: isSelected ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
+            color: isSelected
+              ? Colors.purple.withOpacity(0.2)
+              : Colors.black.withOpacity(0.05),
+            blurRadius: isSelected ? 8 : 4,
             offset: const Offset(0, 2),
           ),
         ],
@@ -6888,21 +7071,34 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      _isSelectionMode ? 'Mode Sélection' : 'Sessions Collaboratives',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Text(
+                        _isSelectionMode ? 'Mode Sélection' : 'Sessions Collaboratives',
+                        key: ValueKey(_isSelectionMode),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    Text(
-                      _isSelectionMode
-                        ? '${_selectedSessions.length} session(s) sélectionnée(s)'
-                        : 'Gérez vos constats collaboratifs et suivez leur progression',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.white70,
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Text(
+                        _isSelectionMode
+                          ? '${_selectedSessions.length} session(s) sélectionnée(s)'
+                          : 'Gérez vos constats collaboratifs et suivez leur progression',
+                        key: ValueKey('${_isSelectionMode}_${_selectedSessions.length}'),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _isSelectionMode && _selectedSessions.isNotEmpty
+                            ? Colors.yellow[200]
+                            : Colors.white70,
+                          fontWeight: _isSelectionMode && _selectedSessions.isNotEmpty
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        ),
                       ),
                     ),
                   ],
@@ -6921,23 +7117,36 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                   tooltip: 'Actualiser',
                 ),
               ] else ...[
-                IconButton(
-                  onPressed: _selectedSessions.isEmpty ? null : _supprimerSessionsSelectionnees,
-                  icon: const Icon(Icons.delete, color: Colors.white),
-                  tooltip: 'Supprimer sélection',
-                ),
+                // Bouton Sélectionner tout/Désélectionner tout
                 IconButton(
                   onPressed: _selectionnerToutesLesSessions,
-                  icon: const Icon(Icons.select_all, color: Colors.white),
-                  tooltip: 'Tout sélectionner',
+                  icon: Icon(
+                    _selectedSessions.length == _allSessions.length
+                      ? Icons.deselect
+                      : Icons.select_all,
+                    color: Colors.white
+                  ),
+                  tooltip: _selectedSessions.length == _allSessions.length
+                    ? 'Tout désélectionner'
+                    : 'Tout sélectionner',
                 ),
+                // Bouton Supprimer
+                IconButton(
+                  onPressed: _selectedSessions.isEmpty ? null : _supprimerSessionsSelectionnees,
+                  icon: Icon(
+                    Icons.delete,
+                    color: _selectedSessions.isEmpty ? Colors.white54 : Colors.white
+                  ),
+                  tooltip: 'Supprimer sélection (${_selectedSessions.length})',
+                ),
+                // Bouton Annuler
                 IconButton(
                   onPressed: () => setState(() {
                     _isSelectionMode = false;
                     _selectedSessions.clear();
                   }),
                   icon: const Icon(Icons.close, color: Colors.white),
-                  tooltip: 'Annuler',
+                  tooltip: 'Annuler sélection',
                 ),
               ],
             ],
@@ -7064,15 +7273,18 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
       if (user == null) return;
 
       final snapshot = await FirebaseFirestore.instance
-          .collection('collaborative_sessions')
-          .where('createurUserId', isEqualTo: user.uid)
+          .collection('sessions_collaboratives')
+          .where('conducteurCreateur', isEqualTo: user.uid)
+          .orderBy('dateCreation', descending: true)
           .get();
 
+      final sessions = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return CollaborativeSession.fromMap(data, doc.id);
+      }).toList();
+
       setState(() {
-        _allSessions = snapshot.docs.map((doc) {
-          final data = doc.data();
-          return CollaborativeSession.fromMap(data, doc.id);
-        }).toList();
+        _allSessions = sessions;
       });
     } catch (e) {
       print('❌ Erreur chargement sessions: $e');
@@ -7093,16 +7305,17 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
   /// 📋 Sélectionner toutes les sessions
   void _selectionnerToutesLesSessions() {
     setState(() {
-      if (_selectedSessions.length == _allSessions.length) {
+      // Compter les sessions avec ID valide
+      final sessionsAvecId = _allSessions.where((s) => s.id != null && s.id!.isNotEmpty).toList();
+
+      if (_selectedSessions.length == sessionsAvecId.length && sessionsAvecId.isNotEmpty) {
         // Si toutes sont sélectionnées, tout désélectionner
         _selectedSessions.clear();
       } else {
         // Sinon, tout sélectionner
         _selectedSessions.clear();
-        for (final session in _allSessions) {
-          if (session.id != null) {
-            _selectedSessions.add(session.id!);
-          }
+        for (final session in sessionsAvecId) {
+          _selectedSessions.add(session.id!);
         }
       }
     });

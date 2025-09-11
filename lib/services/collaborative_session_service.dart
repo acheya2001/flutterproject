@@ -8,7 +8,7 @@ import '../models/accident_session_complete.dart';
 /// 🎯 Service principal pour gérer les sessions collaboratives
 class CollaborativeSessionService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static const String _sessionsCollection = 'collaborative_sessions';
+  static const String _sessionsCollection = 'sessions_collaboratives';
   static const String _guestDataCollection = 'guest_participants_data';
 
   /// 🆕 Créer une nouvelle session collaborative
@@ -559,17 +559,28 @@ class CollaborativeSessionService {
   static SessionStatus _determinerStatutSession(List<Map<String, dynamic>> participants, SessionProgress progression) {
     final total = participants.length;
 
-    if (progression.signaturesEffectuees == total) {
-      return SessionStatus.signe;
-    } else if (progression.croquisValides == total) {
+    // Vérifier si tous ont signé
+    if (progression.signaturesEffectuees == total && total > 0) {
+      return SessionStatus.finalise; // Changé de 'signe' à 'finalise'
+    }
+    // Vérifier si tous ont validé le croquis
+    else if (progression.croquisValides == total && total > 0) {
       return SessionStatus.pret_signature;
-    } else if (progression.formulairesTermines == total) {
+    }
+    // Vérifier si tous ont terminé leur formulaire
+    else if (progression.formulairesTermines == total && total > 0) {
       return SessionStatus.validation_croquis;
-    } else if (progression.participantsRejoints == total) {
+    }
+    // Vérifier si tous ont rejoint
+    else if (progression.participantsRejoints == total && total > 0) {
       return SessionStatus.en_cours;
-    } else if (progression.participantsRejoints > 0) {
+    }
+    // Quelques participants ont rejoint
+    else if (progression.participantsRejoints > 0) {
       return SessionStatus.attente_participants;
-    } else {
+    }
+    // Aucun participant
+    else {
       return SessionStatus.creation;
     }
   }
@@ -605,9 +616,9 @@ class CollaborativeSessionService {
           'blesses': blesses,
           'detailsBlesses': detailsBlesses,
           'temoins': temoins,
-          'dateModification': FieldValue.serverTimestamp(),
+          'dateModification': DateTime.now().toIso8601String(),
         },
-        'dateModification': FieldValue.serverTimestamp(),
+        'dateModification': DateTime.now().toIso8601String(),
       });
     } catch (e) {
       print('❌ Erreur sauvegarde infos générales: $e');
@@ -618,16 +629,23 @@ class CollaborativeSessionService {
   /// 🔍 Rechercher des sessions par code
   static Future<List<CollaborativeSession>> getSessionsByCode(String code) async {
     try {
+      print('🔍 [RECHERCHE] Recherche session avec code: $code');
+
       final querySnapshot = await _firestore
           .collection(_sessionsCollection)
           .where('codeSession', isEqualTo: code.toUpperCase())
-          .where('statut', isEqualTo: 'active')
+          .where('statut', whereIn: ['creation', 'attente_participants', 'en_cours', 'validation_croquis', 'pret_signature'])
           .get();
 
-      return querySnapshot.docs.map((doc) {
+      print('🔍 [RECHERCHE] Sessions trouvées: ${querySnapshot.docs.length}');
+
+      final sessions = querySnapshot.docs.map((doc) {
         final data = doc.data();
+        print('🔍 [RECHERCHE] Session ${doc.id}: code=${data['codeSession']}, statut=${data['statut']}');
         return CollaborativeSession.fromMap(data, doc.id);
       }).toList();
+
+      return sessions;
     } catch (e) {
       print('❌ Erreur recherche session par code: $e');
       return [];
@@ -662,11 +680,14 @@ class CollaborativeSessionService {
 
         if (userId_participant.toString() == userId.toString()) {
           participants[i]['formulaireStatus'] = nouvelEtat.name;
+          participants[i]['formulaireComplete'] = nouvelEtat == FormulaireStatus.termine;
 
           // Mettre à jour les dates selon l'état
           if (nouvelEtat == FormulaireStatus.termine) {
-            participants[i]['dateFormulaireFini'] = FieldValue.serverTimestamp();
+            participants[i]['dateFormulaireFini'] = DateTime.now().toIso8601String();
             participants[i]['statut'] = ParticipantStatus.formulaire_fini.name;
+          } else if (nouvelEtat == FormulaireStatus.en_cours) {
+            participants[i]['statut'] = ParticipantStatus.rejoint.name;
           }
 
           participantTrouve = true;
@@ -702,7 +723,7 @@ class CollaborativeSessionService {
         'participants': participants,
         'progression': progression,
         'statut': nouveauStatut.name,
-        'dateModification': FieldValue.serverTimestamp(),
+        'dateModification': DateTime.now().toIso8601String(),
       });
 
       print('✅ État formulaire mis à jour: ${nouvelEtat.name}');

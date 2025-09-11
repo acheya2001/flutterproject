@@ -69,11 +69,14 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
   /// 🔄 Stream des données de session en temps réel
   Stream<Map<String, dynamic>?> _getSessionDataStream() {
     return FirebaseFirestore.instance
-        .collection('collaborative_sessions')
+        .collection('sessions_collaboratives')
         .doc(widget.session.id)
         .snapshots()
         .map((doc) {
-      if (!doc.exists) return null;
+      if (!doc.exists) {
+        print('❌ Session non trouvée: ${widget.session.id}');
+        return null;
+      }
 
       final data = doc.data()!;
       data['id'] = doc.id;
@@ -1439,37 +1442,90 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
 
   /// 📊 Progression globale
   Widget _buildProgressionGlobale(int termine, int total) {
-    final pourcentage = total > 0 ? (termine / total * 100).round() : 0;
+    // Calculer la progression en tenant compte des étapes :
+    // 1. Participants rejoints (25%)
+    // 2. Formulaires terminés (50%)
+    // 3. Croquis validé (75%)
+    // 4. Signatures effectuées (100%)
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Progression globale',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
+    final pourcentageFormulaires = total > 0 ? (termine / total * 50).round() : 0;
+    final pourcentage = pourcentageFormulaires; // Pour l'instant, on se base sur les formulaires
+
+    Color couleurProgression;
+    if (pourcentage >= 75) {
+      couleurProgression = Colors.green;
+    } else if (pourcentage >= 50) {
+      couleurProgression = Colors.orange;
+    } else if (pourcentage >= 25) {
+      couleurProgression = Colors.blue;
+    } else {
+      couleurProgression = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: couleurProgression.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: couleurProgression.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.analytics,
+                    color: couleurProgression,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Progression globale',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
               ),
-            ),
-            Text(
-              '$pourcentage%',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.indigo[600],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: couleurProgression,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$pourcentage%',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 12,
+                  ),
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: pourcentage / 100,
+            backgroundColor: Colors.grey[200],
+            valueColor: AlwaysStoppedAnimation<Color>(couleurProgression),
+            minHeight: 8,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$termine/$total formulaires terminés',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: pourcentage / 100,
-          backgroundColor: Colors.grey[200],
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.indigo[600]!),
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }

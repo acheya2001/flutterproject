@@ -45,7 +45,7 @@ class TestReadOnlyModePage extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (context) => const ModernSingleAccidentInfoScreen(
                       typeAccident: 'Collision frontale',
-                      estModeReadOnly: false, // Mode édition
+                      readOnly: false, // Mode édition
                     ),
                   ),
                 );
@@ -72,7 +72,7 @@ class TestReadOnlyModePage extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (context) => const ModernSingleAccidentInfoScreen(
                       typeAccident: 'Collision frontale',
-                      estModeReadOnly: true, // Mode lecture seule
+                      readOnly: true, // Mode lecture seule
                     ),
                   ),
                 );

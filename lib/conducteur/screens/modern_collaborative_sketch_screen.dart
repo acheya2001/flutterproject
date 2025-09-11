@@ -355,7 +355,7 @@ class _ModernCollaborativeSketchScreenState extends State<ModernCollaborativeSke
       // Déterminer la collection selon le type de session
       String collection;
       if (widget.session is CollaborativeSession) {
-        collection = 'collaborative_sessions';
+        collection = 'sessions_collaboratives';
       } else {
         collection = 'accident_sessions';
       }
@@ -408,7 +408,7 @@ class _ModernCollaborativeSketchScreenState extends State<ModernCollaborativeSke
       // Déterminer la collection selon le type de session
       String collection;
       if (widget.session is CollaborativeSession) {
-        collection = 'collaborative_sessions';
+        collection = 'sessions_collaboratives';
       } else {
         collection = 'accident_sessions';
       }
@@ -419,7 +419,7 @@ class _ModernCollaborativeSketchScreenState extends State<ModernCollaborativeSke
           .doc(widget.session.id)
           .update({
         'croquis_data': croquisData,
-        'croquis_derniere_modification': FieldValue.serverTimestamp(),
+        'croquis_derniere_modification': DateTime.now().toIso8601String(),
         'croquis_modifie_par': FirebaseAuth.instance.currentUser?.uid,
       });
 

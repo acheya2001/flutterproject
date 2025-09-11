@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/collaborative_session_model.dart';
 import '../../services/collaborative_session_service.dart';
 import '../../services/collaborative_data_sync_service.dart';
+import '../../services/constat_pdf_service.dart';
 import 'modern_single_accident_info_screen.dart';
 import 'modern_collaborative_sketch_screen.dart';
 
@@ -123,6 +124,13 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
         ],
       ),
       actions: [
+        // Bouton PDF (si session terminée)
+        if (_sessionData?.statut == SessionStatus.signe || _sessionData?.statut == SessionStatus.finalise)
+          IconButton(
+            onPressed: _genererPdf,
+            icon: const Icon(Icons.picture_as_pdf),
+            tooltip: 'Générer PDF',
+          ),
         IconButton(
           onPressed: _chargerDonneesSession,
           icon: const Icon(Icons.refresh),
@@ -1263,5 +1271,91 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
         ],
       ),
     );
+  }
+
+  /// 📄 Générer le PDF du constat complet
+  Future<void> _genererPdf() async {
+    if (_sessionData == null) return;
+
+    try {
+      // Afficher le loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Génération du PDF...'),
+            ],
+          ),
+        ),
+      );
+
+      // Récupérer toutes les données de la session
+      final sessionDoc = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(_sessionData!.id)
+          .get();
+
+      if (!sessionDoc.exists) {
+        throw Exception('Session non trouvée');
+      }
+
+      final sessionData = sessionDoc.data()!;
+
+      // Générer le PDF
+      final pdfFile = await ConstatPdfService.genererPdfConstat(
+        sessionId: _sessionData!.id,
+        sessionData: sessionData,
+      );
+
+      // Fermer le loading
+      Navigator.pop(context);
+
+      // Afficher les options
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('PDF généré avec succès'),
+          content: const Text('Que souhaitez-vous faire avec le PDF ?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                ConstatPdfService.partagerPdf(pdfFile);
+              },
+              child: const Text('Partager'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                ConstatPdfService.imprimerPdf(pdfFile);
+              },
+              child: const Text('Imprimer'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fermer'),
+            ),
+          ],
+        ),
+      );
+
+    } catch (e) {
+      // Fermer le loading si ouvert
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      // Afficher l'erreur
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur génération PDF: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

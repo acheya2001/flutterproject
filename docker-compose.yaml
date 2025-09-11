@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  flutter_builder:
+    build: .
+    container_name: flutter_builder
+    volumes:
+      - .:/app              # Monte ton projet local dans le conteneur
+      - ./output:/output   # Dossier local pour récupérer l'APK
+    command: >
+      sh -c "flutter clean &&
+             flutter pub get &&
+             flutter build apk --release &&
+             cp build/app/outputs/flutter-apk/app-release.apk /output/"

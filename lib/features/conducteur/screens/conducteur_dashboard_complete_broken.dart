@@ -4133,7 +4133,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     if (user == null) return Stream.value([]);
 
     return FirebaseFirestore.instance
-        .collection('collaborative_sessions')
+        .collection('sessions_collaboratives')
         .where('conducteurCreateur', isEqualTo: user.uid)
         .orderBy('dateCreation', descending: true)
         .snapshots()

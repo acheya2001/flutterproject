@@ -119,6 +119,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
   List<Map<String, dynamic>> _croquisData = [];
   bool _croquisExiste = false;
   String? _croquisImageUrl;
+  bool _croquisChargeEnCours = false;
 
   // Variables pour le mode collaboratif
   bool get _estCreateur => widget.isCreator;
@@ -822,8 +823,6 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         const SizedBox(height: 24),
         _buildBlessesSection(),
         const SizedBox(height: 24),
-        _buildTemoinsSection(),
-        const SizedBox(height: 24),
 
         // 🎯 LOGIQUE SELON LE TYPE D'UTILISATEUR
         if (_estUtilisateurInscrit) ...[
@@ -1111,11 +1110,11 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _estModeReadOnly ? null : _ouvrirEditeurCroquis,
+                  onPressed: _estModeReadOnly ? _voirCroquisReadOnly : _ouvrirEditeurCroquis,
                   icon: Icon(_estModeReadOnly ? Icons.visibility : Icons.draw),
                   label: Text(_estModeReadOnly ? 'Voir le croquis' : 'Ouvrir l\'éditeur de croquis'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _estModeReadOnly ? Colors.grey[400] : Colors.purple[600],
+                    backgroundColor: _estModeReadOnly ? Colors.blue[600] : Colors.purple[600],
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
                     shape: RoundedRectangleBorder(
@@ -1127,23 +1126,34 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
               const SizedBox(height: 16),
 
+              // Boutons d'accord/désaccord pour les conducteurs qui rejoignent
+              if (_estModeCollaboratif && !_estCreateur && _estModeReadOnly) ...[
+                _buildBoutonsAccordDesaccord(),
+                const SizedBox(height: 16),
+              ],
+
               // Message informatif
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
+                  color: _estModeReadOnly ? Colors.blue[50] : Colors.grey[100],
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.lightbulb_outline, color: Colors.orange[600]),
+                    Icon(
+                      _estModeReadOnly ? Icons.info_outline : Icons.lightbulb_outline,
+                      color: _estModeReadOnly ? Colors.blue[600] : Colors.orange[600]
+                    ),
                     const SizedBox(width: 8),
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Le croquis est optionnel mais peut aider à clarifier les circonstances de l\'accident',
+                        _estModeReadOnly
+                          ? 'Vous consultez le croquis créé par le conducteur principal. Vous devez donner votre accord pour valider le constat.'
+                          : 'Le croquis est optionnel mais peut aider à clarifier les circonstances de l\'accident',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.black54,
+                          color: _estModeReadOnly ? Colors.blue[700] : Colors.black54,
                         ),
                       ),
                     ),
@@ -1155,6 +1165,216 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         ),
       ],
     );
+  }
+
+  // 🔍 Voir le croquis en mode lecture seule
+  void _voirCroquisReadOnly() {
+    if (_croquisData.isEmpty) {
+      _chargerCroquisDepuisFirebase();
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.7,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[600],
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.visibility, color: Colors.white),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Croquis de l\'accident (Lecture seule)',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Contenu du croquis
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: _croquisData.isNotEmpty
+                        ? CustomPaint(
+                            size: Size.infinite,
+                            painter: CroquisPreviewPainter(_croquisData),
+                          )
+                        : const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.draw_outlined, size: 64, color: Colors.grey),
+                                SizedBox(height: 16),
+                                Text(
+                                  'Aucun croquis disponible',
+                                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // 🎯 Boutons d'accord/désaccord pour les conducteurs qui rejoignent
+  Widget _buildBoutonsAccordDesaccord() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.how_to_vote, color: Colors.orange[600]),
+              const SizedBox(width: 8),
+              const Text(
+                'Validation du constat',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          const Text(
+            'Êtes-vous d\'accord avec les informations du constat ?',
+            style: TextStyle(fontSize: 14, color: Colors.black87),
+          ),
+
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _donnerAccord(true),
+                  icon: const Icon(Icons.check_circle),
+                  label: const Text('J\'accorde'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _donnerAccord(false),
+                  icon: const Icon(Icons.cancel),
+                  label: const Text('Je désaccorde'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue[600], size: 16),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    'Tous les conducteurs doivent donner leur accord pour finaliser le constat',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 📝 Donner son accord ou désaccord
+  void _donnerAccord(bool accord) {
+    // TODO: Implémenter la logique de sauvegarde de l'accord dans Firebase
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          accord
+            ? '✅ Vous avez donné votre accord au constat'
+            : '❌ Vous avez exprimé votre désaccord avec le constat',
+        ),
+        backgroundColor: accord ? Colors.green[600] : Colors.red[600],
+        duration: const Duration(seconds: 3),
+      ),
+    );
+
+    // Optionnel : Retourner à l'écran précédent après validation
+    if (accord) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      });
+    }
   }
 
   // 🎯 ÉTAPE 7/8: Signature électronique
@@ -3082,7 +3302,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
     try {
       final user = FirebaseAuth.instance.currentUser!;
       final sessionRef = FirebaseFirestore.instance
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(widget.session!.id);
 
       // Récupérer la session actuelle
@@ -3161,7 +3381,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
       final user = FirebaseAuth.instance.currentUser!;
       final sessionRef = FirebaseFirestore.instance
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(widget.session!.id);
 
       // Récupérer la session actuelle
@@ -6495,7 +6715,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       if (widget.session?.id == null) return;
 
       final doc = await FirebaseFirestore.instance
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(widget.session!.id)
           .get();
 
@@ -6623,11 +6843,11 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           'telephone': temoin.telephone,
           'adresse': temoin.adresse,
         }).toList(),
-        'dateModification': FieldValue.serverTimestamp(),
+        'dateModification': DateTime.now().toIso8601String(),
       };
 
       await FirebaseFirestore.instance
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(widget.session!.id)
           .update({
         'donneesCommunes': donneesCommunes,
@@ -6650,8 +6870,8 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         return;
       }
 
-      // Essayer les deux collections possibles
-      List<String> collections = ['collaborative_sessions', 'accident_sessions'];
+      // Essayer les collections possibles dans l'ordre de priorité
+      List<String> collections = ['sessions_collaboratives', 'collaborative_sessions', 'accident_sessions'];
 
       for (String collection in collections) {
         print('🔍 Recherche dans la collection: $collection');
@@ -6702,6 +6922,61 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
     } catch (e) {
       print('❌ Erreur chargement croquis: $e');
+    }
+  }
+
+  /// 🎨 Charger le croquis depuis la session collaborative
+  Future<void> _chargerCroquisDepuisSessionCollaborative() async {
+    try {
+      if (widget.session?.id == null) return;
+
+      print('🎨 [CROQUIS COLLABORATIF] Chargement depuis session: ${widget.session!.id}');
+
+      final sessionDoc = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session!.id)
+          .get();
+
+      if (!sessionDoc.exists) {
+        print('❌ Session collaborative non trouvée');
+        return;
+      }
+
+      final sessionData = sessionDoc.data()!;
+
+      // Chercher le croquis dans les données de session
+      final croquisData = sessionData['croquisData'] as List<dynamic>?;
+      final croquisCommun = sessionData['croquis'] as Map<String, dynamic>?;
+
+      if (croquisData != null && croquisData.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _croquisData = List<Map<String, dynamic>>.from(croquisData);
+            _croquisExiste = true;
+          });
+        }
+        print('✅ Croquis chargé depuis session collaborative: ${_croquisData.length} éléments');
+        return;
+      }
+
+      if (croquisCommun != null && croquisCommun['croquisData'] != null) {
+        final croquisDataCommun = croquisCommun['croquisData'] as List<dynamic>?;
+        if (croquisDataCommun != null && croquisDataCommun.isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              _croquisData = List<Map<String, dynamic>>.from(croquisDataCommun);
+              _croquisExiste = true;
+            });
+          }
+          print('✅ Croquis commun chargé depuis session collaborative: ${_croquisData.length} éléments');
+          return;
+        }
+      }
+
+      print('ℹ️ Aucun croquis trouvé dans la session collaborative');
+
+    } catch (e) {
+      print('❌ Erreur chargement croquis collaboratif: $e');
     }
   }
 
@@ -6787,10 +7062,23 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
     print('🔍 [RÉSUMÉ CROQUIS] _croquisExiste: $_croquisExiste, _croquisData.length: ${_croquisData.length}');
 
     // Forcer le rechargement du croquis si pas encore chargé
-    if (_croquisData.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (_croquisData.isEmpty && !_croquisChargeEnCours) {
+      _croquisChargeEnCours = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
         print('🔄 Rechargement forcé du croquis depuis le résumé...');
-        _chargerCroquisDepuisFirebase();
+        await _chargerCroquisDepuisFirebase();
+        if (mounted) {
+          setState(() {
+            _croquisChargeEnCours = false;
+          });
+        }
+      });
+    }
+
+    // Si on est en mode collaboratif, essayer de charger depuis la session
+    if (_estModeCollaboratif && widget.session?.id != null && _croquisData.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _chargerCroquisDepuisSessionCollaborative();
       });
     }
 
