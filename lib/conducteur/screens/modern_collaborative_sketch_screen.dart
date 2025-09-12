@@ -3,14 +3,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/collaborative_session_model.dart';
 import '../../widgets/modern_sketch_widget.dart';
+import '../../services/collaborative_data_sync_service.dart';
 
 /// 🎨 Écran de croquis collaboratif moderne
 class ModernCollaborativeSketchScreen extends StatefulWidget {
   final CollaborativeSession session;
+  final bool readOnly; // 🔒 Mode lecture seule pour les invités
 
   const ModernCollaborativeSketchScreen({
     super.key,
     required this.session,
+    this.readOnly = false, // Par défaut, mode édition
   });
 
   @override
@@ -302,9 +305,9 @@ class _ModernCollaborativeSketchScreenState extends State<ModernCollaborativeSke
               ],
             ),
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Widget de croquis collaboratif
           Expanded(
             child: Container(
@@ -327,15 +330,21 @@ class _ModernCollaborativeSketchScreenState extends State<ModernCollaborativeSke
                       key: ValueKey('sketch_${_elementsCharges.length}_${DateTime.now().millisecondsSinceEpoch}'),
                       width: double.infinity,
                       height: double.infinity,
-                      onSketchChanged: _onSketchChanged,
+                      onSketchChanged: widget.readOnly ? null : _onSketchChanged, // 🔒 Désactiver modification si readOnly
                       initialElements: _elementsCharges,
-                      isReadOnly: false,
+                      isReadOnly: widget.readOnly, // 🔒 Utiliser le paramètre readOnly
                     );
                   },
                 ),
               ),
             ),
           ),
+
+          // Boutons de validation pour les invités
+          if (widget.readOnly) ...[
+            const SizedBox(height: 20),
+            _buildBoutonsValidation(),
+          ],
         ],
       ),
     );
@@ -347,6 +356,146 @@ class _ModernCollaborativeSketchScreenState extends State<ModernCollaborativeSke
 
     // Sauvegarder automatiquement dans Firebase
     _sauvegarderCroquisDansFirebase(elements);
+  }
+
+  /// 🎨 Boutons de validation pour les invités
+  Widget _buildBoutonsValidation() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Validez-vous ce croquis ?',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _validerCroquis(true),
+                  icon: const Icon(Icons.check),
+                  label: const Text('Accepter'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _validerCroquis(false),
+                  icon: const Icon(Icons.close),
+                  label: const Text('Refuser'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🎨 Valider le croquis (accepter/refuser)
+  Future<void> _validerCroquis(bool accepte) async {
+    String? raison;
+
+    // Si refusé, demander la raison
+    if (!accepte) {
+      raison = await _demanderRaison();
+      if (raison == null) return; // Annulé
+    }
+
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
+
+      await CollaborativeDataSyncService.validerCroquis(
+        sessionId: widget.session.id,
+        participantId: currentUser.uid,
+        accepte: accepte,
+        commentaire: raison,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(accepte ? '✅ Croquis accepté' : '❌ Croquis refusé'),
+            backgroundColor: accepte ? Colors.green : Colors.orange,
+          ),
+        );
+
+        // Retourner au dashboard
+        Navigator.pop(context);
+      }
+
+    } catch (e) {
+      print('❌ Erreur validation croquis: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Erreur lors de la validation'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 📝 Demander la raison du refus
+  Future<String?> _demanderRaison() async {
+    final TextEditingController controller = TextEditingController();
+
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Raison du refus'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Pourquoi refusez-vous ce croquis ?'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Expliquez la raison...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                Navigator.pop(context, controller.text.trim());
+              }
+            },
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 📥 Charger le croquis existant depuis Firebase

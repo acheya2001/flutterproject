@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/collaborative_session_model.dart';
 import '../../services/collaborative_session_service.dart';
 import '../../services/collaborative_data_sync_service.dart';
@@ -38,6 +39,9 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
   bool _isLoading = true;
   String? _errorMessage;
 
+  // Controllers
+  final TextEditingController _commentaireController = TextEditingController();
+
   // Services
   final CollaborativeSessionService _sessionService = CollaborativeSessionService();
   final CollaborativeDataSyncService _syncService = CollaborativeDataSyncService();
@@ -52,6 +56,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _commentaireController.dispose();
     super.dispose();
   }
 
@@ -64,16 +69,21 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
       });
 
       // Charger les données de session
+      print('🔍 Chargement session: ${widget.session.id}');
       final sessionDoc = await FirebaseFirestore.instance
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(widget.session.id)
           .get();
 
       if (sessionDoc.exists) {
+        print('✅ Session trouvée dans Firestore');
         _sessionData = CollaborativeSession.fromMap(sessionDoc.data() as Map<String, dynamic>, sessionDoc.id);
 
         // Charger les données communes (pour l'instant, utilisons les données de base)
         _donneesCommunes = sessionDoc.data() as Map<String, dynamic>?;
+        print('✅ Données session chargées: ${_sessionData?.codeSession}');
+      } else {
+        print('❌ Session non trouvée dans Firestore: ${widget.session.id}');
       }
 
       setState(() => _isLoading = false);
@@ -1246,31 +1256,105 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
   }
 
   void _voirCroquisComplet() {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final estCreateur = widget.session.conducteurCreateur == currentUserId;
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ModernCollaborativeSketchScreen(
           session: widget.session,
+          readOnly: !estCreateur, // 🔒 Seul le créateur peut modifier
         ),
       ),
     );
   }
 
   void _gererValidationCroquis() {
-    // TODO: Implémenter la gestion de validation/refus du croquis
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Validation du croquis'),
-        content: const Text('Fonctionnalité de validation/refus du croquis à implémenter.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Que pensez-vous du croquis proposé ?'),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Commentaire (optionnel)',
+                border: OutlineInputBorder(),
+                hintText: 'Ajoutez un commentaire...',
+              ),
+              maxLines: 3,
+              controller: _commentaireController,
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => _validerCroquis(false, currentUserId),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Refuser'),
+          ),
+          ElevatedButton(
+            onPressed: () => _validerCroquis(true, currentUserId),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Accepter', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
+  }
+
+  /// 🎯 Valider ou refuser le croquis
+  Future<void> _validerCroquis(bool accepte, String userId) async {
+    Navigator.pop(context); // Fermer le dialog
+
+    try {
+      await CollaborativeDataSyncService.validerCroquis(
+        sessionId: widget.session.id,
+        participantId: userId,
+        accepte: accepte,
+        commentaire: _commentaireController.text.trim().isEmpty
+            ? null
+            : _commentaireController.text.trim(),
+      );
+
+      // Nettoyer le commentaire
+      _commentaireController.clear();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              accepte ? 'Croquis accepté avec succès' : 'Croquis refusé',
+            ),
+            backgroundColor: accepte ? Colors.green : Colors.orange,
+          ),
+        );
+
+        // Recharger les données de la session
+        _chargerDonneesSession();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   /// 📄 Générer le PDF du constat complet

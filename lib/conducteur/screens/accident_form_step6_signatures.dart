@@ -7,6 +7,7 @@ import '../../models/accident_session_complete.dart';
 import '../../models/collaborative_session_model.dart';
 import '../../services/accident_session_complete_service.dart';
 import '../../services/collaborative_session_service.dart';
+import '../../services/signature_debug_service.dart';
 
 /// ✍️ Étape 6 : Signatures et finalisation (selon constat papier)
 class AccidentFormStep6Signatures extends StatefulWidget {
@@ -163,6 +164,17 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
         ),
         backgroundColor: Colors.green[600],
         elevation: 0,
+        actions: [
+          // Bouton de débogage temporaire
+          IconButton(
+            icon: const Icon(Icons.bug_report, color: Colors.white),
+            onPressed: () async {
+              await SignatureDebugService.debugSignatures(widget.session.id);
+              await SignatureDebugService.testAjoutSignature(widget.session.id);
+            },
+            tooltip: 'Debug Signatures',
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: _getParticipants().map((conducteur) {
@@ -858,32 +870,51 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
     }
 
     try {
+      print('🔄 [UI] Début validation signature pour rôle: $roleVehicule');
+
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Utilisateur non connecté');
 
+      print('✅ [UI] Utilisateur connecté: ${user.uid}');
+
       // Convertir la signature en base64
       final signature = await controller.toPngBytes();
-      final signatureBase64 = base64Encode(signature!);
+      if (signature == null) throw Exception('Impossible de convertir la signature');
+
+      final signatureBase64 = base64Encode(signature);
+      print('✅ [UI] Signature convertie en base64 (${signatureBase64.length} caractères)');
 
       // Sauvegarder la signature selon le type de session
+      print('🔄 [UI] Type de session: ${widget.session.runtimeType}');
+      print('🔄 [UI] Session ID: ${widget.session.id}');
+
       if (widget.session is CollaborativeSession) {
+        print('🔄 [UI] Appel CollaborativeSessionService.ajouterSignature...');
         await CollaborativeSessionService.ajouterSignature(
           sessionId: widget.session.id,
           userId: user.uid,
           signatureBase64: signatureBase64,
           roleVehicule: roleVehicule,
         );
+        print('✅ [UI] CollaborativeSessionService.ajouterSignature terminé');
       } else {
+        print('🔄 [UI] Appel AccidentSessionCompleteService.ajouterSignature...');
         await AccidentSessionCompleteService.ajouterSignature(
           widget.session.id,
           roleVehicule,
           signatureBase64,
         );
+        print('✅ [UI] AccidentSessionCompleteService.ajouterSignature terminé');
       }
 
       if (mounted) setState(() {
         _signaturesValidees[roleVehicule] = true;
       });
+
+      print('✅ [UI] Signature validée avec succès pour $roleVehicule');
+
+      // Déboguer les signatures après ajout
+      await SignatureDebugService.debugSignatures(widget.session.id);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -894,6 +925,9 @@ class _AccidentFormStep6SignaturesState extends State<AccidentFormStep6Signature
         );
       }
     } catch (e) {
+      print('❌ [UI] Erreur validation signature: $e');
+      print('❌ [UI] Stack trace: ${StackTrace.current}');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

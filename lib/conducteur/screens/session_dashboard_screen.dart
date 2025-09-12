@@ -1,4 +1,6 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/collaborative_session_model.dart';
@@ -36,8 +38,9 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
     with TickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  
+
   CollaborativeSession? _sessionActuelle;
+  final TextEditingController _commentaireController = TextEditingController();
 
   @override
   void initState() {
@@ -63,6 +66,7 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
   @override
   void dispose() {
     _animationController.dispose();
+    _commentaireController.dispose();
     super.dispose();
   }
 
@@ -702,14 +706,20 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
                   'Croquis',
                   Icons.draw,
                   Colors.orange,
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ModernCollaborativeSketchScreen(
-                        session: sessionData,
+                  () {
+                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+                    final estCreateur = sessionData.conducteurCreateur == currentUserId;
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ModernCollaborativeSketchScreen(
+                          session: sessionData,
+                          readOnly: !estCreateur, // 🔒 Seul le créateur peut modifier
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -753,11 +763,17 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
     return ElevatedButton.icon(
       onPressed: onPressed,
       icon: Icon(icone, size: 18),
-      label: Text(label),
+      label: Flexible(
+        child: Text(
+          label,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
+      ),
       style: ElevatedButton.styleFrom(
         backgroundColor: couleur,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
@@ -860,10 +876,7 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
     );
   }
 
-  bool _estCreateur() {
-    // TODO: Vérifier si l'utilisateur actuel est le créateur
-    return true; // Placeholder
-  }
+
 
   Future<void> _signerConstat() async {
     try {
@@ -928,6 +941,190 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
 
       // En cas d'erreur, afficher un message à l'utilisateur
       SafeSnackBar.showError(context, 'Erreur lors de l\'ouverture du formulaire: $e');
+    }
+  }
+
+  /// 📊 Calculer les validations de croquis
+  bool _calculerValidationsCroquis(Map<String, dynamic> sessionData) {
+    try {
+      final validationsCroquis = sessionData['validationsCroquis'] as Map<String, dynamic>? ?? {};
+      final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+
+      // Compter les validations acceptées
+      final validationsAcceptees = validationsCroquis.values
+          .where((validation) => validation['accepte'] == true)
+          .length;
+
+      return validationsAcceptees >= participants.length;
+    } catch (e) {
+      print('❌ Erreur calcul validations croquis: $e');
+      return false;
+    }
+  }
+
+  /// 📊 Calculer les signatures
+  bool _calculerSignatures(Map<String, dynamic> sessionData) {
+    try {
+      final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+
+      // Compter les participants qui ont signé
+      int signaturesEffectuees = 0;
+      for (final participant in participants) {
+        final statut = participant['statut'] as String? ?? '';
+        if (statut == 'signe') {
+          signaturesEffectuees++;
+        }
+      }
+
+      return signaturesEffectuees >= participants.length;
+    } catch (e) {
+      print('❌ Erreur calcul signatures: $e');
+      return false;
+    }
+  }
+
+  /// 🎨 Bouton de validation du croquis avec vérification
+  Widget _buildBoutonValidationCroquis(Map<String, dynamic> sessionData) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return const SizedBox.shrink();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionData['id'])
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        final validationsCroquis = data?['validationsCroquis'] as Map<String, dynamic>? ?? {};
+        final aDejaValide = validationsCroquis.containsKey(currentUserId);
+
+        if (aDejaValide) {
+          final validation = validationsCroquis[currentUserId] as Map<String, dynamic>;
+          final accepte = validation['accepte'] as bool;
+
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: accepte ? Colors.green[50] : Colors.orange[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: accepte ? Colors.green[300]! : Colors.orange[300]!,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  accepte ? Icons.check_circle : Icons.cancel,
+                  color: accepte ? Colors.green[600] : Colors.orange[600],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    accepte ? 'Vous avez accepté ce croquis' : 'Vous avez refusé ce croquis',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: accepte ? Colors.green[700] : Colors.orange[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ElevatedButton.icon(
+          onPressed: _validerCroquis,
+          icon: const Icon(Icons.check_circle),
+          label: const Text('Valider le croquis'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 48),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 🎯 Valider le croquis
+  void _validerCroquis() {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Validation du croquis'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Que pensez-vous du croquis proposé ?'),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Commentaire (optionnel)',
+                border: OutlineInputBorder(),
+                hintText: 'Ajoutez un commentaire...',
+              ),
+              maxLines: 3,
+              controller: _commentaireController,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => _confirmerValidationCroquis(false, currentUserId),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Refuser'),
+          ),
+          ElevatedButton(
+            onPressed: () => _confirmerValidationCroquis(true, currentUserId),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Accepter', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🎯 Confirmer la validation du croquis
+  Future<void> _confirmerValidationCroquis(bool accepte, String userId) async {
+    Navigator.pop(context); // Fermer le dialog
+
+    try {
+      await CollaborativeDataSyncService.validerCroquis(
+        sessionId: widget.session.id,
+        participantId: userId,
+        accepte: accepte,
+        commentaire: _commentaireController.text.trim().isEmpty
+            ? null
+            : _commentaireController.text.trim(),
+      );
+
+      // Nettoyer le commentaire
+      _commentaireController.clear();
+
+      if (mounted) {
+        SafeSnackBar.showSuccess(
+          context,
+          accepte ? 'Croquis accepté avec succès' : 'Croquis refusé'
+        );
+
+        // Les données se mettent à jour automatiquement via le StreamBuilder
+      }
+    } catch (e) {
+      if (mounted) {
+        SafeSnackBar.showError(context, 'Erreur: $e');
+      }
     }
   }
 
@@ -1033,6 +1230,12 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
 
           const SizedBox(height: 24),
 
+          // Validations du croquis (pour le créateur)
+          if (_estCreateur(sessionData)) ...[
+            _buildSectionValidationsCroquis(sessionData),
+            const SizedBox(height: 24),
+          ],
+
           // Actions rapides
           _buildSectionActionsDirectes(sessionData),
 
@@ -1053,7 +1256,17 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
 
     // Calculer les vraies statistiques
     final participantsRejoints = participants.length;
-    final formulairesTermines = participants.where((p) => p['statut'] == 'termine' || p['formulaireComplete'] == true).length;
+    final formulairesTermines = participants.where((p) =>
+      p['statut'] == 'formulaire_fini' ||
+      p['statut'] == 'termine' ||
+      p['formulaireComplete'] == true
+    ).length;
+
+    // Calculer les validations de croquis
+    final validationsCroquis = sessionData['validationsCroquis'] as Map<String, dynamic>? ?? {};
+    final croquisValides = validationsCroquis.values
+        .where((validation) => validation['accepte'] == true)
+        .length;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1109,8 +1322,24 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
 
           const SizedBox(height: 12),
 
+          // Validations du croquis
+          _buildProgressionItem(
+            'Validations du croquis',
+            croquisValides,
+            nombreVehicules,
+            Colors.purple,
+            Icons.check_circle,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Signatures effectuées (avec StreamBuilder pour compter en temps réel)
+          _buildProgressionSignatures(sessionData['id'], nombreVehicules),
+
+          const SizedBox(height: 12),
+
           // Progression globale
-          _buildProgressionGlobale(formulairesTermines, nombreVehicules),
+          _buildProgressionGlobaleComplete(sessionData),
         ],
       ),
     );
@@ -1151,17 +1380,32 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
                   ),
                 ),
               ),
-              if (participants.length < nombreVehicules)
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SessionInvitationScreen(session: widget.session),
+              Row(
+                children: [
+                  if (participants.length < nombreVehicules)
+                    TextButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SessionInvitationScreen(session: widget.session),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('Inviter'),
                     ),
-                  ),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Inviter'),
-                ),
+                  if (kDebugMode) ...[
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: () => _verifierStatuts(sessionData['id']),
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Vérifier', style: TextStyle(fontSize: 12)),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.orange[600],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -1186,6 +1430,11 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
     final statut = participantData['statut'] ?? 'en_attente';
     final roleVehicule = participantData['roleVehicule'] ?? 'A';
     final estCreateur = participantData['estCreateur'] == true;
+
+    // Debug: Afficher les données du participant
+    if (kDebugMode) {
+      print('🔍 [PARTICIPANT] ${participantData['userId']} - Nom: $nom $prenom - Statut: $statut - Données: $participantData');
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1220,11 +1469,14 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
               children: [
                 Row(
                   children: [
-                    Text(
-                      '$nom $prenom',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                    Expanded(
+                      child: Text(
+                        '$nom $prenom',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (estCreateur) ...[
@@ -1260,7 +1512,7 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
           ),
 
           // Actions
-          if (statut == 'termine')
+          if (statut == 'formulaire_fini' || statut == 'termine')
             IconButton(
               onPressed: () {
                 // TODO: Voir le formulaire du participant
@@ -1280,8 +1532,8 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
         return Colors.orange[600]!;
       case 'rejoint':
         return Colors.blue[600]!;
-      case 'termine':
       case 'formulaire_fini':
+      case 'termine':
         return Colors.green[600]!;
       case 'croquis_valide':
         return Colors.purple[600]!;
@@ -1299,8 +1551,8 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
         return 'En attente';
       case 'rejoint':
         return 'Rejoint';
-      case 'termine':
       case 'formulaire_fini':
+      case 'termine':
         return 'Formulaire terminé';
       case 'croquis_valide':
         return 'Croquis validé';
@@ -1371,14 +1623,20 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
           const SizedBox(height: 12),
 
           ElevatedButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ModernCollaborativeSketchScreen(
-                  session: widget.session,
+            onPressed: () {
+              final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+              final estCreateur = widget.session.conducteurCreateur == currentUserId;
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ModernCollaborativeSketchScreen(
+                    session: widget.session,
+                    readOnly: !estCreateur, // 🔒 Seul le créateur peut modifier
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
             icon: const Icon(Icons.draw),
             label: const Text('Voir le croquis'),
             style: ElevatedButton.styleFrom(
@@ -1387,6 +1645,11 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
               minimumSize: const Size(double.infinity, 48),
             ),
           ),
+
+          const SizedBox(height: 12),
+
+          // Bouton de validation du croquis (avec vérification)
+          _buildBoutonValidationCroquis(sessionData),
         ],
       ),
     );
@@ -1396,7 +1659,11 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
   Widget _buildSectionEtapesDirectes(Map<String, dynamic> sessionData) {
     final participants = sessionData['participants'] as List<dynamic>? ?? [];
     final nombreVehicules = sessionData['nombreVehicules'] ?? 2;
-    final formulairesTermines = participants.where((p) => p['statut'] == 'termine').length;
+    final formulairesTermines = participants.where((p) =>
+      p['statut'] == 'termine' ||
+      p['formulaireStatus'] == 'termine' ||
+      p['formulaireComplete'] == true
+    ).length;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1432,15 +1699,229 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
 
           _buildEtapeItem('1', 'Invitation des participants', participants.length == nombreVehicules),
           _buildEtapeItem('2', 'Remplissage des formulaires', formulairesTermines == nombreVehicules),
-          _buildEtapeItem('3', 'Validation du croquis', false), // TODO: calculer
-          _buildEtapeItem('4', 'Signatures électroniques', false), // TODO: calculer
+          _buildEtapeItem('3', 'Validation du croquis', _calculerValidationsCroquis(sessionData)),
+          _buildEtapeSignatures(sessionData['id'], nombreVehicules),
           _buildEtapeItem('5', 'Finalisation du constat', sessionData['statut'] == 'finalise'),
         ],
       ),
     );
   }
 
-  /// 📊 Progression globale
+  /// ✍️ Étape signatures avec comptage hybride
+  Widget _buildEtapeSignatures(String sessionId, int nombreVehicules) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .snapshots(),
+      builder: (context, sessionSnapshot) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('sessions_collaboratives')
+              .doc(sessionId)
+              .collection('signatures')
+              .snapshots(),
+          builder: (context, signaturesSnapshot) {
+            int signaturesEffectuees = 0;
+
+            // Méthode 1: Compter depuis la sous-collection signatures
+            final signaturesFromCollection = signaturesSnapshot.hasData ? signaturesSnapshot.data!.docs.length : 0;
+
+            // Méthode 2: Compter depuis les statuts des participants
+            int signaturesFromParticipants = 0;
+            if (sessionSnapshot.hasData && sessionSnapshot.data!.exists) {
+              final sessionData = sessionSnapshot.data!.data() as Map<String, dynamic>;
+              final participants = sessionData['participants'] as List<dynamic>? ?? [];
+
+              signaturesFromParticipants = participants.where((p) =>
+                p['statut'] == 'signe' || p['aSigne'] == true
+              ).length;
+            }
+
+            // Utiliser le maximum des deux méthodes
+            signaturesEffectuees = math.max(signaturesFromCollection, signaturesFromParticipants);
+            final estComplete = signaturesEffectuees >= nombreVehicules;
+
+            return _buildEtapeItem('4', 'Signatures électroniques', estComplete);
+          },
+        );
+      },
+    );
+  }
+
+  /// ✍️ Progression des signatures avec comptage hybride (sous-collection + participants)
+  Widget _buildProgressionSignatures(String sessionId, int nombreVehicules) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .snapshots(),
+      builder: (context, sessionSnapshot) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('sessions_collaboratives')
+              .doc(sessionId)
+              .collection('signatures')
+              .snapshots(),
+          builder: (context, signaturesSnapshot) {
+            int signaturesEffectuees = 0;
+
+            // Méthode 1: Compter depuis la sous-collection signatures
+            final signaturesFromCollection = signaturesSnapshot.hasData ? signaturesSnapshot.data!.docs.length : 0;
+
+            // Méthode 2: Compter depuis les statuts des participants
+            int signaturesFromParticipants = 0;
+            if (sessionSnapshot.hasData && sessionSnapshot.data!.exists) {
+              final sessionData = sessionSnapshot.data!.data() as Map<String, dynamic>;
+              final participants = sessionData['participants'] as List<dynamic>? ?? [];
+
+              signaturesFromParticipants = participants.where((p) =>
+                p['statut'] == 'signe' || p['aSigne'] == true
+              ).length;
+            }
+
+            // Utiliser le maximum des deux méthodes
+            signaturesEffectuees = math.max(signaturesFromCollection, signaturesFromParticipants);
+
+            // 🐛 Debug: Afficher les détails des signatures
+            if (kDebugMode) {
+              print('🔍 [DEBUG] Signatures sous-collection: $signaturesFromCollection');
+              print('🔍 [DEBUG] Signatures participants: $signaturesFromParticipants');
+              print('🔍 [DEBUG] Signatures finales: $signaturesEffectuees');
+            }
+
+            return Column(
+              children: [
+                _buildProgressionItem(
+                  'Signatures effectuées',
+                  signaturesEffectuees,
+                  nombreVehicules,
+                  Colors.green,
+                  Icons.edit,
+                ),
+
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// 📊 Progression globale complète
+  Widget _buildProgressionGlobaleComplete(Map<String, dynamic> sessionData) {
+    final participants = sessionData['participants'] as List<dynamic>? ?? [];
+    final nombreVehicules = sessionData['nombreVehicules'] ?? 2;
+
+    // Calculer les statistiques
+    final participantsRejoints = participants.length;
+    final formulairesTermines = participants.where((p) =>
+      p['statut'] == 'formulaire_fini' ||
+      p['statut'] == 'termine' ||
+      p['formulaireComplete'] == true
+    ).length;
+
+    final validationsCroquis = sessionData['validationsCroquis'] as Map<String, dynamic>? ?? {};
+    final croquisValides = validationsCroquis.values
+        .where((validation) => validation['accepte'] == true)
+        .length;
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionData['id'])
+          .snapshots(),
+      builder: (context, sessionSnapshot) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('sessions_collaboratives')
+              .doc(sessionData['id'])
+              .collection('signatures')
+              .snapshots(),
+          builder: (context, signaturesSnapshot) {
+            // Comptage hybride des signatures
+            int signaturesEffectuees = 0;
+            final signaturesFromCollection = signaturesSnapshot.hasData ? signaturesSnapshot.data!.docs.length : 0;
+
+            int signaturesFromParticipants = 0;
+            if (sessionSnapshot.hasData && sessionSnapshot.data!.exists) {
+              final currentSessionData = sessionSnapshot.data!.data() as Map<String, dynamic>;
+              final currentParticipants = currentSessionData['participants'] as List<dynamic>? ?? [];
+
+              signaturesFromParticipants = currentParticipants.where((p) =>
+                p['statut'] == 'signe' || p['aSigne'] == true
+              ).length;
+            }
+
+            signaturesEffectuees = math.max(signaturesFromCollection, signaturesFromParticipants);
+
+        // Calculer la progression globale (chaque étape = 25%)
+        int pourcentage = 0;
+        if (participantsRejoints >= nombreVehicules) pourcentage += 25;
+        if (formulairesTermines >= nombreVehicules) pourcentage += 25;
+        if (croquisValides >= nombreVehicules) pourcentage += 25;
+        if (signaturesEffectuees >= nombreVehicules) pourcentage += 25;
+
+        Color couleurProgression;
+        if (pourcentage >= 75) {
+          couleurProgression = Colors.green;
+        } else if (pourcentage >= 50) {
+          couleurProgression = Colors.orange;
+        } else if (pourcentage >= 25) {
+          couleurProgression = Colors.blue;
+        } else {
+          couleurProgression = Colors.grey;
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: couleurProgression.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: couleurProgression.withOpacity(0.3)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.trending_up, color: couleurProgression, size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Progression globale',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '$pourcentage%',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: couleurProgression,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              LinearProgressIndicator(
+                value: pourcentage / 100,
+                backgroundColor: couleurProgression.withOpacity(0.2),
+                valueColor: AlwaysStoppedAnimation<Color>(couleurProgression),
+                minHeight: 8,
+              ),
+            ],
+          ),
+        );
+          },
+        );
+      },
+    );
+  }
+
+  /// 📊 Progression globale (ancienne méthode)
   Widget _buildProgressionGlobale(int termine, int total) {
     // Calculer la progression en tenant compte des étapes :
     // 1. Participants rejoints (25%)
@@ -1527,5 +2008,298 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
         ],
       ),
     );
+  }
+
+  /// 👤 Vérifier si l'utilisateur actuel est le créateur
+  bool _estCreateur(Map<String, dynamic> sessionData) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    return sessionData['conducteurCreateur'] == currentUserId;
+  }
+
+  /// 🎨 Section validations du croquis (pour le créateur)
+  Widget _buildSectionValidationsCroquis(Map<String, dynamic> sessionData) {
+    return StreamBuilder<Map<String, dynamic>>(
+      stream: CollaborativeDataSyncService.ecouterValidationsCroquis(
+        sessionId: sessionData['id'],
+      ),
+      builder: (context, snapshot) {
+        final validations = snapshot.data ?? {};
+
+        if (validations.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.draw, color: Colors.purple[600]),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Validations du croquis',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'En attente des validations des autres participants...',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.draw, color: Colors.purple[600]),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Validations du croquis',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...validations.entries.map((entry) {
+                final participantId = entry.key;
+                final validation = entry.value as Map<String, dynamic>;
+                final accepte = validation['accepte'] as bool;
+                final raison = validation['raison'] as String? ?? '';
+
+                return _buildValidationCard(participantId, accepte, raison);
+              }).toList(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 🎨 Carte de validation individuelle
+  Widget _buildValidationCard(String participantId, bool accepte, String raison) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: accepte ? Colors.green[50] : Colors.red[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: accepte ? Colors.green[200]! : Colors.red[200]!,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            accepte ? Icons.check_circle : Icons.cancel,
+            color: accepte ? Colors.green[600] : Colors.red[600],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Participant ${participantId.substring(0, 8)}...',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  accepte ? 'Croquis accepté' : 'Croquis refusé',
+                  style: TextStyle(
+                    color: accepte ? Colors.green[700] : Colors.red[700],
+                    fontSize: 12,
+                  ),
+                ),
+                if (!accepte && raison.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Raison: $raison',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🧪 Méthode de test pour ajouter une signature
+  Future<void> _testSignature(String sessionId) async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        print('❌ [TEST] Utilisateur non connecté');
+        return;
+      }
+
+      print('🧪 [TEST] === DÉBUT TEST SIGNATURE ===');
+      print('🧪 [TEST] Session ID: $sessionId');
+      print('🧪 [TEST] User ID: ${currentUser.uid}');
+
+      // Créer une signature de test (base64 d'un petit carré rouge)
+      const testSignatureBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+
+      await CollaborativeSessionService.ajouterSignature(
+        sessionId: sessionId,
+        userId: currentUser.uid,
+        signatureBase64: testSignatureBase64,
+        roleVehicule: 'conducteur_a',
+      );
+
+      print('✅ [TEST] Signature de test ajoutée');
+      print('🧪 [TEST] === FIN TEST SIGNATURE ===');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Signature de test ajoutée'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ [TEST] Erreur test signature: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur test: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 🔍 Vérifier et corriger les statuts des participants
+  Future<void> _verifierStatuts(String sessionId) async {
+    try {
+      await CollaborativeSessionService.verifierEtCorrigerStatuts(sessionId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Vérification des statuts terminée'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Erreur vérification statuts: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('Erreur: $e'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 🐛 Méthode de débogage pour vérifier les signatures
+  Future<void> _debugSignatures(String sessionId) async {
+    try {
+      print('🔍 [DEBUG] === DÉBUT DEBUG SIGNATURES ===');
+
+      // 1. Vérifier la sous-collection signatures
+      final signaturesSnapshot = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .collection('signatures')
+          .get();
+
+      print('🔍 [DEBUG] Signatures dans sous-collection: ${signaturesSnapshot.docs.length}');
+      for (final doc in signaturesSnapshot.docs) {
+        print('🔍 [DEBUG] - Signature ID: ${doc.id}');
+        print('🔍 [DEBUG] - Data: ${doc.data()}');
+      }
+
+      // 2. Vérifier les participants dans le document principal
+      final sessionDoc = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .get();
+
+      if (sessionDoc.exists) {
+        final sessionData = sessionDoc.data()!;
+        final participants = sessionData['participants'] as List<dynamic>? ?? [];
+
+        print('🔍 [DEBUG] Participants: ${participants.length}');
+        for (final participant in participants) {
+          print('🔍 [DEBUG] - Participant: ${participant['userId']} - Statut: ${participant['statut']}');
+        }
+      }
+
+      print('🔍 [DEBUG] === FIN DEBUG SIGNATURES ===');
+
+      // Afficher un snackbar avec les résultats
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Debug: ${signaturesSnapshot.docs.length} signatures trouvées'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ [DEBUG] Erreur debug: $e');
+    }
   }
 }

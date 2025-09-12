@@ -15,6 +15,7 @@ import '../../services/conducteur_data_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/collaborative_session_service.dart';
 import '../../services/collaborative_session_state_service.dart';
+import '../../services/collaborative_data_sync_service.dart';
 import '../../models/accident_session_complete.dart';
 import 'accident_form_step2_vehicules.dart';
 import 'accident_form_step3_assurance.dart';
@@ -92,6 +93,8 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
   bool _blesses = false;
   Map<String, dynamic>? _lieuGps;
   List<Temoin> _temoins = [];
+  Map<String, dynamic> _temoinsPartages = {}; // Témoins partagés de la session
+  StreamSubscription<Map<String, dynamic>>? _temoinsPartagesSubscription;
 
   // Données du conducteur (remplissage automatique)
   Map<String, dynamic>? _donneesConducteur;
@@ -193,6 +196,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       // Charger les données selon le mode
       if (_estModeCollaboratif) {
         _chargerDonneesCollaboratives();
+        _initialiserEcouteTemoinsPartages();
         // 🆕 Marquer le formulaire comme "en cours" dès l'ouverture
         _mettreAJourEtatFormulaire(FormulaireStatus.en_cours);
       } else {
@@ -215,6 +219,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
     _animationController.dispose();
     _autoSaveTimer?.cancel();
+    _temoinsPartagesSubscription?.cancel();
     _dateController.dispose();
     _heureController.dispose();
     _lieuController.dispose();
@@ -2129,7 +2134,30 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
             
             const SizedBox(height: 16),
             
-            if (_temoins.isEmpty) ...[
+            // Afficher les témoins partagés (mode collaboratif)
+            if (_estModeCollaboratif && _temoinsPartages.isNotEmpty) ...[
+              ..._temoinsPartages.entries.map((entry) {
+                final temoinData = entry.value as Map<String, dynamic>;
+                final temoin = Temoin(
+                  nom: temoinData['nom'] ?? '',
+                  adresse: temoinData['adresse'] ?? '',
+                  telephone: temoinData['telephone'] ?? '',
+                );
+                return _buildTemoinPartageCard(temoin, entry.key, temoinData);
+              }).toList(),
+            ],
+
+            // Afficher les témoins locaux (mode normal ou témoins personnels)
+            if (_temoins.isNotEmpty) ...[
+              ..._temoins.asMap().entries.map((entry) {
+                final index = entry.key;
+                final temoin = entry.value;
+                return _buildTemoinCard(temoin, index);
+              }).toList(),
+            ],
+
+            // Message si aucun témoin
+            if (_temoins.isEmpty && (!_estModeCollaboratif || _temoinsPartages.isEmpty)) ...[
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -2153,15 +2181,105 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                   ],
                 ),
               ),
-            ] else ...[
-              ..._temoins.asMap().entries.map((entry) {
-                final index = entry.key;
-                final temoin = entry.value;
-                return _buildTemoinCard(temoin, index);
-              }).toList(),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// 👥 Carte pour témoin partagé (mode collaboratif)
+  Widget _buildTemoinPartageCard(Temoin temoin, String temoinId, Map<String, dynamic> temoinData) {
+    final ajoutePar = temoinData['ajoutePar'] as String?;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final estAjouteParMoi = ajoutePar == currentUserId;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(
+              Icons.people,
+              color: Colors.blue,
+              size: 20,
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        temoin.nom,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'PARTAGÉ',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (temoin.telephone.isNotEmpty)
+                  Text(
+                    temoin.telephone,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                if (temoin.adresse.isNotEmpty)
+                  Text(
+                    temoin.adresse,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // Seul celui qui a ajouté le témoin peut le supprimer
+          if (estAjouteParMoi && !_estModeReadOnly)
+            IconButton(
+              onPressed: () => _supprimerTemoinPartage(temoinId),
+              icon: const Icon(Icons.delete, color: Colors.red),
+              iconSize: 20,
+            ),
+        ],
       ),
     );
   }
@@ -2904,6 +3022,21 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
     }
   }
 
+  /// 👥 Initialiser l'écoute des témoins partagés
+  void _initialiserEcouteTemoinsPartages() {
+    if (!_estModeCollaboratif || widget.session?.id == null) return;
+
+    _temoinsPartagesSubscription = CollaborativeDataSyncService
+        .ecouterTemoinsPartages(widget.session!.id)
+        .listen((temoinsPartages) {
+      if (mounted) {
+        setState(() {
+          _temoinsPartages = temoinsPartages;
+        });
+      }
+    });
+  }
+
   void _ajouterTemoin() {
     showDialog(
       context: context,
@@ -2953,16 +3086,49 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           child: const Text('Annuler'),
         ),
         ElevatedButton(
-          onPressed: () {
+          onPressed: () async {
             if (nomController.text.trim().isNotEmpty) {
-              if (mounted) {
-                setState(() {
-                  _temoins.add(Temoin(
-                    nom: nomController.text.trim(),
-                    adresse: adresseController.text.trim(),
-                    telephone: telephoneController.text.trim(),
-                  ));
-                });
+              final temoinData = {
+                'nom': nomController.text.trim(),
+                'adresse': adresseController.text.trim(),
+                'telephone': telephoneController.text.trim(),
+              };
+
+              if (_estModeCollaboratif && widget.session?.id != null) {
+                // Mode collaboratif : ajouter le témoin partagé
+                try {
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null) {
+                    await CollaborativeDataSyncService.ajouterTemoinPartage(
+                      sessionId: widget.session!.id,
+                      ajoutePar: user.uid,
+                      temoinData: temoinData,
+                    );
+                  }
+                } catch (e) {
+                  print('❌ Erreur ajout témoin partagé: $e');
+                  // Fallback en local si erreur
+                  if (mounted) {
+                    setState(() {
+                      _temoins.add(Temoin(
+                        nom: temoinData['nom']!,
+                        adresse: temoinData['adresse']!,
+                        telephone: temoinData['telephone']!,
+                      ));
+                    });
+                  }
+                }
+              } else {
+                // Mode normal : ajouter en local
+                if (mounted) {
+                  setState(() {
+                    _temoins.add(Temoin(
+                      nom: temoinData['nom']!,
+                      adresse: temoinData['adresse']!,
+                      telephone: temoinData['telephone']!,
+                    ));
+                  });
+                }
               }
               Navigator.pop(context);
             }
@@ -2981,6 +3147,32 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       setState(() {
         _temoins.removeAt(index);
       });
+    }
+  }
+
+  /// 👥 Supprimer un témoin partagé
+  void _supprimerTemoinPartage(String temoinId) async {
+    if (!_estModeCollaboratif || widget.session?.id == null) return;
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await CollaborativeDataSyncService.supprimerTemoinPartage(
+          sessionId: widget.session!.id,
+          temoinId: temoinId,
+          supprimePar: user.uid,
+        );
+      }
+    } catch (e) {
+      print('❌ Erreur suppression témoin partagé: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erreur lors de la suppression du témoin'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -3276,8 +3468,8 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         'estCollaboratif': false,
         'vehiculeInfo': donneesFormulaire['vehiculeSelectionne'],
         'donneesFormulaire': donneesFormulaire,
-        'dateCreation': FieldValue.serverTimestamp(),
-        'dateTermine': FieldValue.serverTimestamp(),
+        'dateCreation': DateTime.now().toIso8601String(),
+        'dateTermine': DateTime.now().toIso8601String(),
         'conducteurId': user.uid,
         'conducteurDeclarantId': user.uid,
         'createdBy': user.uid,
@@ -3321,7 +3513,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         if (participants[i]['userId'] == user.uid) {
           participants[i]['donneesFormulaire'] = donneesFormulaire;
           participants[i]['formulaireComplete'] = true;
-          participants[i]['dateFormulaireFini'] = FieldValue.serverTimestamp();
+          participants[i]['dateFormulaireFini'] = DateTime.now().toIso8601String();
           participantTrouve = true;
           break;
         }
@@ -3333,7 +3525,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           'userId': user.uid,
           'donneesFormulaire': donneesFormulaire,
           'formulaireComplete': true,
-          'dateFormulaireFini': FieldValue.serverTimestamp(),
+          'dateFormulaireFini': DateTime.now().toIso8601String(),
           'estCreateur': _estCreateur,
           'roleVehicule': widget.roleVehicule ?? 'vehicule_a',
           'statut': 'termine',
@@ -3343,7 +3535,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       // Mettre à jour la session avec les nouvelles données
       await sessionRef.update({
         'participants': participants,
-        'derniereMiseAJour': FieldValue.serverTimestamp(),
+        'derniereMiseAJour': DateTime.now().toIso8601String(),
       });
 
       print('✅ Données participant sauvegardées dans la session: ${widget.session!.id}');
@@ -3399,7 +3591,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       for (int i = 0; i < participants.length; i++) {
         if (participants[i]['userId'] == user.uid) {
           participants[i]['statut'] = 'termine';
-          participants[i]['dateTermine'] = FieldValue.serverTimestamp();
+          participants[i]['dateTermine'] = DateTime.now().toIso8601String();
           participants[i]['formulaireComplete'] = true;
           participantTrouve = true;
           break;
@@ -3411,7 +3603,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         participants.add({
           'userId': user.uid,
           'statut': 'termine',
-          'dateTermine': FieldValue.serverTimestamp(),
+          'dateTermine': DateTime.now().toIso8601String(),
           'formulaireComplete': true,
           'estCreateur': _estCreateur,
           'roleVehicule': widget.roleVehicule ?? 'vehicule_a',
@@ -3427,7 +3619,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       await sessionRef.update({
         'participants': participants,
         'statut': tousTermines ? 'termine' : 'en_cours',
-        'derniereMiseAJour': FieldValue.serverTimestamp(),
+        'derniereMiseAJour': DateTime.now().toIso8601String(),
         'progression': {
           'participantsRejoints': nombreTotalParticipants,
           'formulairesTermines': participantsTermines,
@@ -4351,11 +4543,15 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
   /// 🎨 Navigation vers l'éditeur de croquis
   void _allerVersCroquis() {
     if (widget.session != null) {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      final estCreateur = widget.session!.conducteurCreateur == currentUserId;
+
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => ModernCollaborativeSketchScreen(
             session: widget.session!,
+            readOnly: !estCreateur, // 🔒 Seul le créateur peut modifier
           ),
         ),
       );
@@ -6002,8 +6198,15 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
   /// 🆔 Initialiser la session avec un ID unique
   void _initialiserSession() {
-    _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}_${FirebaseAuth.instance.currentUser?.uid ?? 'anonymous'}';
-    print('🆔 Session initialisée: $_sessionId');
+    // Si on est en mode collaboratif, utiliser l'ID de la session collaborative
+    if (_estModeCollaboratif && widget.session?.id != null) {
+      _sessionId = widget.session!.id!;
+      print('🆔 Session collaborative utilisée: $_sessionId');
+    } else {
+      // Sinon, générer un nouvel ID pour une session individuelle
+      _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}_${FirebaseAuth.instance.currentUser?.uid ?? 'anonymous'}';
+      print('🆔 Session individuelle initialisée: $_sessionId');
+    }
   }
 
   /// 🤝 Charger les données collaboratives
@@ -6061,14 +6264,23 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
   /// 📝 Appliquer les données collaboratives récupérées
   void _appliquerDonneesCollaboratives(Map<String, dynamic> etat) {
     try {
-      final donneesFormulaire = etat['donneesFormulaire'] as Map<String, dynamic>?;
+      // Conversion sécurisée pour éviter les erreurs de cast
+      final donneesFormulaire = etat['donneesFormulaire'] is Map<String, dynamic>
+          ? etat['donneesFormulaire'] as Map<String, dynamic>
+          : etat['donneesFormulaire'] is Map
+              ? Map<String, dynamic>.from(etat['donneesFormulaire'] as Map)
+              : null;
+
       if (donneesFormulaire == null) return;
 
       setState(() {
         // Informations générales
         if (donneesFormulaire['dateAccident'] != null) {
-          _dateAccident = DateTime.parse(donneesFormulaire['dateAccident']);
-          _dateController.text = '${_dateAccident.day.toString().padLeft(2, '0')}/${_dateAccident.month.toString().padLeft(2, '0')}/${_dateAccident.year}';
+          final dateAccidentParsee = _parseDateSafe(donneesFormulaire['dateAccident']);
+          if (dateAccidentParsee != null) {
+            _dateAccident = dateAccidentParsee;
+            _dateController.text = '${_dateAccident.day.toString().padLeft(2, '0')}/${_dateAccident.month.toString().padLeft(2, '0')}/${_dateAccident.year}';
+          }
         }
 
         if (donneesFormulaire['heureAccident'] != null) {
@@ -6136,27 +6348,37 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
         // 🔥 SIGNATURE - Restauration critique
         if (donneesFormulaire['signatureData'] != null) {
-          final signatureString = donneesFormulaire['signatureData'];
-          if (signatureString is String && signatureString.isNotEmpty && signatureString != 'null') {
+          final signatureData = donneesFormulaire['signatureData'];
+          if (signatureData is String && signatureData.isNotEmpty && signatureData != 'null') {
             try {
-              // Si c'est une chaîne base64, la décoder
-              if (signatureString.startsWith('data:image') || signatureString.length > 100) {
-                _signatureData = base64Decode(signatureString.split(',').last);
-              } else if (signatureString == 'Signé') {
-                // Marquer comme signé même sans données d'image
-                print('✅ Signature marquée comme signée');
-              }
+              // Décoder la signature base64
+              _signatureData = base64Decode(signatureData);
+              print('✅ Signature restaurée avec succès');
             } catch (e) {
               print('⚠️ Erreur décodage signature: $e');
             }
+          } else if (signatureData is Uint8List) {
+            // Si c'est déjà des données binaires
+            _signatureData = signatureData;
+            print('✅ Signature restaurée (données binaires)');
           }
         }
 
-        // Étapes validées
+        // Étapes validées - Conversion sécurisée
         if (etat['etapesValidees'] != null) {
-          final etapesListe = List<bool>.from(etat['etapesValidees']);
-          for (int i = 0; i < etapesListe.length && i < _nombreEtapes; i++) {
-            _etapesValidees[i + 1] = etapesListe[i];
+          try {
+            final etapesData = etat['etapesValidees'];
+            List<bool> etapesListe = [];
+
+            if (etapesData is List) {
+              etapesListe = etapesData.map((e) => e == true || e == 'true').toList();
+            }
+
+            for (int i = 0; i < etapesListe.length && i < _nombreEtapes; i++) {
+              _etapesValidees[i + 1] = etapesListe[i];
+            }
+          } catch (e) {
+            print('⚠️ Erreur conversion étapes validées: $e');
           }
         }
 
@@ -6174,6 +6396,38 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
     } catch (e) {
       print('❌ Erreur application données collaboratives: $e');
+    }
+  }
+
+  /// 📅 Parser une date de manière sécurisée (gère ISO et dd/MM/yyyy)
+  DateTime? _parseDateSafe(dynamic dateValue) {
+    if (dateValue == null) return null;
+
+    try {
+      if (dateValue is DateTime) {
+        return dateValue;
+      } else if (dateValue is String) {
+        // Essayer d'abord le format ISO
+        try {
+          return DateTime.parse(dateValue);
+        } catch (e) {
+          // Si ça échoue, essayer le format dd/MM/yyyy
+          final parts = dateValue.split('/');
+          if (parts.length == 3) {
+            final day = int.tryParse(parts[0]);
+            final month = int.tryParse(parts[1]);
+            final year = int.tryParse(parts[2]);
+            if (day != null && month != null && year != null) {
+              return DateTime(year, month, day);
+            }
+          }
+          return null;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('❌ Erreur parsing date: $dateValue - $e');
+      return null;
     }
   }
 
@@ -6277,7 +6531,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       // Préparer toutes les données du formulaire
       final donneesFormulaire = {
         // Informations générales
-        'dateAccident': _dateAccident.toIso8601String(),
+        'dateAccident': _dateAccident?.toIso8601String() ?? DateTime.now().toIso8601String(),
         'heureAccident': _heureController.text,
         'lieuAccident': _lieuController.text.trim(),
         'lieuGps': _lieuGps,
@@ -6677,7 +6931,10 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ModernCollaborativeSketchScreen(session: session),
+        builder: (context) => ModernCollaborativeSketchScreen(
+          session: session,
+          readOnly: !_estCreateur, // 🔒 Seul le créateur peut modifier le croquis
+        ),
       ),
     );
 
@@ -6818,11 +7075,11 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       // Croquis et signature
       'croquisExiste': _croquisExiste,
       'croquisData': _croquisData,
-      'signatureData': _signatureData,
+      'signatureData': _signatureData != null ? base64Encode(_signatureData!) : null,
 
-      // Métadonnées
-      'etapeActuelle': _etapeActuelle,
-      'etapesValidees': _etapesValidees,
+      // Métadonnées - Conversion sécurisée des types
+      'etapeActuelle': _etapeActuelle.toString(),
+      'etapesValidees': List.generate(_nombreEtapes, (index) => _etapesValidees[index + 1] ?? false),
       'sessionId': _sessionId,
     };
   }

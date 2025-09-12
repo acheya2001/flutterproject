@@ -15,17 +15,20 @@ class CollaborativeSessionStateService {
     required List<bool> etapesValidees,
   }) async {
     try {
+      // Nettoyer les données pour éviter les problèmes de types
+      final donneesNettoyees = _nettoyerDonnees(donneesFormulaire);
+
       await _firestore
           .collection('sessions_collaboratives')
           .doc(sessionId)
           .collection('participants_data')
           .doc(participantId)
           .set({
-        'donneesFormulaire': donneesFormulaire,
-        'etapeActuelle': etapeActuelle,
+        'donneesFormulaire': donneesNettoyees,
+        'etapeActuelle': etapeActuelle.toString(), // S'assurer que c'est une String
         'etapesValidees': etapesValidees,
         'statut': _determinerStatut(etapesValidees),
-        'derniereMiseAJour': FieldValue.serverTimestamp(),
+        'derniereMiseAJour': DateTime.now().toIso8601String(),
       }, SetOptions(merge: true));
 
       print('✅ État formulaire sauvegardé pour participant $participantId');
@@ -48,9 +51,12 @@ class CollaborativeSessionStateService {
           .doc(participantId)
           .get();
 
-      if (doc.exists) {
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
         print('✅ État formulaire chargé pour participant $participantId');
-        return doc.data();
+
+        // Nettoyer et normaliser les données chargées
+        return _normaliserDonneesChargees(data);
       }
       return null;
     } catch (e) {
@@ -203,7 +209,7 @@ class CollaborativeSessionStateService {
           .doc(participantId)
           .update({
         'statut': 'termine',
-        'dateTerminaison': FieldValue.serverTimestamp(),
+        'dateTerminaison': DateTime.now().toIso8601String(),
       });
 
       print('✅ Participant $participantId marqué comme terminé');
@@ -276,5 +282,53 @@ class CollaborativeSessionStateService {
     } catch (e) {
       print('❌ Erreur sauvegarde automatique en sortie: $e');
     }
+  }
+
+  /// 🧹 Nettoyer les données pour éviter les problèmes de types
+  static Map<String, dynamic> _nettoyerDonnees(Map<String, dynamic> donnees) {
+    final donneesNettoyees = <String, dynamic>{};
+
+    for (final entry in donnees.entries) {
+      final key = entry.key;
+      final value = entry.value;
+
+      if (value == null) {
+        donneesNettoyees[key] = null;
+      } else if (value is Map) {
+        donneesNettoyees[key] = _nettoyerDonnees(Map<String, dynamic>.from(value));
+      } else if (value is List) {
+        donneesNettoyees[key] = value.map((item) {
+          if (item is Map) {
+            return _nettoyerDonnees(Map<String, dynamic>.from(item));
+          }
+          return item;
+        }).toList();
+      } else {
+        // Convertir les types problématiques
+        donneesNettoyees[key] = value;
+      }
+    }
+
+    return donneesNettoyees;
+  }
+
+  /// 🔄 Normaliser les données chargées depuis Firestore
+  static Map<String, dynamic> _normaliserDonneesChargees(Map<String, dynamic> data) {
+    final donneesNormalisees = Map<String, dynamic>.from(data);
+
+    // S'assurer que etapeActuelle est une String
+    if (donneesNormalisees['etapeActuelle'] != null) {
+      donneesNormalisees['etapeActuelle'] = donneesNormalisees['etapeActuelle'].toString();
+    }
+
+    // S'assurer que etapesValidees est une List<bool>
+    if (donneesNormalisees['etapesValidees'] != null) {
+      final etapes = donneesNormalisees['etapesValidees'];
+      if (etapes is List) {
+        donneesNormalisees['etapesValidees'] = etapes.map((e) => e == true).toList();
+      }
+    }
+
+    return donneesNormalisees;
   }
 }

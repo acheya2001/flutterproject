@@ -4263,15 +4263,17 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
     // print('🔄 Création du stream pour utilisateur: ${user.uid}');
 
+    print('🔄 Création du stream pour utilisateur: ${user.uid}');
+
     _sessionsStream = FirebaseFirestore.instance
-        .collection('collaborative_sessions')
-        .where('conducteurCreateur', isEqualTo: user.uid)
+        .collection('sessions_collaboratives')
         .orderBy('dateCreation', descending: true)
+        .limit(50)
         .snapshots()
         .map((snapshot) {
-          // print('📡 Stream reçu: ${snapshot.docs.length} documents');
+          print('📡 Stream reçu: ${snapshot.docs.length} documents');
 
-          final sessions = snapshot.docs
+          final allSessions = snapshot.docs
               .map((doc) {
                 try {
                   return CollaborativeSession.fromMap(doc.data(), doc.id);
@@ -4284,6 +4286,18 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               .cast<CollaborativeSession>()
               .toList();
 
+          // Filtrer les sessions où l'utilisateur participe
+          final sessions = allSessions.where((session) {
+            final userParticipe = session.participants.any((p) => p.userId == user.uid) ||
+                                  session.conducteurCreateur == user.uid;
+            if (userParticipe) {
+              print('✅ Session trouvée: ${session.id} - ${session.codeSession}');
+            }
+            return userParticipe;
+          }).toList();
+
+          print('🔍 ${sessions.length} sessions où l\'utilisateur participe');
+
           // print('✅ Sessions parsées: ${sessions.length}');
 
           // Mettre à jour _allSessions sans setState pour éviter la boucle
@@ -4294,6 +4308,13 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         });
 
     return _sessionsStream!;
+  }
+
+  /// 🔄 Forcer le rechargement des sessions
+  void _forcerRechargementSessions() {
+    setState(() {
+      _sessionsStream = null; // Vider le cache
+    });
   }
 
   @override
@@ -7112,7 +7133,10 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                   tooltip: 'Mode sélection',
                 ),
                 IconButton(
-                  onPressed: () => _chargerSessionsCollaborativesNouvelle(),
+                  onPressed: () {
+                    print('🔄 Bouton rechargement cliqué');
+                    _forcerRechargementSessions();
+                  },
                   icon: const Icon(Icons.refresh, color: Colors.white),
                   tooltip: 'Actualiser',
                 ),
@@ -7272,16 +7296,38 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
+      print('🔍 Chargement sessions pour utilisateur: ${user.uid}');
+
+      // Charger toutes les sessions récentes
       final snapshot = await FirebaseFirestore.instance
           .collection('sessions_collaboratives')
-          .where('conducteurCreateur', isEqualTo: user.uid)
           .orderBy('dateCreation', descending: true)
+          .limit(50) // Limiter pour éviter de charger trop de données
           .get();
 
-      final sessions = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return CollaborativeSession.fromMap(data, doc.id);
-      }).toList();
+      print('🔍 ${snapshot.docs.length} sessions trouvées dans Firestore');
+
+      final sessions = <CollaborativeSession>[];
+
+      for (final doc in snapshot.docs) {
+        try {
+          final data = doc.data();
+          final session = CollaborativeSession.fromMap(data, doc.id);
+
+          // Vérifier si l'utilisateur participe à cette session
+          final userParticipe = session.participants.any((p) => p.userId == user.uid) ||
+                                session.conducteurCreateur == user.uid;
+
+          if (userParticipe) {
+            sessions.add(session);
+            print('✅ Session trouvée: ${session.id} - ${session.codeSession}');
+          }
+        } catch (e) {
+          print('⚠️ Erreur parsing session ${doc.id}: $e');
+        }
+      }
+
+      print('🔍 ${sessions.length} sessions où l\'utilisateur participe');
 
       setState(() {
         _allSessions = sessions;

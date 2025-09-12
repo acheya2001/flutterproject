@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/collaborative_session_model.dart';
 import '../../services/collaborative_data_sync_service.dart';
 
@@ -129,8 +130,8 @@ class _CollaborativeSketchValidationScreenState extends State<CollaborativeSketc
                       const SizedBox(height: 24),
                       
                       // Actions de validation
-                      if (_currentUserId != null && !_aDejaValide(session))
-                        _buildValidationActions(),
+                      if (_currentUserId != null)
+                        _buildValidationActionsWithStream(),
                     ],
                   ),
                 );
@@ -383,10 +384,38 @@ class _CollaborativeSketchValidationScreenState extends State<CollaborativeSketc
 
   /// 👤 Validation d'un participant
   Widget _buildParticipantValidation(SessionParticipant participant) {
-    // TODO: Récupérer le statut de validation depuis Firestore
-    final aValide = false; // Placeholder
-    final aAccepte = true; // Placeholder
-    
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return _buildParticipantValidationPlaceholder(participant);
+        }
+
+        final sessionData = snapshot.data!.data() as Map<String, dynamic>?;
+        final validationsCroquis = sessionData?['validationsCroquis'] as Map<String, dynamic>? ?? {};
+        final validation = validationsCroquis[participant.id] as Map<String, dynamic>?;
+
+        final aValide = validation != null;
+        final aAccepte = validation?['accepte'] as bool? ?? false;
+        final commentaire = validation?['commentaire'] as String? ?? '';
+
+        return _buildParticipantValidationCard(participant, aValide, aAccepte, commentaire);
+      },
+    );
+  }
+
+  /// 👤 Placeholder pour validation participant
+  Widget _buildParticipantValidationPlaceholder(SessionParticipant participant) {
+    final aValide = false;
+    final aAccepte = false;
+    return _buildParticipantValidationCard(participant, aValide, aAccepte, '');
+  }
+
+  /// 🎨 Carte de validation d'un participant
+  Widget _buildParticipantValidationCard(SessionParticipant participant, bool aValide, bool aAccepte, String commentaire) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -394,7 +423,7 @@ class _CollaborativeSketchValidationScreenState extends State<CollaborativeSketc
         color: Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: aValide 
+          color: aValide
               ? (aAccepte ? Colors.green[300]! : Colors.red[300]!)
               : Colors.grey[300]!,
         ),
@@ -440,16 +469,34 @@ class _CollaborativeSketchValidationScreenState extends State<CollaborativeSketc
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  aValide 
+                  aValide
                       ? (aAccepte ? 'Croquis accepté' : 'Croquis refusé')
                       : 'En attente de validation',
                   style: TextStyle(
                     fontSize: 14,
-                    color: aValide 
+                    color: aValide
                         ? (aAccepte ? Colors.green[600] : Colors.red[600])
                         : Colors.grey[600],
                   ),
                 ),
+                if (aValide && commentaire.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Commentaire: $commentaire',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -464,6 +511,91 @@ class _CollaborativeSketchValidationScreenState extends State<CollaborativeSketc
                 : Colors.grey[400],
             size: 24,
           ),
+        ],
+      ),
+    );
+  }
+
+  /// 🎯 Actions de validation avec StreamBuilder
+  Widget _buildValidationActionsWithStream() {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+
+        final sessionData = snapshot.data!.data() as Map<String, dynamic>?;
+        final validationsCroquis = sessionData?['validationsCroquis'] as Map<String, dynamic>? ?? {};
+        final aDejaValide = validationsCroquis.containsKey(_currentUserId);
+
+        if (aDejaValide) {
+          final validation = validationsCroquis[_currentUserId] as Map<String, dynamic>;
+          final accepte = validation['accepte'] as bool;
+          final commentaire = validation['commentaire'] as String? ?? '';
+
+          return _buildValidationDejaEffectuee(accepte, commentaire);
+        }
+
+        return _buildValidationActions();
+      },
+    );
+  }
+
+  /// ✅ Affichage quand validation déjà effectuée
+  Widget _buildValidationDejaEffectuee(bool accepte, String commentaire) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: accepte ? Colors.green[50] : Colors.orange[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: accepte ? Colors.green[300]! : Colors.orange[300]!,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(
+                accepte ? Icons.check_circle : Icons.cancel,
+                color: accepte ? Colors.green[600] : Colors.orange[600],
+                size: 32,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  accepte ? 'Vous avez accepté ce croquis' : 'Vous avez refusé ce croquis',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: accepte ? Colors.green[700] : Colors.orange[700],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (commentaire.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Votre commentaire: $commentaire',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -633,7 +765,10 @@ class _CollaborativeSketchValidationScreenState extends State<CollaborativeSketc
 
   /// ✅ Vérifier si l'utilisateur a déjà validé
   bool _aDejaValide(CollaborativeSession session) {
-    // TODO: Implémenter la vérification depuis Firestore
+    if (_currentUserId == null) return false;
+
+    // Cette méthode sera remplacée par un StreamBuilder dans le widget
+    // Pour l'instant, on retourne false pour permettre l'affichage des boutons
     return false;
   }
 

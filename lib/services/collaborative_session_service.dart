@@ -300,6 +300,7 @@ class CollaborativeSessionService {
     required ParticipantStatus nouveauStatut,
   }) async {
     try {
+      print('🔄 [STATUT] Début mise à jour statut pour userId: $userId, nouveau statut: ${nouveauStatut.name}');
       final sessionDoc = await _firestore.collection(_sessionsCollection).doc(sessionId).get();
 
       if (!sessionDoc.exists) {
@@ -313,12 +314,14 @@ class CollaborativeSessionService {
       bool participantTrouve = false;
       for (int i = 0; i < participants.length; i++) {
         if (participants[i]['userId'] == userId) {
+          final ancienStatut = participants[i]['statut'];
           participants[i]['statut'] = nouveauStatut.name;
           if (nouveauStatut == ParticipantStatus.formulaire_fini) {
             participants[i]['dateFormulaireFini'] = Timestamp.fromDate(DateTime.now());
           } else if (nouveauStatut == ParticipantStatus.signe) {
             participants[i]['dateSignature'] = Timestamp.fromDate(DateTime.now());
           }
+          print('🔄 [STATUT] Participant $userId: $ancienStatut → ${nouveauStatut.name}');
           participantTrouve = true;
           break;
         }
@@ -335,12 +338,14 @@ class CollaborativeSessionService {
       final nouveauStatutSession = _determinerStatutSession(participants, progression);
 
       // Mettre à jour la session
+      print('🔄 [STATUT] Mise à jour session avec ${participants.length} participants, ${progression.signaturesEffectuees} signatures');
       await _firestore.collection(_sessionsCollection).doc(sessionId).update({
         'participants': participants,
         'progression': progression.toMap(),
         'statut': nouveauStatutSession.name,
         'dateModification': Timestamp.fromDate(DateTime.now()),
       });
+      print('✅ [STATUT] Statut participant mis à jour avec succès');
     } catch (e) {
       print('❌ Erreur mise à jour statut participant: $e');
       throw Exception('Impossible de mettre à jour le statut: $e');
@@ -473,29 +478,81 @@ class CollaborativeSessionService {
     required String roleVehicule,
   }) async {
     try {
+      print('🔄 [SIGNATURE] Début ajout signature pour userId: $userId, sessionId: $sessionId');
+      print('🔄 [SIGNATURE] Collection: $_sessionsCollection');
+      print('🔄 [SIGNATURE] RoleVehicule: $roleVehicule');
+
+      // Vérifier que la session existe
+      final sessionDoc = await _firestore
+          .collection(_sessionsCollection)
+          .doc(sessionId)
+          .get();
+
+      if (!sessionDoc.exists) {
+        throw Exception('Session $sessionId non trouvée');
+      }
+
+      print('✅ [SIGNATURE] Session trouvée: ${sessionDoc.id}');
+
       // Sauvegarder la signature dans la sous-collection
+      final signatureData = {
+        'userId': userId,
+        'roleVehicule': roleVehicule,
+        'signatureBase64': signatureBase64,
+        'dateSignature': Timestamp.fromDate(DateTime.now()),
+        'dateCreation': DateTime.now().toIso8601String(),
+      };
+
+      print('🔄 [SIGNATURE] Sauvegarde dans: $_sessionsCollection/$sessionId/signatures/$userId');
+
       await _firestore
           .collection(_sessionsCollection)
           .doc(sessionId)
           .collection('signatures')
           .doc(userId)
-          .set({
-        'userId': userId,
-        'roleVehicule': roleVehicule,
-        'signatureBase64': signatureBase64,
-        'dateSignature': Timestamp.fromDate(DateTime.now()),
-      });
+          .set(signatureData);
+
+      print('✅ [SIGNATURE] Signature sauvegardée dans Firestore');
+
+      // Vérifier que la signature a été sauvegardée
+      final signatureDoc = await _firestore
+          .collection(_sessionsCollection)
+          .doc(sessionId)
+          .collection('signatures')
+          .doc(userId)
+          .get();
+
+      if (signatureDoc.exists) {
+        print('✅ [SIGNATURE] Vérification: signature bien enregistrée');
+      } else {
+        print('❌ [SIGNATURE] ERREUR: signature non trouvée après sauvegarde');
+      }
 
       // Mettre à jour le statut du participant
+      print('🔄 [SIGNATURE] Mise à jour statut participant...');
       await mettreAJourStatutParticipant(
         sessionId: sessionId,
         userId: userId,
         nouveauStatut: ParticipantStatus.signe,
       );
 
-      print('✅ Signature ajoutée pour $userId');
+      // Vérifier à nouveau après la mise à jour
+      print('🔄 [SIGNATURE] Vérification finale après mise à jour...');
+      final finalSignaturesSnapshot = await _firestore
+          .collection(_sessionsCollection)
+          .doc(sessionId)
+          .collection('signatures')
+          .get();
+
+      print('🔍 [SIGNATURE] Nombre de signatures après mise à jour: ${finalSignaturesSnapshot.docs.length}');
+      for (final doc in finalSignaturesSnapshot.docs) {
+        print('🔍 [SIGNATURE] - ID: ${doc.id}, Data: ${doc.data()}');
+      }
+
+      print('✅ [SIGNATURE] Signature ajoutée avec succès pour $userId');
     } catch (e) {
-      print('❌ Erreur ajout signature: $e');
+      print('❌ [SIGNATURE] Erreur ajout signature: $e');
+      print('❌ [SIGNATURE] Stack trace: ${StackTrace.current}');
       throw Exception('Impossible d\'ajouter la signature: $e');
     }
   }
@@ -516,6 +573,64 @@ class CollaborativeSessionService {
     } catch (e) {
       print('❌ Erreur obtenir signatures: $e');
       return [];
+    }
+  }
+
+  /// 🔍 Vérifier et corriger les statuts des participants
+  static Future<void> verifierEtCorrigerStatuts(String sessionId) async {
+    try {
+      print('🔍 [VERIFICATION] Début vérification statuts pour session $sessionId');
+
+      final sessionDoc = await _firestore.collection(_sessionsCollection).doc(sessionId).get();
+      if (!sessionDoc.exists) {
+        print('❌ [VERIFICATION] Session non trouvée');
+        return;
+      }
+
+      final sessionData = sessionDoc.data()!;
+      final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+      bool misAJour = false;
+
+      for (int i = 0; i < participants.length; i++) {
+        final participant = participants[i];
+        final userId = participant['userId'] as String;
+        final statutActuel = participant['statut'] as String? ?? 'en_attente';
+
+        // Vérifier si le participant a un formulaire terminé
+        final formulaireDoc = await _firestore
+            .collection(_sessionsCollection)
+            .doc(sessionId)
+            .collection('formulaires')
+            .doc(userId)
+            .get();
+
+        if (formulaireDoc.exists && formulaireDoc.data()?['complete'] == true) {
+          if (statutActuel == 'rejoint' || statutActuel == 'en_attente') {
+            print('🔧 [VERIFICATION] Correction statut $userId: $statutActuel → formulaire_fini');
+            participants[i]['statut'] = 'formulaire_fini';
+            participants[i]['dateFormulaireFini'] = Timestamp.fromDate(DateTime.now());
+            misAJour = true;
+          }
+        }
+      }
+
+      if (misAJour) {
+        print('🔄 [VERIFICATION] Mise à jour des statuts corrigés');
+        final progression = _calculerProgression(participants);
+        final nouveauStatutSession = _determinerStatutSession(participants, progression);
+
+        await _firestore.collection(_sessionsCollection).doc(sessionId).update({
+          'participants': participants,
+          'progression': progression.toMap(),
+          'statut': nouveauStatutSession.name,
+          'dateModification': Timestamp.fromDate(DateTime.now()),
+        });
+        print('✅ [VERIFICATION] Statuts corrigés avec succès');
+      } else {
+        print('✅ [VERIFICATION] Aucune correction nécessaire');
+      }
+    } catch (e) {
+      print('❌ [VERIFICATION] Erreur: $e');
     }
   }
 
@@ -678,17 +793,25 @@ class CollaborativeSessionService {
         final userId_participant = participants[i]['userId'];
         print('🔍 [DEBUG] Comparaison userId: $userId_participant (${userId_participant.runtimeType}) vs $userId (${userId.runtimeType})');
 
-        if (userId_participant.toString() == userId.toString()) {
+        // Conversion sécurisée pour éviter les erreurs de cast
+        final userIdParticipantStr = userId_participant?.toString() ?? '';
+        final userIdStr = userId.toString();
+
+        if (userIdParticipantStr == userIdStr) {
           participants[i]['formulaireStatus'] = nouvelEtat.name;
           participants[i]['formulaireComplete'] = nouvelEtat == FormulaireStatus.termine;
 
           // Mettre à jour les dates selon l'état
           if (nouvelEtat == FormulaireStatus.termine) {
             participants[i]['dateFormulaireFini'] = DateTime.now().toIso8601String();
-            participants[i]['statut'] = ParticipantStatus.formulaire_fini.name;
+            participants[i]['statut'] = ParticipantStatus.formulaire_fini.name; // 🔥 Utiliser l'enum correct
+            print('✅ [STATUT] Participant ${participants[i]['nom']} ${participants[i]['prenom']} marqué comme FORMULAIRE_FINI');
           } else if (nouvelEtat == FormulaireStatus.en_cours) {
-            participants[i]['statut'] = ParticipantStatus.rejoint.name;
+            participants[i]['statut'] = ParticipantStatus.rejoint.name; // 🔥 Utiliser l'enum correct
+            print('✅ [STATUT] Participant ${participants[i]['nom']} ${participants[i]['prenom']} marqué comme REJOINT');
           }
+
+          print('🔍 [DEBUG] Statut final du participant: ${participants[i]['statut']}');
 
           participantTrouve = true;
           break;

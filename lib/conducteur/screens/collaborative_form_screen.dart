@@ -692,7 +692,7 @@ class _CollaborativeFormScreenState extends State<CollaborativeFormScreen>with T
         ),
       );
 
-      // Retourner au dashboard
+      // Retourner au dashboard avec rechargement de la session
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(

@@ -107,13 +107,13 @@ class SignatureOTPService {
     try {
       // Enregistrer la signature
       await _firestore
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(sessionId)
           .collection(_signaturesCollection)
           .doc(userId)
           .set({
         'userId': userId,
-        'dateSignature': FieldValue.serverTimestamp(),
+        'dateSignature': DateTime.now().toIso8601String(),
         'methode': 'OTP_SMS',
         'ipAddress': 'N/A', // Peut être récupéré si nécessaire
         'userAgent': 'Mobile App',
@@ -121,7 +121,7 @@ class SignatureOTPService {
 
       // Mettre à jour le statut du participant
       final sessionDoc = await _firestore
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(sessionId)
           .get();
 
@@ -140,7 +140,7 @@ class SignatureOTPService {
 
         // Compter les signatures
         final signaturesSnapshot = await _firestore
-            .collection('collaborative_sessions')
+            .collection('sessions_collaboratives')
             .doc(sessionId)
             .collection(_signaturesCollection)
             .get();
@@ -148,10 +148,12 @@ class SignatureOTPService {
         final nombreSignatures = signaturesSnapshot.docs.length;
         final nombreParticipants = participants.length;
 
-        // Mettre à jour la session
-        await _firestore.collection('collaborative_sessions').doc(sessionId).update({
+        // Mettre à jour la session avec progression complète
+        final progression = await _calculerProgressionComplete(sessionId, participants);
+
+        await _firestore.collection('sessions_collaboratives').doc(sessionId).update({
           'participants': participants,
-          'progression.signaturesEffectuees': nombreSignatures,
+          'progression': progression,
           'statut': nombreSignatures >= nombreParticipants ? 'signe' : 'pret_signature',
           'dateModification': FieldValue.serverTimestamp(),
         });
@@ -171,7 +173,7 @@ class SignatureOTPService {
   static Future<void> _finaliserConstat(String sessionId) async {
     try {
       // Marquer la session comme finalisée
-      await _firestore.collection('collaborative_sessions').doc(sessionId).update({
+      await _firestore.collection('sessions_collaboratives').doc(sessionId).update({
         'statut': 'finalise',
         'dateFinalisation': FieldValue.serverTimestamp(),
       });
@@ -243,16 +245,98 @@ class SignatureOTPService {
     return (100000 + random.nextInt(900000)).toString();
   }
 
+  /// 📊 Calculer la progression complète de la session
+  static Future<Map<String, dynamic>> _calculerProgressionComplete(String sessionId, List<Map<String, dynamic>> participants) async {
+    int participantsRejoints = 0;
+    int formulairesTermines = 0;
+    int croquisValides = 0;
+    int signaturesEffectuees = 0;
+
+    for (final participant in participants) {
+      final statut = participant['statut'] as String?;
+      final formulaireStatus = participant['formulaireStatus'] as String?;
+      final aRejoint = participant['aRejoint'] as bool? ?? false;
+      final formulaireComplete = participant['formulaireComplete'] as bool? ?? false;
+      final croquisValide = participant['croquisValide'] as bool? ?? false;
+
+      // Compter les participants qui ont rejoint
+      if (aRejoint || statut == 'rejoint' || statut == 'formulaire_fini' || statut == 'signe') {
+        participantsRejoints++;
+      }
+
+      // Compter les formulaires terminés
+      if (formulaireComplete || formulaireStatus == 'termine' || statut == 'formulaire_fini' || statut == 'signe') {
+        formulairesTermines++;
+      }
+
+    }
+
+    // Compter les validations de croquis réelles depuis Firestore
+    try {
+      final sessionDoc = await _firestore
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .get();
+
+      if (sessionDoc.exists) {
+        final sessionData = sessionDoc.data()!;
+        final validationsCroquis = sessionData['validationsCroquis'] as Map<String, dynamic>? ?? {};
+
+        // Compter les validations acceptées
+        croquisValides = validationsCroquis.values
+            .where((validation) => validation['accepte'] == true)
+            .length;
+        print('📊 [SIGNATURE] Validations croquis comptées: $croquisValides');
+      }
+    } catch (e) {
+      print('❌ [SIGNATURE] Erreur comptage validations croquis: $e');
+      // Fallback: compter depuis les statuts des participants
+      for (final participant in participants) {
+        final statut = participant['statut'] as String?;
+        final croquisValide = participant['croquisValide'] as bool? ?? false;
+        if (croquisValide || statut == 'croquis_valide' || statut == 'signe') {
+          croquisValides++;
+        }
+      }
+    }
+
+    // Compter les signatures réelles depuis la sous-collection
+    try {
+      final signaturesSnapshot = await _firestore
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .collection(_signaturesCollection)
+          .get();
+      signaturesEffectuees = signaturesSnapshot.docs.length;
+      print('📊 [SIGNATURE] Signatures comptées: $signaturesEffectuees');
+    } catch (e) {
+      print('❌ [SIGNATURE] Erreur comptage signatures: $e');
+      signaturesEffectuees = 0;
+    }
+
+    final peutFinaliser = formulairesTermines == participants.length &&
+                         croquisValides == participants.length;
+
+    return {
+      'participantsRejoints': participantsRejoints,
+      'formulairesTermines': formulairesTermines,
+      'croquisValides': croquisValides,
+      'signaturesEffectuees': signaturesEffectuees,
+      'croquisCree': true,
+      'peutFinaliser': peutFinaliser,
+    };
+  }
+
   /// 📊 Obtenir le statut des signatures d'une session
   static Future<Map<String, dynamic>> obtenirStatutSignatures(String sessionId) async {
     try {
       final signaturesSnapshot = await _firestore
-          .collection('collaborative_sessions')
+          .collection('sessions_collaboratives')
           .doc(sessionId)
           .collection(_signaturesCollection)
           .get();
 
-      final sessionDoc = await _firestore.collection('collaborative_sessions').doc(sessionId).get();
+      final sessionDoc = await _firestore.collection('sessions_collaboratives').doc(sessionId).get();
       
       if (!sessionDoc.exists) {
         throw Exception('Session non trouvée');

@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:uuid/uuid.dart';
 import '../models/collaborative_session_model.dart';
 
 /// 🔄 Service de synchronisation des données communes pour sessions collaboratives
 class CollaborativeDataSyncService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _sessionsCollection = 'sessions_collaboratives';
+  static const Uuid _uuid = Uuid();
 
   /// 📝 Sauvegarder les données communes (remplies par le créateur A)
   static Future<void> sauvegarderDonneesCommunes({
@@ -90,9 +92,9 @@ class CollaborativeDataSyncService {
         }
       }
       
-      // Calculer la nouvelle progression
-      final progression = _calculerProgression(participants);
-      
+      // Calculer la nouvelle progression avec comptage réel des signatures
+      final progression = await calculerProgression(sessionId, participants);
+
       await _firestore.collection(_sessionsCollection).doc(sessionId).update({
         'participants': participants,
         'progression': progression,
@@ -107,6 +109,111 @@ class CollaborativeDataSyncService {
   }
 
   /// 📊 Calculer la progression de la session
+  static Future<Map<String, dynamic>> calculerProgression(String sessionId, List<Map<String, dynamic>> participants) async {
+    int participantsRejoints = 0;
+    int formulairesTermines = 0;
+    int croquisValides = 0;
+    int signaturesEffectuees = 0;
+
+    for (final participant in participants) {
+      final statut = participant['statut'] as String?;
+      final formulaireStatus = participant['formulaireStatus'] as String?;
+      final aRejoint = participant['aRejoint'] as bool? ?? false;
+      final formulaireComplete = participant['formulaireComplete'] as bool? ?? false;
+      final croquisValide = participant['croquisValide'] as bool? ?? false;
+
+      // Compter les participants qui ont rejoint
+      if (aRejoint || statut == 'rejoint' || statut == 'formulaire_fini' || statut == 'signe') {
+        participantsRejoints++;
+      }
+
+      // Compter les formulaires terminés
+      if (formulaireComplete || formulaireStatus == 'termine' || statut == 'formulaire_fini' || statut == 'signe') {
+        formulairesTermines++;
+      }
+
+    }
+
+    // 🔥 Compter les validations de croquis réelles depuis Firestore
+    try {
+      final sessionDoc = await _firestore
+          .collection(_sessionsCollection)
+          .doc(sessionId)
+          .get();
+
+      if (sessionDoc.exists) {
+        final sessionData = sessionDoc.data()!;
+        final validationsCroquis = sessionData['validationsCroquis'] as Map<String, dynamic>? ?? {};
+
+        // Compter les validations acceptées
+        croquisValides = validationsCroquis.values
+            .where((validation) => validation['accepte'] == true)
+            .length;
+        print('📊 [SYNC] Validations croquis comptées: $croquisValides');
+      }
+    } catch (e) {
+      print('❌ [SYNC] Erreur comptage validations croquis: $e');
+      // Fallback: compter depuis les statuts des participants
+      for (final participant in participants) {
+        final statut = participant['statut'] as String?;
+        final croquisValide = participant['croquisValide'] as bool? ?? false;
+        if (croquisValide || statut == 'croquis_valide' || statut == 'signe') {
+          croquisValides++;
+        }
+      }
+    }
+
+    // 🔥 Compter les signatures réelles depuis la sous-collection
+    try {
+      print('🔍 [SYNC] Comptage signatures pour session: $sessionId');
+      print('🔍 [SYNC] Collection: $_sessionsCollection');
+
+      final signaturesSnapshot = await _firestore
+          .collection(_sessionsCollection)
+          .doc(sessionId)
+          .collection('signatures')
+          .get();
+
+      signaturesEffectuees = signaturesSnapshot.docs.length;
+      print('📊 [SYNC] Signatures trouvées dans sous-collection: $signaturesEffectuees');
+
+      // Debug: afficher les signatures trouvées
+      for (final doc in signaturesSnapshot.docs) {
+        final data = doc.data();
+        print('🔍 [SYNC] Signature trouvée: ${doc.id} - userId: ${data['userId']} - role: ${data['roleVehicule']}');
+      }
+
+    } catch (e) {
+      print('❌ [SYNC] Erreur comptage signatures: $e');
+      print('❌ [SYNC] Stack trace: ${StackTrace.current}');
+
+      // Fallback: compter depuis les statuts des participants
+      print('🔄 [SYNC] Fallback: comptage depuis statuts participants');
+      for (final participant in participants) {
+        final statut = participant['statut'] as String?;
+        final aSigne = participant['aSigne'] as bool? ?? false;
+        print('🔍 [SYNC] Participant ${participant['userId']}: statut=$statut, aSigne=$aSigne');
+        if (aSigne || statut == 'signe') {
+          signaturesEffectuees++;
+        }
+      }
+      print('📊 [SYNC] Signatures comptées (fallback): $signaturesEffectuees');
+    }
+
+    final peutFinaliser = formulairesTermines == participants.length &&
+                         croquisValides == participants.length;
+
+    return {
+      'participantsRejoints': participantsRejoints,
+      'formulairesTermines': formulairesTermines,
+      'croquisValides': croquisValides,
+      'signaturesEffectuees': signaturesEffectuees,
+      'croquisCree': true, // Sera géré par le service de croquis
+      'peutFinaliser': peutFinaliser,
+    };
+  }
+
+  /// 📊 Calculer la progression de la session (version synchrone pour compatibilité)
   static Map<String, dynamic> _calculerProgression(List<Map<String, dynamic>> participants) {
     int participantsRejoints = 0;
     int formulairesTermines = 0;
@@ -136,15 +243,15 @@ class CollaborativeDataSyncService {
         croquisValides++;
       }
 
-      // Compter les signatures
+      // Compter les signatures (fallback)
       if (aSigne || statut == 'signe') {
         signaturesEffectuees++;
       }
     }
-    
-    final peutFinaliser = formulairesTermines == participants.length && 
+
+    final peutFinaliser = formulairesTermines == participants.length &&
                          croquisValides == participants.length;
-    
+
     return {
       'participantsRejoints': participantsRejoints,
       'formulairesTermines': formulairesTermines,
@@ -201,18 +308,37 @@ class CollaborativeDataSyncService {
   }) async {
     try {
       print('🔄 [SYNC] Validation croquis par: $participantId -> $accepte');
-      
+
       final validationData = {
         'participantId': participantId,
         'accepte': accepte,
         'commentaire': commentaire,
         'dateValidation': DateTime.now().toIso8601String(),
       };
-      
+
+      // Sauvegarder la validation
       await _firestore.collection(_sessionsCollection).doc(sessionId).update({
         'validationsCroquis.$participantId': validationData,
       });
-      
+
+      // Recalculer la progression avec les nouvelles validations
+      final sessionDoc = await _firestore.collection(_sessionsCollection).doc(sessionId).get();
+      if (sessionDoc.exists) {
+        final sessionData = sessionDoc.data()!;
+        final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+
+        // Calculer la nouvelle progression
+        final progression = await calculerProgression(sessionId, participants);
+
+        // Mettre à jour la progression
+        await _firestore.collection(_sessionsCollection).doc(sessionId).update({
+          'progression': progression,
+          'dateModification': DateTime.now().toIso8601String(),
+        });
+
+        print('✅ [SYNC] Progression mise à jour après validation croquis');
+      }
+
       // Mettre à jour le statut du participant si accepté
       if (accepte) {
         await mettreAJourStatutParticipant(
@@ -251,7 +377,7 @@ class CollaborativeDataSyncService {
   }) async {
     try {
       print('🔄 [SYNC] Sauvegarde formulaire participant: $participantId');
-      
+
       await _firestore
           .collection(_sessionsCollection)
           .doc(sessionId)
@@ -262,12 +388,76 @@ class CollaborativeDataSyncService {
         'dateModification': DateTime.now().toIso8601String(),
         'participantId': participantId,
       }, SetOptions(merge: true));
-      
+
       print('✅ [SYNC] Formulaire participant sauvegardé');
     } catch (e) {
       print('❌ [SYNC] Erreur sauvegarde formulaire: $e');
       throw Exception('Erreur lors de la sauvegarde: $e');
     }
+  }
+
+  /// 👥 Ajouter un témoin partagé à la session
+  static Future<void> ajouterTemoinPartage({
+    required String sessionId,
+    required String ajoutePar,
+    required Map<String, dynamic> temoinData,
+  }) async {
+    try {
+      print('🔄 [SYNC] Ajout témoin partagé par: $ajoutePar');
+
+      final temoinId = _uuid.v4();
+      final temoinComplet = {
+        'id': temoinId,
+        ...temoinData,
+        'ajoutePar': ajoutePar,
+        'dateAjout': DateTime.now().toIso8601String(),
+      };
+
+      await _firestore.collection(_sessionsCollection).doc(sessionId).update({
+        'temoinsPartages.$temoinId': temoinComplet,
+        'dateModification': DateTime.now().toIso8601String(),
+      });
+
+      print('✅ [SYNC] Témoin partagé ajouté: $temoinId');
+    } catch (e) {
+      print('❌ [SYNC] Erreur ajout témoin: $e');
+      throw Exception('Erreur lors de l\'ajout du témoin: $e');
+    }
+  }
+
+  /// 👥 Supprimer un témoin partagé
+  static Future<void> supprimerTemoinPartage({
+    required String sessionId,
+    required String temoinId,
+    required String supprimePar,
+  }) async {
+    try {
+      print('🔄 [SYNC] Suppression témoin partagé: $temoinId par $supprimePar');
+
+      await _firestore.collection(_sessionsCollection).doc(sessionId).update({
+        'temoinsPartages.$temoinId': FieldValue.delete(),
+        'dateModification': DateTime.now().toIso8601String(),
+      });
+
+      print('✅ [SYNC] Témoin partagé supprimé: $temoinId');
+    } catch (e) {
+      print('❌ [SYNC] Erreur suppression témoin: $e');
+      throw Exception('Erreur lors de la suppression du témoin: $e');
+    }
+  }
+
+  /// 👥 Écouter les témoins partagés en temps réel
+  static Stream<Map<String, dynamic>> ecouterTemoinsPartages(String sessionId) {
+    return _firestore
+        .collection(_sessionsCollection)
+        .doc(sessionId)
+        .snapshots()
+        .map((snapshot) {
+      if (!snapshot.exists) return {};
+
+      final data = snapshot.data()!;
+      return Map<String, dynamic>.from(data['temoinsPartages'] ?? {});
+    });
   }
 
   /// 📖 Récupérer le formulaire d'un participant
@@ -305,6 +495,44 @@ class CollaborativeDataSyncService {
         'id': doc.id,
         ...doc.data(),
       }).toList();
+    });
+  }
+
+
+
+  /// 🎨 Obtenir les validations du croquis
+  static Future<Map<String, dynamic>> obtenirValidationsCroquis({
+    required String sessionId,
+  }) async {
+    try {
+      final sessionDoc = await _firestore.collection(_sessionsCollection).doc(sessionId).get();
+
+      if (!sessionDoc.exists) {
+        throw Exception('Session non trouvée');
+      }
+
+      final data = sessionDoc.data() as Map<String, dynamic>;
+      return data['validationsCroquis'] as Map<String, dynamic>? ?? {};
+
+    } catch (e) {
+      print('❌ [CROQUIS] Erreur récupération validations: $e');
+      return {};
+    }
+  }
+
+  /// 🎨 Écouter les validations du croquis en temps réel
+  static Stream<Map<String, dynamic>> ecouterValidationsCroquis({
+    required String sessionId,
+  }) {
+    return _firestore
+        .collection(_sessionsCollection)
+        .doc(sessionId)
+        .snapshots()
+        .map((snapshot) {
+      if (!snapshot.exists) return {};
+
+      final data = snapshot.data() as Map<String, dynamic>;
+      return data['validationsCroquis'] as Map<String, dynamic>? ?? {};
     });
   }
 }

@@ -70,9 +70,9 @@ class CollaborativeSession {
           .toList() ?? [],
       progression: SessionProgress.fromMap(map['progression'] ?? {}),
       parametres: SessionSettings.fromMap(map['parametres'] ?? {}),
-      dateCreation: (map['dateCreation'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      dateModification: (map['dateModification'] as Timestamp?)?.toDate(),
-      dateFinalisation: (map['dateFinalisation'] as Timestamp?)?.toDate(),
+      dateCreation: _parseDateTime(map['dateCreation']) ?? DateTime.now(),
+      dateModification: _parseDateTime(map['dateModification']),
+      dateFinalisation: _parseDateTime(map['dateFinalisation']),
     );
   }
 }
@@ -169,9 +169,9 @@ class SessionParticipant {
         orElse: () => FormulaireStatus.en_attente,
       ),
       estCreateur: map['estCreateur'] ?? false,
-      dateRejoint: (map['dateRejoint'] as Timestamp?)?.toDate(),
-      dateFormulaireFini: (map['dateFormulaireFini'] as Timestamp?)?.toDate(),
-      dateSignature: (map['dateSignature'] as Timestamp?)?.toDate(),
+      dateRejoint: _parseDateTime(map['dateRejoint']),
+      dateFormulaireFini: _parseDateTime(map['dateFormulaireFini']),
+      dateSignature: _parseDateTime(map['dateSignature']),
       adresse: map['adresse'],
       cin: map['cin'],
     );
@@ -272,4 +272,22 @@ class SessionSettings {
       modeDebug: map['modeDebug'] ?? false,
     );
   }
+}
+
+/// 🔧 Helper pour parser les dates (String ou Timestamp)
+DateTime? _parseDateTime(dynamic value) {
+  if (value == null) return null;
+
+  if (value is Timestamp) {
+    return value.toDate();
+  } else if (value is String) {
+    try {
+      return DateTime.parse(value);
+    } catch (e) {
+      print('❌ Erreur parsing date string: $value');
+      return null;
+    }
+  }
+
+  return null;
 }

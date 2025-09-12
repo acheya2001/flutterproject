@@ -195,7 +195,7 @@ class FormStatusService {
         'conducteurId': user.uid,
         'etape': etape,
         'donnees': donneesFinales,
-        'dateModification': FieldValue.serverTimestamp(),
+        'dateModification': DateTime.now().toIso8601String(),
         'statut': 'termine',
       });
 
