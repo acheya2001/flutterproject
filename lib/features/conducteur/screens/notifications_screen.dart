@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'completer_documents_screen.dart';
 import 'choix_frequence_paiement_screen.dart';
 import 'contrat_actif_screen.dart';
+import 'mes_contrats_dashboard.dart';
 import '../../../services/test_notifications_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -345,10 +346,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         break;
 
       case 'contrat_active':
-        // Naviguer vers l'écran de contrat actif
+        // Naviguer vers le dashboard des contrats avec le contrat spécifique
         final demandeId = data['demandeId'];
         if (demandeId != null) {
-          _navigateToContratActif(demandeId);
+          _navigateToContratsDashboard(demandeId);
         }
         break;
 
@@ -468,11 +469,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       final demandeData = demandeDoc.data()!;
 
-      // Vérifier que la demande est bien en attente de paiement
-      if (demandeData['statut'] != 'en_attente_paiement') {
+      // Vérifier que la demande est prête pour le paiement
+      final statut = demandeData['statut'];
+      if (statut != 'documents_completes' && statut != 'en_attente_paiement') {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Cette demande n\'est plus en attente de paiement (statut: ${demandeData['statut']})'),
+            content: Text('Cette demande n\'est pas prête pour le paiement (statut: $statut)'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -532,6 +534,48 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
     } catch (e) {
       print('❌ Erreur navigation contrat actif: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 📋 Naviguer vers le dashboard des contrats
+  Future<void> _navigateToContratsDashboard(String demandeId) async {
+    try {
+      // Récupérer le contrat associé à la demande
+      final contratsQuery = await FirebaseFirestore.instance
+          .collection('contrats')
+          .where('demandeId', isEqualTo: demandeId)
+          .limit(1)
+          .get();
+
+      String? contractId;
+      if (contratsQuery.docs.isNotEmpty) {
+        contractId = contratsQuery.docs.first.id;
+      }
+
+      // Naviguer vers le dashboard des contrats
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MesContratsDashboard(contractId: contractId),
+        ),
+      );
+
+      if (result == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📋 Dashboard des contrats ouvert !'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Erreur navigation dashboard contrats: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ Erreur: $e'),

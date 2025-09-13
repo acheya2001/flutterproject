@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/collaborative_session_model.dart';
+import 'collaborative_session_service.dart';
 
 /// ✍️ Service pour gérer les signatures électroniques avec OTP
 class SignatureOTPService {
@@ -157,6 +158,14 @@ class SignatureOTPService {
           'statut': nombreSignatures >= nombreParticipants ? 'signe' : 'pret_signature',
           'dateModification': FieldValue.serverTimestamp(),
         });
+
+        // 🔄 Forcer la mise à jour de la progression pour corriger le bug d'affichage
+        try {
+          await CollaborativeSessionService.forcerMiseAJourProgressionSignatures(sessionId);
+          print('🔄 [SIGNATURE] Progression forcée mise à jour après signature');
+        } catch (e) {
+          print('⚠️ [SIGNATURE] Erreur mise à jour progression forcée: $e');
+        }
 
         // Si toutes les signatures sont effectuées, finaliser le constat
         if (nombreSignatures >= nombreParticipants) {

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 
 import 'firebase_options.dart';
@@ -68,6 +70,9 @@ import 'test_readonly_mode.dart';
 /// 🚀 Point d'entrée principal de l'application Constat Tunisie
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🌍 Initialiser les données de localisation française
+  await initializeDateFormatting('fr_FR', null);
 
   // Configuration de l'orientation
   await SystemChrome.setPreferredOrientations([
@@ -169,6 +174,17 @@ class ConstatTunisieApp extends StatelessWidget {
       navigatorKey: NavigationService.navigatorKey,
       home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
+      // 🌍 Configuration des locales
+      locale: const Locale('fr', 'FR'),
+      supportedLocales: const [
+        Locale('fr', 'FR'),
+        Locale('en', 'US'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       routes: {
         '/user-type-selection': (context) => const UserTypeSelectionScreenElegant(),
         '/conducteur-dashboard': (context) => const ConducteurDashboardComplete(),

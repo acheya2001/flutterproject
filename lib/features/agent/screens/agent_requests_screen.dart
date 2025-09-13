@@ -2573,7 +2573,7 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
     }
   }
 
-  /// ✅ Marquer les documents comme complétés
+  /// ✅ Marquer les documents comme complétés ET envoyer notification paiement
   Future<void> _marquerDocumentsCompletes(String requestId, Map<String, dynamic> data) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2583,7 +2583,7 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
           children: [
             Icon(Icons.check_circle, color: Colors.green[600], size: 24),
             const SizedBox(width: 12),
-            const Text('Documents Complétés'),
+            const Text('Valider Documents & Proposer Paiement'),
           ],
         ),
         content: Column(
@@ -2591,7 +2591,7 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Confirmer que tous les documents requis ont été reçus et vérifiés pour :',
+              'Confirmer que tous les documents sont validés et proposer le paiement au conducteur :',
               style: TextStyle(fontSize: 14, color: Colors.grey[700]),
             ),
             const SizedBox(height: 16),
@@ -2670,7 +2670,9 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
 
     if (confirmed == true) {
       try {
-        // Mettre à jour le statut de la demande
+        print('🔄 Début validation documents pour demande: $requestId');
+
+        // 1. Mettre à jour le statut de la demande vers documents_completes
         await FirebaseFirestore.instance
             .collection('demandes_contrats')
             .doc(requestId)
@@ -2680,26 +2682,63 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
           'agentDocuments': _currentAgentId,
         });
 
-        // Créer une notification pour l'agent (pour suivi)
+        print('✅ Statut mis à jour vers documents_completes');
+
+        // 2. Générer un numéro de contrat
+        final numeroContrat = 'CTR${DateTime.now().millisecondsSinceEpoch}';
+        final conducteurId = data['conducteurId'];
+
+        // 3. Mettre à jour avec le numéro de contrat
+        await FirebaseFirestore.instance
+            .collection('demandes_contrats')
+            .doc(requestId)
+            .update({
+          'numeroContrat': numeroContrat,
+          'datePropositionPaiement': FieldValue.serverTimestamp(),
+        });
+
+        print('✅ Numéro de contrat généré: $numeroContrat');
+
+        // 4. Créer notification PAIEMENT REQUIS pour le conducteur
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'conducteurId': conducteurId,
+          'type': 'paiement_requis',
+          'titre': 'Dossier Validé - Paiement Requis',
+          'message': 'Votre dossier est complet ! Merci de vous présenter à l\'agence pour choisir votre fréquence de paiement et effectuer le premier paiement.',
+          'demandeId': requestId,
+          'numeroContrat': numeroContrat,
+          'dateCreation': FieldValue.serverTimestamp(),
+          'lu': false,
+          'priorite': 'haute',
+        });
+
+        print('✅ Notification paiement requis envoyée au conducteur $conducteurId');
+
+        // 5. Créer notification pour l'agent (pour suivi)
         await FirebaseFirestore.instance
             .collection('notifications')
             .add({
           'agentId': _currentAgentId,
           'type': 'documents_completes',
-          'titre': 'Documents Complétés',
-          'message': 'Dossier ${data['numero'] ?? requestId} prêt pour validation et paiement.',
+          'titre': 'Documents Validés',
+          'message': 'Dossier ${data['numero'] ?? requestId} validé. Notification de paiement envoyée au conducteur.',
           'demandeId': requestId,
+          'numeroContrat': numeroContrat,
           'lu': false,
           'dateCreation': FieldValue.serverTimestamp(),
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Documents marqués comme complétés ! Le dossier est prêt pour validation.'),
+            content: Text('✅ Documents validés ! Notification de paiement envoyée au conducteur.'),
             backgroundColor: Colors.green,
           ),
         );
+
+        print('✅ Processus de validation terminé avec succès');
+
       } catch (e) {
+        print('❌ Erreur validation documents: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ Erreur: $e'),

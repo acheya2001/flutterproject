@@ -1,7 +1,9 @@
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/collaborative_session_model.dart';
+import 'collaborative_pdf_service.dart';
+import 'agent_notification_service.dart';
 import '../models/guest_participant_model.dart';
 import '../models/accident_session_complete.dart';
 
@@ -331,8 +333,8 @@ class CollaborativeSessionService {
         throw Exception('Participant non trouvé dans la session');
       }
 
-      // Calculer la nouvelle progression
-      final progression = _calculerProgression(participants);
+      // Calculer la nouvelle progression avec sessionId pour comptage signatures
+      final progression = await _calculerProgression(participants, sessionId);
 
       // Déterminer le nouveau statut de session
       final nouveauStatutSession = _determinerStatutSession(participants, progression);
@@ -550,6 +552,15 @@ class CollaborativeSessionService {
       }
 
       print('✅ [SIGNATURE] Signature ajoutée avec succès pour $userId');
+
+      // 🔄 Forcer la mise à jour de la progression pour corriger le bug d'affichage
+      try {
+        await forcerMiseAJourProgressionSignatures(sessionId);
+        print('🔄 [SIGNATURE] Progression forcée mise à jour automatiquement');
+      } catch (e) {
+        print('⚠️ [SIGNATURE] Erreur mise à jour progression forcée: $e');
+      }
+
     } catch (e) {
       print('❌ [SIGNATURE] Erreur ajout signature: $e');
       print('❌ [SIGNATURE] Stack trace: ${StackTrace.current}');
@@ -573,6 +584,281 @@ class CollaborativeSessionService {
     } catch (e) {
       print('❌ Erreur obtenir signatures: $e');
       return [];
+    }
+  }
+
+  /// 🏁 Finaliser la session et déclencher la génération PDF + envoi
+  static Future<void> finaliserSession(String sessionId) async {
+    try {
+      print('🏁 [FINALISATION] Début finalisation session $sessionId');
+
+      // 1. Récupérer les données de la session
+      final sessionDoc = await _firestore.collection(_sessionsCollection).doc(sessionId).get();
+      if (!sessionDoc.exists) {
+        throw Exception('Session non trouvée');
+      }
+
+      final sessionData = sessionDoc.data()!;
+      final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+
+      // 2. Vérifier que tout est prêt pour la finalisation
+      final progression = await _calculerProgression(participants, sessionId);
+      final nombreVehicules = sessionData['nombreVehicules'] ?? 2;
+
+      // Vérifier aussi les signatures dans la sous-collection
+      final signaturesSnapshot = await _firestore
+          .collection(_sessionsCollection)
+          .doc(sessionId)
+          .collection('signatures')
+          .get();
+
+      final signaturesEnSousCollection = signaturesSnapshot.docs.length;
+      final signaturesMaximales = math.max(progression.signaturesEffectuees, signaturesEnSousCollection);
+
+      print('🔍 [FINALISATION] Vérification signatures:');
+      print('   - Participants: ${participants.length}');
+      print('   - Nombre véhicules: $nombreVehicules');
+      print('   - Signatures depuis statuts: ${progression.signaturesEffectuees}');
+      print('   - Signatures en sous-collection: $signaturesEnSousCollection');
+      print('   - Signatures maximales: $signaturesMaximales');
+
+      if (signaturesMaximales < nombreVehicules) {
+        throw Exception('Toutes les signatures ne sont pas encore effectuées ($signaturesMaximales/$nombreVehicules)');
+      }
+
+      // 3. Marquer la session comme finalisée
+      await _firestore.collection(_sessionsCollection).doc(sessionId).update({
+        'statut': 'finalise',
+        'dateFinalisation': Timestamp.fromDate(DateTime.now()),
+        'dateModification': Timestamp.fromDate(DateTime.now()),
+      });
+
+      // 4. Récupérer toutes les données nécessaires pour le PDF
+      final donneesAccident = sessionData['donneesAccident'] ?? {};
+      final participantsData = await _recupererDonneesParticipants(sessionId, participants);
+      final croquisData = await _recupererDonneesCroquis(sessionId);
+
+      // 5. Générer le PDF
+      print('📄 [FINALISATION] Génération du PDF...');
+      final pdfUrl = await CollaborativePdfService.genererConstatCollaboratif(
+        sessionId: sessionId,
+        sessionData: sessionData,
+        participantsData: participantsData,
+      );
+
+      // 6. Mettre à jour la session avec l'URL du PDF
+      await _firestore.collection(_sessionsCollection).doc(sessionId).update({
+        'pdfUrl': pdfUrl,
+        'dateModification': Timestamp.fromDate(DateTime.now()),
+      });
+
+      // 7. Envoyer aux agents d'assurance
+      print('📧 [FINALISATION] Envoi aux agents...');
+      await _envoyerAuxAgents(sessionId, participantsData, pdfUrl);
+
+      // 8. Traiter les notifications en attente
+      print('📧 [FINALISATION] Traitement des notifications...');
+      await AgentNotificationService.traiterNotificationsConstats();
+
+      print('✅ [FINALISATION] Session finalisée avec succès');
+
+    } catch (e) {
+      print('❌ [FINALISATION] Erreur: $e');
+      rethrow;
+    }
+  }
+
+  /// 📋 Récupérer les données complètes des participants
+  static Future<List<Map<String, dynamic>>> _recupererDonneesParticipants(
+    String sessionId,
+    List<Map<String, dynamic>> participants
+  ) async {
+    final participantsData = <Map<String, dynamic>>[];
+
+    for (final participant in participants) {
+      final userId = participant['userId'] as String;
+
+      // Récupérer le formulaire du participant
+      final formulaireDoc = await _firestore
+          .collection(_sessionsCollection)
+          .doc(sessionId)
+          .collection('formulaires')
+          .doc(userId)
+          .get();
+
+      if (formulaireDoc.exists) {
+        final donneesFormulaire = formulaireDoc.data()!;
+        participantsData.add({
+          ...participant,
+          'donneesFormulaire': donneesFormulaire,
+        });
+      }
+    }
+
+    return participantsData;
+  }
+
+  /// 🎨 Récupérer les données du croquis
+  static Future<Map<String, dynamic>> _recupererDonneesCroquis(String sessionId) async {
+    try {
+      final croquisDoc = await _firestore
+          .collection(_sessionsCollection)
+          .doc(sessionId)
+          .collection('croquis')
+          .doc('principal')
+          .get();
+
+      if (croquisDoc.exists) {
+        return croquisDoc.data()!;
+      }
+    } catch (e) {
+      print('⚠️ [FINALISATION] Erreur récupération croquis: $e');
+    }
+
+    return {};
+  }
+
+  /// 📧 Envoyer le constat aux agents d'assurance responsables des véhicules
+  static Future<void> _envoyerAuxAgents(String sessionId, List<Map<String, dynamic>> participantsData, String pdfUrl) async {
+    try {
+      for (final participant in participantsData) {
+        final donneesFormulaire = participant['donneesFormulaire'] as Map<String, dynamic>? ?? {};
+        final donneesVehicule = donneesFormulaire['donneesVehicule'] as Map<String, dynamic>? ?? {};
+        final donneesAssurance = donneesFormulaire['donneesAssurance'] as Map<String, dynamic>? ?? {};
+
+        final immatriculation = donneesVehicule['immatriculation'] as String?;
+        final numeroPolice = donneesAssurance['numeroPolice'] as String?;
+
+        if (immatriculation != null && numeroPolice != null) {
+          // 1. Chercher le contrat par numéro de police et immatriculation
+          final contratQuery = await _firestore
+              .collection('contrats')
+              .where('numeroPolice', isEqualTo: numeroPolice)
+              .where('immatriculation', isEqualTo: immatriculation)
+              .limit(1)
+              .get();
+
+          if (contratQuery.docs.isNotEmpty) {
+            final contratData = contratQuery.docs.first.data();
+            final agentId = contratData['agentId'] as String?;
+
+            if (agentId != null) {
+              // 2. Récupérer les informations de l'agent responsable
+              final agentDoc = await _firestore
+                  .collection('agents_assurance')
+                  .doc(agentId)
+                  .get();
+
+              if (agentDoc.exists) {
+                final agentData = agentDoc.data()!;
+                final emailAgent = agentData['email'] as String?;
+
+                if (emailAgent != null) {
+                  // 3. Envoyer l'email à l'agent responsable du contrat
+                  await _envoyerEmailAgent(emailAgent, sessionId, participant, pdfUrl, contratQuery.docs.first.id);
+                  print('📧 [FINALISATION] Email envoyé à $emailAgent pour contrat ${contratQuery.docs.first.id}');
+                } else {
+                  print('⚠️ [FINALISATION] Email agent non trouvé pour agent $agentId');
+                }
+              } else {
+                print('⚠️ [FINALISATION] Agent $agentId non trouvé');
+              }
+            } else {
+              print('⚠️ [FINALISATION] AgentId non défini pour le contrat');
+            }
+          } else {
+            print('⚠️ [FINALISATION] Contrat non trouvé pour police $numeroPolice et immatriculation $immatriculation');
+          }
+        } else {
+          print('⚠️ [FINALISATION] Données manquantes: immatriculation=$immatriculation, numeroPolice=$numeroPolice');
+        }
+      }
+    } catch (e) {
+      print('❌ [FINALISATION] Erreur envoi emails: $e');
+    }
+  }
+
+  /// 📧 Envoyer un email à un agent spécifique
+  static Future<void> _envoyerEmailAgent(String emailAgent, String sessionId, Map<String, dynamic> participantData, String pdfUrl, String contratId) async {
+    try {
+      // Créer une notification dans Firestore pour déclencher l'envoi d'email
+      await _firestore.collection('notifications_agents').add({
+        'destinataire': emailAgent,
+        'type': 'constat_finalise',
+        'sessionId': sessionId,
+        'contratId': contratId,
+        'participantData': participantData,
+        'pdfUrl': pdfUrl,
+        'dateCreation': Timestamp.fromDate(DateTime.now()),
+        'statut': 'en_attente',
+        'objet': 'Nouveau constat d\'accident finalisé - Contrat $contratId',
+        'message': 'Un nouveau constat d\'accident a été finalisé pour un véhicule sous votre gestion. Le PDF du constat est disponible en pièce jointe.',
+      });
+
+      print('✅ [FINALISATION] Notification créée pour $emailAgent');
+    } catch (e) {
+      print('❌ [FINALISATION] Erreur création notification: $e');
+    }
+  }
+
+  /// 🐛 Déboguer les signatures d'une session
+  static Future<void> debuggerSignatures(String sessionId) async {
+    try {
+      print('🔍 [DEBUG] === DÉBUT DEBUG SIGNATURES POUR SESSION $sessionId ===');
+
+      // 1. Récupérer les données de la session
+      final sessionDoc = await _firestore.collection(_sessionsCollection).doc(sessionId).get();
+      if (!sessionDoc.exists) {
+        print('❌ [DEBUG] Session non trouvée');
+        return;
+      }
+
+      final sessionData = sessionDoc.data()!;
+      final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+      final nombreVehicules = sessionData['nombreVehicules'] ?? 2;
+
+      print('🔍 [DEBUG] Nombre de véhicules: $nombreVehicules');
+      print('🔍 [DEBUG] Nombre de participants: ${participants.length}');
+
+      // 2. Analyser chaque participant
+      for (int i = 0; i < participants.length; i++) {
+        final participant = participants[i];
+        final statut = participant['statut'] as String?;
+        final aSigne = participant['aSigne'] as bool? ?? false;
+        final userId = participant['userId'] as String?;
+        final nom = participant['nom'] as String? ?? 'Inconnu';
+
+        print('🔍 [DEBUG] Participant $i: $nom (ID: $userId)');
+        print('   - Statut: $statut');
+        print('   - A signé: $aSigne');
+      }
+
+      // 3. Vérifier la sous-collection signatures
+      final signaturesSnapshot = await _firestore
+          .collection(_sessionsCollection)
+          .doc(sessionId)
+          .collection('signatures')
+          .get();
+
+      print('🔍 [DEBUG] Signatures dans sous-collection: ${signaturesSnapshot.docs.length}');
+      for (final doc in signaturesSnapshot.docs) {
+        final data = doc.data();
+        print('   - Signature ID: ${doc.id}');
+        print('   - Données: $data');
+      }
+
+      // 4. Calculer la progression
+      final progression = await _calculerProgression(participants, sessionId);
+      print('🔍 [DEBUG] Progression calculée:');
+      print('   - Participants rejoints: ${progression.participantsRejoints}');
+      print('   - Formulaires terminés: ${progression.formulairesTermines}');
+      print('   - Croquis validés: ${progression.croquisValides}');
+      print('   - Signatures effectuées: ${progression.signaturesEffectuees}');
+      print('   - Peut finaliser: ${progression.peutFinaliser}');
+
+      print('🔍 [DEBUG] === FIN DEBUG SIGNATURES ===');
+    } catch (e) {
+      print('❌ [DEBUG] Erreur debug signatures: $e');
     }
   }
 
@@ -616,7 +902,7 @@ class CollaborativeSessionService {
 
       if (misAJour) {
         print('🔄 [VERIFICATION] Mise à jour des statuts corrigés');
-        final progression = _calculerProgression(participants);
+        final progression = await _calculerProgression(participants, sessionId);
         final nouveauStatutSession = _determinerStatutSession(participants, progression);
 
         await _firestore.collection(_sessionsCollection).doc(sessionId).update({
@@ -634,8 +920,81 @@ class CollaborativeSessionService {
     }
   }
 
+  /// 🔄 Forcer la mise à jour de la progression des signatures
+  static Future<void> forcerMiseAJourProgressionSignatures(String sessionId) async {
+    try {
+      print('🔄 [FORCE-UPDATE] Début mise à jour forcée progression signatures');
+
+      final sessionDoc = await _firestore.collection(_sessionsCollection).doc(sessionId).get();
+      if (!sessionDoc.exists) {
+        print('❌ [FORCE-UPDATE] Session non trouvée');
+        return;
+      }
+
+      final sessionData = sessionDoc.data()!;
+      final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+
+      // Compter les signatures réelles depuis la sous-collection
+      final signaturesSnapshot = await _firestore
+          .collection(_sessionsCollection)
+          .doc(sessionId)
+          .collection('signatures')
+          .get();
+
+      final signaturesReelles = signaturesSnapshot.docs.length;
+      print('🔍 [FORCE-UPDATE] Signatures réelles trouvées: $signaturesReelles');
+
+      // Mettre à jour les statuts des participants selon les signatures
+      bool participantsMisAJour = false;
+      for (int i = 0; i < participants.length; i++) {
+        final userId = participants[i]['userId'] as String?;
+        if (userId != null) {
+          final signatureDoc = await _firestore
+              .collection(_sessionsCollection)
+              .doc(sessionId)
+              .collection('signatures')
+              .doc(userId)
+              .get();
+
+          if (signatureDoc.exists) {
+            if (participants[i]['statut'] != 'signe') {
+              participants[i]['statut'] = 'signe';
+              participantsMisAJour = true;
+              print('🔄 [FORCE-UPDATE] Statut mis à jour pour $userId: signe');
+            }
+            if (participants[i]['aSigne'] != true) {
+              participants[i]['aSigne'] = true;
+              participantsMisAJour = true;
+              print('🔄 [FORCE-UPDATE] aSigne mis à jour pour $userId: true');
+            }
+          }
+        }
+      }
+
+      // Recalculer la progression avec le comptage correct
+      final progression = await _calculerProgression(participants, sessionId);
+      final nouveauStatutSession = _determinerStatutSession(participants, progression);
+
+      print('🔍 [FORCE-UPDATE] Nouvelle progression: ${progression.signaturesEffectuees}/${participants.length}');
+
+      // Mettre à jour la session
+      await _firestore.collection(_sessionsCollection).doc(sessionId).update({
+        'participants': participants,
+        'progression': progression.toMap(),
+        'statut': nouveauStatutSession.name,
+        'dateModification': Timestamp.fromDate(DateTime.now()),
+      });
+
+      print('✅ [FORCE-UPDATE] Progression signatures mise à jour avec succès');
+
+    } catch (e) {
+      print('❌ [FORCE-UPDATE] Erreur: $e');
+      rethrow;
+    }
+  }
+
   /// 🔧 Méthodes utilitaires privées
-  static SessionProgress _calculerProgression(List<Map<String, dynamic>> participants) {
+  static Future<SessionProgress> _calculerProgression(List<Map<String, dynamic>> participants, [String? sessionId]) async {
     int participantsRejoints = 0;
     int formulairesTermines = 0;
     int croquisValides = 0;
@@ -643,6 +1002,7 @@ class CollaborativeSessionService {
 
     for (final participant in participants) {
       final statut = participant['statut'] as String?;
+      final aSigne = participant['aSigne'] as bool? ?? false;
 
       if (statut != null && statut != 'en_attente') {
         participantsRejoints++;
@@ -656,8 +1016,31 @@ class CollaborativeSessionService {
         croquisValides++;
       }
 
-      if (statut == 'signe') {
+      // Compter les signatures depuis le statut OU le champ aSigne
+      if (statut == 'signe' || aSigne) {
         signaturesEffectuees++;
+      }
+    }
+
+    // 🔥 CORRECTION: Compter aussi depuis la sous-collection signatures si sessionId fourni
+    if (sessionId != null) {
+      try {
+        final signaturesSnapshot = await _firestore
+            .collection(_sessionsCollection)
+            .doc(sessionId)
+            .collection('signatures')
+            .get();
+
+        final signaturesEnSousCollection = signaturesSnapshot.docs.length;
+
+        // Utiliser le maximum entre les deux méthodes de comptage
+        signaturesEffectuees = math.max(signaturesEffectuees, signaturesEnSousCollection);
+
+        print('🔍 [PROGRESSION] Signatures depuis statuts: ${signaturesEffectuees - signaturesEnSousCollection + signaturesEffectuees}');
+        print('🔍 [PROGRESSION] Signatures depuis sous-collection: $signaturesEnSousCollection');
+        print('🔍 [PROGRESSION] Signatures finales: $signaturesEffectuees');
+      } catch (e) {
+        print('❌ [PROGRESSION] Erreur comptage signatures: $e');
       }
     }
 
@@ -702,7 +1085,7 @@ class CollaborativeSessionService {
 
   static String _genererCodeSession() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = Random();
+    final random = math.Random();
     return String.fromCharCodes(Iterable.generate(6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
   }
 

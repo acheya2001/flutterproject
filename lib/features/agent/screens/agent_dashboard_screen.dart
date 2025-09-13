@@ -23,6 +23,7 @@ import 'agent_contracts_improved_screen.dart';
 import 'agent_clients_improved_screen.dart';
 import 'create_contract_screen.dart';
 import 'agent_requests_screen.dart';
+import 'sinistres_screen.dart';
 import '../widgets/insured_vehicle_action_widget.dart';
 
 /// 🏠 Dashboard principal de l'agent
@@ -812,11 +813,19 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                 ),
               ),
               _buildActionCard(
-                'Rapports',
-                'Statistiques & Analytics',
-                Icons.analytics_rounded,
-                const Color(0xFF8B5CF6),
-                () => _showComingSoon('Rapports'),
+                'Sinistres',
+                'Constats & Déclarations',
+                Icons.report_problem_rounded,
+                const Color(0xFFEF4444),
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SinistresScreen(
+                      agentData: _agentInfo!,
+                      userData: _agentInfo!,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

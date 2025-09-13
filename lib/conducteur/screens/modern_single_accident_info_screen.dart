@@ -3388,8 +3388,8 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       // Sauvegarder dans l'historique personnel des sinistres
       await _sauvegarderDansHistoriqueSinistres(donneesFormulaire);
 
-      // Mettre à jour le statut de la session collaborative
-      await _mettreAJourStatutSession();
+      // ❌ SUPPRIMÉ: _mettreAJourStatutSession() car redondant avec _mettreAJourEtatFormulaire()
+      // Le statut est déjà correctement mis à jour par CollaborativeSessionService.mettreAJourEtatFormulaire()
 
       if (mounted) {
         // Afficher message de succès
@@ -3590,7 +3590,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       bool participantTrouve = false;
       for (int i = 0; i < participants.length; i++) {
         if (participants[i]['userId'] == user.uid) {
-          participants[i]['statut'] = 'termine';
+          participants[i]['statut'] = 'formulaire_fini'; // 🔥 Utiliser le bon statut
           participants[i]['dateTermine'] = DateTime.now().toIso8601String();
           participants[i]['formulaireComplete'] = true;
           participantTrouve = true;
@@ -3602,7 +3602,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       if (!participantTrouve) {
         participants.add({
           'userId': user.uid,
-          'statut': 'termine',
+          'statut': 'formulaire_fini', // 🔥 Utiliser le bon statut
           'dateTermine': DateTime.now().toIso8601String(),
           'formulaireComplete': true,
           'estCreateur': _estCreateur,
@@ -3611,7 +3611,9 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       }
 
       // Calculer les statistiques
-      final participantsTermines = participants.where((p) => p['statut'] == 'termine').length;
+      final participantsTermines = participants.where((p) =>
+        p['statut'] == 'formulaire_fini' || p['statut'] == 'termine' || p['formulaireComplete'] == true
+      ).length;
       final nombreTotalParticipants = participants.length;
       final tousTermines = participantsTermines >= nombreTotalParticipants;
 
@@ -4599,6 +4601,11 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
         // Sauvegarder automatiquement
         _sauvegarderAutomatiquement();
+
+        // Si mode collaboratif, sauvegarder la signature dans Firestore
+        if (_estModeCollaboratif && widget.session?.id != null) {
+          await _sauvegarderSignatureCollaborative();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -4613,6 +4620,40 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
             ),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// 💾 Sauvegarder la signature dans le système collaboratif
+  Future<void> _sauvegarderSignatureCollaborative() async {
+    try {
+      if (_signatureData == null || widget.session?.id == null) return;
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Convertir la signature en base64
+      final signatureBase64 = base64Encode(_signatureData!);
+
+      // Sauvegarder via le service collaboratif
+      await CollaborativeSessionService.ajouterSignature(
+        sessionId: widget.session!.id!,
+        userId: user.uid,
+        roleVehicule: widget.roleVehicule ?? 'A',
+        signatureBase64: signatureBase64,
+      );
+
+      print('✅ Signature collaborative sauvegardée');
+
+    } catch (e) {
+      print('❌ Erreur sauvegarde signature collaborative: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur sauvegarde signature: $e'),
+            backgroundColor: Colors.orange,
           ),
         );
       }
@@ -6558,6 +6599,10 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
         // Croquis
         'croquisData': _croquisData,
+
+        // Signature
+        'signatureData': _signatureData != null ? base64Encode(_signatureData!) : null,
+        'aSigne': _signatureData != null,
 
         // Métadonnées
         'derniereMiseAJour': DateTime.now().toIso8601String(),

@@ -18,6 +18,14 @@ class CollaborativeSessionStateService {
       // Nettoyer les données pour éviter les problèmes de types
       final donneesNettoyees = _nettoyerDonnees(donneesFormulaire);
 
+      // Déterminer le statut basé sur les données
+      String statut = _determinerStatut(etapesValidees);
+      bool aSigne = donneesNettoyees['aSigne'] == true || donneesNettoyees['signatureData'] != null;
+
+      if (aSigne) {
+        statut = 'signe';
+      }
+
       await _firestore
           .collection('sessions_collaboratives')
           .doc(sessionId)
@@ -27,7 +35,8 @@ class CollaborativeSessionStateService {
         'donneesFormulaire': donneesNettoyees,
         'etapeActuelle': etapeActuelle.toString(), // S'assurer que c'est une String
         'etapesValidees': etapesValidees,
-        'statut': _determinerStatut(etapesValidees),
+        'statut': statut,
+        'aSigne': aSigne,
         'derniereMiseAJour': DateTime.now().toIso8601String(),
       }, SetOptions(merge: true));
 

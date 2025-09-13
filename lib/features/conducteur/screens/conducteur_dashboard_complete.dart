@@ -37,6 +37,7 @@ import '../../../services/conducteur_data_service.dart';
 import 'notifications_screen.dart';
 import 'historique_screen.dart';
 import 'mes_vehicules_screen.dart';
+import 'mes_contrats_dashboard.dart';
 import 'declaration_sinistre_screen.dart';
 import '../../sinistre/screens/sinistre_choix_rapide_screen.dart';
 import '../../../conducteur/screens/accident_declaration_screen.dart';
@@ -1224,6 +1225,21 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               context,
               MaterialPageRoute(
                 builder: (context) => const MesVehiculesScreen(),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          _buildActionCard(
+            'Mes Contrats',
+            'Documents et paiements',
+            Icons.description,
+            Colors.purple,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const MesContratsDashboard(),
               ),
             ),
           ),

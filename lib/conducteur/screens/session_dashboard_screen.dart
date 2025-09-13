@@ -1912,6 +1912,84 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
                 valueColor: AlwaysStoppedAnimation<Color>(couleurProgression),
                 minHeight: 8,
               ),
+
+              // Bouton de finalisation quand progression = 100%
+              if (pourcentage == 100) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _finaliserConstat(sessionData),
+                    icon: const Icon(Icons.check_circle, color: Colors.white),
+                    label: const Text(
+                      'Finaliser le constat',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[600],
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 4,
+                    ),
+                  ),
+                ),
+              ],
+
+              // Bouton de debug pour les signatures (en mode développement)
+              if (pourcentage < 100) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _debuggerSignatures(sessionData['id']),
+                        icon: const Icon(Icons.bug_report, color: Colors.orange),
+                        label: const Text(
+                          'Debug',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.orange,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.orange),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _forcerMiseAJourSignatures(sessionData['id']),
+                        icon: const Icon(Icons.refresh, color: Colors.purple),
+                        label: const Text(
+                          'Fix',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.purple,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.purple),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         );
@@ -2214,6 +2292,167 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
     }
   }
 
+  /// 🏁 Finaliser le constat et générer le PDF
+  Future<void> _finaliserConstat(Map<String, dynamic> sessionData) async {
+    try {
+      // Afficher un dialogue de confirmation
+      final confirmation = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green),
+              SizedBox(width: 8),
+              Text('Finaliser le constat'),
+            ],
+          ),
+          content: const Text(
+            'Êtes-vous sûr de vouloir finaliser ce constat ?\n\n'
+            'Cette action va :\n'
+            '• Générer un PDF du constat\n'
+            '• L\'envoyer aux agents d\'assurance\n'
+            '• Verrouiller définitivement la session\n\n'
+            'Cette action est irréversible.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green[600],
+              ),
+              child: const Text(
+                'Finaliser',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmation != true) return;
+
+      // Afficher un indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Finalisation en cours...'),
+            ],
+          ),
+        ),
+      );
+
+      // Finaliser la session
+      await CollaborativeSessionService.finaliserSession(sessionData['id']);
+
+      // Fermer le dialogue de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher un message de succès
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Constat finalisé avec succès !'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+    } catch (e) {
+      // Fermer le dialogue de chargement si ouvert
+      if (mounted) Navigator.of(context).pop();
+
+      print('❌ Erreur finalisation: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Erreur: $e',
+                    style: const TextStyle(color: Colors.white),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
+  /// 🐛 Déboguer les signatures
+  Future<void> _debuggerSignatures(String sessionId) async {
+    try {
+      await CollaborativeSessionService.debuggerSignatures(sessionId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.info, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Debug terminé - Vérifiez la console pour les détails',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Erreur debug: $e',
+                    style: const TextStyle(color: Colors.white),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   /// 🔍 Vérifier et corriger les statuts des participants
   Future<void> _verifierStatuts(String sessionId) async {
     try {
@@ -2300,6 +2539,76 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
       }
     } catch (e) {
       print('❌ [DEBUG] Erreur debug: $e');
+    }
+  }
+
+  /// 🔄 Forcer la mise à jour de la progression des signatures
+  Future<void> _forcerMiseAJourSignatures(String sessionId) async {
+    try {
+      print('🔄 [FIX] Début correction progression signatures');
+
+      // Afficher un indicateur de chargement
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text('🔄 Correction en cours...'),
+              ],
+            ),
+            backgroundColor: Colors.purple,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Appeler la fonction de correction
+      await CollaborativeSessionService.forcerMiseAJourProgressionSignatures(sessionId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('✅ Progression signatures corrigée !'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+      print('✅ [FIX] Correction progression signatures terminée');
+
+    } catch (e) {
+      print('❌ [FIX] Erreur correction: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('❌ Erreur correction: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 }

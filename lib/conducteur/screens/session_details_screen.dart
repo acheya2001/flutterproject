@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../../models/collaborative_session_model.dart';
 import '../../services/collaborative_session_service.dart';
 import '../../services/collaborative_data_sync_service.dart';
 import '../../services/constat_pdf_service.dart';
+import '../../widgets/modern_pdf_generator_widget.dart';
 import 'modern_single_accident_info_screen.dart';
 import 'modern_collaborative_sketch_screen.dart';
 
@@ -49,7 +51,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _chargerDonneesSession();
   }
 
@@ -169,6 +171,10 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
             icon: Icon(Icons.draw_outlined, size: 20),
             text: 'Croquis',
           ),
+          Tab(
+            icon: Icon(Icons.picture_as_pdf, size: 20),
+            text: 'PDF Agent',
+          ),
         ],
       ),
     );
@@ -235,6 +241,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
         _buildParticipantsTab(),
         _buildFormulairesTab(),
         _buildCroquisTab(),
+        _buildPDFAgentTab(),
       ],
     );
   }
@@ -247,6 +254,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildProgressionGlobale(),
+          const SizedBox(height: 16),
+          _buildProgressionSignatures(),
           const SizedBox(height: 24),
           _buildInfosSession(),
           const SizedBox(height: 24),
@@ -296,13 +305,135 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
     );
   }
 
+  /// 📄 Onglet PDF Agent
+  Widget _buildPDFAgentTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Description de la fonctionnalité
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.blue[600],
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Génération PDF pour Agents',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[800],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Cette fonctionnalité génère automatiquement un rapport PDF moderne et professionnel '
+                  'contenant toutes les informations du constat. Le PDF est ensuite envoyé par email '
+                  'aux agents d\'assurance concernés pour traitement du sinistre.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.blue[700],
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Contenu du PDF :',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[800],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                ...const [
+                  '• Informations générales de l\'accident',
+                  '• Détails des véhicules et conducteurs',
+                  '• Circonstances déclarées',
+                  '• Références aux croquis et photos',
+                  '• Recommandations et actions prioritaires',
+                ].map((item) => Padding(
+                  padding: EdgeInsets.only(left: 16, bottom: 2),
+                  child: Text(
+                    item,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                )),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Widget de génération PDF
+          if (_sessionData != null)
+            ModernPDFGeneratorWidget(
+              session: _sessionData!,
+              onPDFGenerated: () {
+                // Optionnel : actions après génération
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('PDF généré et envoyé avec succès !'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   /// 📊 Progression globale
   Widget _buildProgressionGlobale() {
-    final termines = _sessionData!.participants
-        .where((p) => p.formulaireStatus == FormulaireStatus.termine)
-        .length;
-    final total = _sessionData!.participants.length;
-    final pourcentage = total > 0 ? (termines / total) : 0.0;
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .collection('participants_data')
+          .snapshots(),
+      builder: (context, snapshot) {
+        int termines = 0;
+        int signes = 0;
+        final total = _sessionData!.participants.length;
+
+        if (snapshot.hasData) {
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final donneesFormulaire = data['donneesFormulaire'] as Map<String, dynamic>? ?? {};
+
+            // Compter les formulaires terminés
+            if (data['statut'] == 'termine' || donneesFormulaire['etapeActuelle'] == '7') {
+              termines++;
+            }
+
+            // Compter les signatures
+            if (donneesFormulaire['aSigne'] == true || donneesFormulaire['signatureData'] != null) {
+              signes++;
+            }
+          }
+        }
+
+        final pourcentage = total > 0 ? (termines / total) : 0.0;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -373,8 +504,19 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
               fontSize: 14,
             ),
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Signatures: $signes/$total',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
+    );
+      },
     );
   }
 
@@ -497,15 +639,16 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
                 size: 24,
               ),
               const SizedBox(width: 12),
-              const Text(
-                'Informations de l\'accident',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
+              const Expanded(
+                child: Text(
+                  'Informations de l\'accident',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
               ),
-              const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -556,15 +699,35 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
 
   /// 📊 Statut des participants
   Widget _buildStatutParticipants() {
-    final enAttente = _sessionData!.participants
-        .where((p) => p.formulaireStatus == FormulaireStatus.en_attente)
-        .length;
-    final enCours = _sessionData!.participants
-        .where((p) => p.formulaireStatus == FormulaireStatus.en_cours)
-        .length;
-    final termines = _sessionData!.participants
-        .where((p) => p.formulaireStatus == FormulaireStatus.termine)
-        .length;
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .collection('participants_data')
+          .snapshots(),
+      builder: (context, snapshot) {
+        int enAttente = 0;
+        int enCours = 0;
+        int termines = 0;
+
+        if (snapshot.hasData) {
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final statut = data['statut'] as String? ?? 'en_attente';
+
+            switch (statut) {
+              case 'en_attente':
+                enAttente++;
+                break;
+              case 'en_cours':
+                enCours++;
+                break;
+              case 'termine':
+                termines++;
+                break;
+            }
+          }
+        }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -617,6 +780,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
           ),
         ],
       ),
+    );
+      },
     );
   }
 
@@ -1169,6 +1334,132 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
       default:
         return 'Inconnu';
     }
+  }
+
+  /// ✍️ Progression des signatures avec comptage hybride
+  Widget _buildProgressionSignatures() {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .snapshots(),
+      builder: (context, sessionSnapshot) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('sessions_collaboratives')
+              .doc(widget.session.id)
+              .collection('signatures')
+              .snapshots(),
+          builder: (context, signaturesSnapshot) {
+            int signaturesEffectuees = 0;
+            final total = _sessionData?.participants.length ?? 0;
+
+            // Méthode 1: Compter depuis la sous-collection signatures
+            final signaturesFromCollection = signaturesSnapshot.hasData ? signaturesSnapshot.data!.docs.length : 0;
+
+            // Méthode 2: Compter depuis les statuts des participants
+            int signaturesFromParticipants = 0;
+            if (sessionSnapshot.hasData && sessionSnapshot.data!.exists) {
+              final sessionData = sessionSnapshot.data!.data() as Map<String, dynamic>;
+              final participants = sessionData['participants'] as List<dynamic>? ?? [];
+
+              signaturesFromParticipants = participants.where((p) =>
+                p['statut'] == 'signe' || p['aSigne'] == true
+              ).length;
+            }
+
+            // Utiliser le maximum des deux méthodes disponibles
+            signaturesEffectuees = signaturesFromCollection > signaturesFromParticipants
+                ? signaturesFromCollection
+                : signaturesFromParticipants;
+
+            // Debug: Afficher les détails des signatures
+            if (kDebugMode) {
+              print('🔍 [DEBUG SIGNATURES] Session: ${widget.session.id}');
+              print('🔍 [DEBUG SIGNATURES] Sous-collection: $signaturesFromCollection');
+              print('🔍 [DEBUG SIGNATURES] Participants: $signaturesFromParticipants');
+              print('🔍 [DEBUG SIGNATURES] Final: $signaturesEffectuees/$total');
+            }
+
+            final pourcentageSignatures = total > 0 ? (signaturesEffectuees / total) : 0.0;
+
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.green[600]!, Colors.green[700]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.edit,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Signatures électroniques',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '$signaturesEffectuees/$total',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: pourcentageSignatures,
+                    backgroundColor: Colors.white.withOpacity(0.3),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                    minHeight: 6,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${(pourcentageSignatures * 100).toInt()}% des participants ont signé',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Color _getStatutColor(SessionStatus statut) {

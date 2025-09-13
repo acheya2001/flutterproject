@@ -469,6 +469,51 @@ class EmailNotificationService {
     }
   }
 
+  /// 📧 Envoyer un email générique (méthode publique)
+  static Future<Map<String, dynamic>> envoyerEmail({
+    required String destinataire,
+    required String objet,
+    required String contenu,
+    required String type,
+  }) async {
+    try {
+      debugPrint('[EMAIL_SERVICE] 📧 Envoi email $type à: $destinataire');
+
+      final emailResult = await _sendEmail(
+        to: destinataire,
+        subject: objet,
+        htmlContent: contenu,
+      );
+
+      if (emailResult['success']) {
+        await _logEmailSent(
+          to: destinataire,
+          subject: objet,
+          type: type,
+          status: 'sent',
+          content: 'Email envoyé avec succès',
+        );
+
+        debugPrint('[EMAIL_SERVICE] ✅ Email $type envoyé avec succès');
+        return {'success': true};
+      } else {
+        await _logEmailSent(
+          to: destinataire,
+          subject: objet,
+          type: type,
+          status: 'failed',
+          content: 'Erreur: ${emailResult['error']}',
+        );
+
+        debugPrint('[EMAIL_SERVICE] ❌ Erreur envoi email $type: ${emailResult['error']}');
+        return emailResult;
+      }
+    } catch (e) {
+      debugPrint('[EMAIL_SERVICE] ❌ Exception envoi email $type: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   /// 📧 Envoyer un email de bienvenue pour nouvel admin
   static Future<Map<String, dynamic>> sendWelcomeEmail({
     required String toEmail,
