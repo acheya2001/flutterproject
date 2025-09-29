@@ -88,7 +88,7 @@ Future<void> _simulerValidationAgent(FirebaseFirestore firestore, String demande
     'conducteurId': 'test_conducteur_123',
     'type': 'paiement_requis',
     'titre': 'Dossier Validé - Paiement Requis',
-    'message': 'Votre dossier est complet ! Merci de vous présenter à l\'agence pour choisir votre fréquence de paiement.',
+    'message': 'Votre dossier est complet ! Cliquez maintenant pour choisir votre fréquence de paiement et finaliser votre contrat.',
     'demandeId': demandeId,
     'numeroContrat': 'CTR${DateTime.now().millisecondsSinceEpoch}',
     'dateCreation': FieldValue.serverTimestamp(),

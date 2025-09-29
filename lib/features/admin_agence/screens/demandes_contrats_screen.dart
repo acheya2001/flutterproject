@@ -619,12 +619,49 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.smart_toy, color: Colors.blue[700]),
-              const SizedBox(width: 8),
-              const Text('🤖 Recommandation IA'),
-            ],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF10B981),
+                  const Color(0xFF059669),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    '🤖 Recommandation IA',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -633,20 +670,70 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
               children: [
                 // Informations de la demande
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '📋 Demande ${demandeData['numero']}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3B82F6),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(
+                              Icons.description,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Demande ${demandeData['numero']}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                        ],
                       ),
-                      Text('🚗 ${demandeData['marque']} ${demandeData['modele']}'),
-                      Text('👤 ${demandeData['prenom']} ${demandeData['nom']}'),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Icon(Icons.directions_car, color: Color(0xFF6B7280), size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${demandeData['marque']} ${demandeData['modele']}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF374151),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.person, color: Color(0xFF6B7280), size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${demandeData['prenom']} ${demandeData['nom']}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF374151),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -655,48 +742,126 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
 
                 // Recommandation principale
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green[200]!),
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF10B981).withOpacity(0.1),
+                        const Color(0xFF059669).withOpacity(0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // En-tête avec agent recommandé
                       Row(
                         children: [
-                          Icon(Icons.person, color: Colors.green[700]),
-                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
                           Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${bestAgent['prenom']} ${bestAgent['nom']}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF065F46),
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                Text(
+                                  'Agent recommandé',
+                                  style: TextStyle(
+                                    color: const Color(0xFF10B981),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
                             child: Text(
-                              '${bestAgent['prenom']} ${bestAgent['nom']}',
-                              style: TextStyle(
+                              'Score: ${score['total'].toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.green[700],
-                                fontSize: 16,
+                                fontSize: 12,
                               ),
                             ),
                           ),
                         ],
                       ),
+
+                      const SizedBox(height: 16),
+
+                      // Statistiques détaillées
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              icon: Icons.work_outline,
+                              label: 'Charge actuelle',
+                              value: '${score['details']['chargeActuelle']} contrats',
+                              color: const Color(0xFF3B82F6),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildStatCard(
+                              icon: Icons.schedule,
+                              label: 'Délai moyen',
+                              value: '${score['details']['delaiMoyen'].toStringAsFixed(1)} jours',
+                              color: const Color(0xFF8B5CF6),
+                            ),
+                          ),
+                        ],
+                      ),
+
                       const SizedBox(height: 8),
-                      Text(
-                        '📊 Score IA: ${score['total'].toStringAsFixed(2)}',
-                        style: TextStyle(color: Colors.green[600]),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '📈 Charge: ${score['details']['chargeActuelle']} contrats',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        '⏱️ Délai moyen: ${score['details']['delaiMoyen'].toStringAsFixed(1)} jours',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        '⭐ Taux réussite: ${(score['details']['tauxReussite'] * 100).toStringAsFixed(1)}%',
-                        style: const TextStyle(fontSize: 12),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              icon: Icons.star_outline,
+                              label: 'Taux de réussite',
+                              value: '${(score['details']['tauxReussite'] * 100).toStringAsFixed(1)}%',
+                              color: const Color(0xFFF59E0B),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildStatCard(
+                              icon: Icons.trending_up,
+                              label: 'Performance',
+                              value: score['total'] >= 8.0 ? 'Excellente' : score['total'] >= 6.0 ? 'Bonne' : 'Moyenne',
+                              color: const Color(0xFF10B981),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -706,34 +871,82 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
 
                 // Autres agents (top 3)
                 if (allScores.length > 1) ...[
-                  const Text(
-                    '🥈 Autres agents disponibles:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6B7280),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.people_outline,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Autres agents disponibles',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Color(0xFF374151),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   ...allScores.take(3).skip(1).map((agentScore) {
                     final agent = agentScore['agent'];
                     final agentScoreData = agentScore['score'];
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 4),
-                      padding: const EdgeInsets.all(8),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(6),
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
                       ),
                       child: Row(
                         children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6B7280),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Icon(
+                              Icons.person_outline,
+                              color: Colors.white,
+                              size: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               '${agent['prenom']} ${agent['nom']}',
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF374151),
+                              ),
                             ),
                           ),
-                          Text(
-                            'Score: ${agentScoreData['total'].toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[600],
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6B7280).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'Score: ${agentScoreData['total'].toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF6B7280),
+                              ),
                             ),
                           ),
                         ],
@@ -745,35 +958,102 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
             ),
           ),
           actions: [
+            // Bouton Annuler
             TextButton(
               onPressed: () => Navigator.of(context).pop('cancel'),
-              child: const Text('❌ Annuler'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop('approve_only'),
-              child: const Text('✅ Approuver seulement'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pop('approve_manual'),
-              icon: const Icon(Icons.person, size: 16),
-              label: const Text('👤 Affecter manuellement'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange[700],
-                foregroundColor: Colors.white,
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey[700],
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              child: const Text(
+                '❌ Annuler',
+                style: TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
+            const SizedBox(width: 8),
+
+            // Bouton Affecter manuellement
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).pop('approve_manual'),
+              icon: const Icon(Icons.person_outline, size: 18),
+              label: const Text('👤 Affecter manuellement'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF8B5CF6), // Violet moderne
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Bouton Affecter IA (principal)
             ElevatedButton.icon(
               onPressed: () => Navigator.of(context).pop('approve_ai'),
-              icon: const Icon(Icons.smart_toy, size: 16),
+              icon: const Icon(Icons.auto_awesome, size: 18),
               label: const Text('🤖 Affecter IA'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[700],
+                backgroundColor: const Color(0xFF10B981), // Vert moderne
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 3,
               ),
             ),
           ],
         );
       },
+    );
+  }
+
+  /// 📊 Widget pour afficher une carte de statistique
+  Widget _buildStatCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 16),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: color.withOpacity(0.8),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1949,25 +2229,46 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.green[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.check_circle, color: Colors.green[600], size: 24),
+          title: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF3B82F6),
+                  const Color(0xFF2563EB),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              const SizedBox(width: 12),
-              const Text(
-                'Approuver la Demande',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_outline,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Approuver la Demande',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1975,20 +2276,70 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
             children: [
               // Informations de la demande
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '📋 Demande ${demandeData['numero']}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3B82F6),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(
+                            Icons.description,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Demande ${demandeData['numero']}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text('🚗 ${demandeData['marque']} ${demandeData['modele']}'),
-                    Text('👤 ${demandeData['prenom']} ${demandeData['nom']}'),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(Icons.directions_car, color: Color(0xFF6B7280), size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${demandeData['marque']} ${demandeData['modele']}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF374151),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.person, color: Color(0xFF6B7280), size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${demandeData['prenom']} ${demandeData['nom']}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF374151),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1998,46 +2349,61 @@ class _DemandesContratsScreenState extends State<DemandesContratsScreen> {
               Text(
                 'Comment souhaitez-vous affecter cette demande ?',
                 style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                  color: const Color(0xFF374151),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
           actions: [
+            // Bouton Annuler
             TextButton(
               onPressed: () => Navigator.of(context).pop('cancel'),
-              child: const Text('❌ Annuler'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF6B7280),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              child: const Text(
+                '❌ Annuler',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
+            const SizedBox(width: 8),
+
+            // Bouton Affecter IA (principal)
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: () => Navigator.of(context).pop('approve_ai'),
-                icon: const Icon(Icons.smart_toy, size: 18),
-                label: const Text('🤖 Approuver + Affecter IA'),
+                icon: const Icon(Icons.auto_awesome, size: 18),
+                label: const Text('🤖 Affecter IA'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[600],
+                  backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+                  elevation: 2,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
+
+            // Bouton Affecter manuellement
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: () => Navigator.of(context).pop('approve_manual'),
-                icon: const Icon(Icons.person, size: 18),
-                label: const Text('👤 Approuver + Choisir Agent'),
+                icon: const Icon(Icons.person_outline, size: 18),
+                label: const Text('👤 Choisir Agent'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[600],
+                  backgroundColor: const Color(0xFF8B5CF6),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+                  elevation: 2,
                 ),
               ),
             ),

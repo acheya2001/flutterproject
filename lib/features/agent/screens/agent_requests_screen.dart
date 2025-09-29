@@ -140,6 +140,20 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
             },
           ),
           IconButton(
+            icon: const Icon(Icons.bug_report),
+            onPressed: () async {
+              await _debugAllDemandes();
+            },
+            tooltip: 'Debug Demandes',
+          ),
+          IconButton(
+            icon: const Icon(Icons.build),
+            onPressed: () async {
+              await _corrigerAffectationAgent();
+            },
+            tooltip: 'Corriger Affectation',
+          ),
+          IconButton(
             icon: const Icon(Icons.science),
             onPressed: () => _simulerDocumentsCompletes(),
             tooltip: 'Simuler Documents Complétés',
@@ -1537,6 +1551,9 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
         });
 
         // Créer une notification pour le conducteur
+        print('🔔 Création notification documents_manquants pour conducteur: ${data['conducteurId']}');
+        print('📋 Documents manquants: ${result.join(', ')}');
+
         await FirebaseFirestore.instance
             .collection('notifications')
             .add({
@@ -1550,6 +1567,8 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
           'dateCreation': FieldValue.serverTimestamp(),
           'lu': false,
         });
+
+        print('✅ Notification documents_manquants créée avec succès');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2704,7 +2723,7 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
           'conducteurId': conducteurId,
           'type': 'paiement_requis',
           'titre': 'Dossier Validé - Paiement Requis',
-          'message': 'Votre dossier est complet ! Merci de vous présenter à l\'agence pour choisir votre fréquence de paiement et effectuer le premier paiement.',
+          'message': 'Votre dossier est complet ! Cliquez maintenant pour choisir votre fréquence de paiement et finaliser votre contrat.',
           'demandeId': requestId,
           'numeroContrat': numeroContrat,
           'dateCreation': FieldValue.serverTimestamp(),
@@ -2956,7 +2975,8 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
   /// 🔍 Debug: Afficher toutes les demandes pour diagnostic
   Future<void> _debugAllDemandes() async {
     try {
-      print('🔍 [DEBUG] Recherche de TOUTES les demandes...');
+      print('🔍 [DEBUG] === DIAGNOSTIC COMPLET ===');
+      print('🔍 [DEBUG] Agent ID actuel: $_currentAgentId');
 
       final allDemandes = await FirebaseFirestore.instance
           .collection('demandes_contrats')
@@ -2968,10 +2988,14 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
         final data = doc.data();
         print('  📄 [DEBUG] Demande ${doc.id}:');
         print('    - agentId: ${data['agentId']}');
+        print('    - agentNom: ${data['agentNom']}');
+        print('    - agentEmail: ${data['agentEmail']}');
         print('    - statut: ${data['statut']}');
         print('    - numero: ${data['numero']}');
         print('    - conducteurId: ${data['conducteurId']}');
         print('    - agenceId: ${data['agenceId']}');
+        print('    - affectationMode: ${data['affectationMode']}');
+        print('    - dateAffectation: ${data['dateAffectation']}');
       }
 
       // Chercher spécifiquement les demandes pour cet agent
@@ -2987,8 +3011,106 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
         print('  ✅ [DEBUG] Ma demande ${doc.id}: statut=${data['statut']}, numero=${data['numero']}');
       }
 
+      // Debug: vérifier l'agent actuel
+      if (_currentAgentId != null) {
+        final agentDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_currentAgentId!)
+            .get();
+
+        if (agentDoc.exists) {
+          final agentData = agentDoc.data()!;
+          print('👤 [DEBUG] Agent actuel: ${agentData['prenom']} ${agentData['nom']} (${agentData['email']})');
+          print('👤 [DEBUG] AgenceId: ${agentData['agenceId']}');
+        } else {
+          print('❌ [DEBUG] Agent $_currentAgentId non trouvé dans users');
+        }
+      }
+
     } catch (e) {
       print('❌ [DEBUG] Erreur debug demandes: $e');
+    }
+  }
+
+  /// 🔧 Corriger l'affectation de l'agent pour les demandes mal assignées
+  Future<void> _corrigerAffectationAgent() async {
+    try {
+      print('🔧 [CORRECTION] Début correction affectation agent');
+
+      if (_currentAgentId == null) {
+        print('❌ [CORRECTION] Aucun agent connecté');
+        return;
+      }
+
+      // Récupérer les informations de l'agent actuel
+      final agentDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentAgentId!)
+          .get();
+
+      if (!agentDoc.exists) {
+        print('❌ [CORRECTION] Agent non trouvé');
+        return;
+      }
+
+      final agentData = agentDoc.data()!;
+      final agentEmail = agentData['email'];
+
+      print('🔧 [CORRECTION] Agent: ${agentData['prenom']} ${agentData['nom']} ($agentEmail)');
+
+      // Chercher les demandes affectées à cet agent par email mais avec un mauvais ID
+      final demandesQuery = await FirebaseFirestore.instance
+          .collection('demandes_contrats')
+          .where('agentEmail', isEqualTo: agentEmail)
+          .get();
+
+      print('🔍 [CORRECTION] ${demandesQuery.docs.length} demandes trouvées avec cet email');
+
+      int corrected = 0;
+      for (final doc in demandesQuery.docs) {
+        final data = doc.data();
+        final currentAgentId = data['agentId'];
+
+        if (currentAgentId != _currentAgentId) {
+          print('🔧 [CORRECTION] Correction demande ${doc.id}: $currentAgentId → $_currentAgentId');
+
+          await FirebaseFirestore.instance
+              .collection('demandes_contrats')
+              .doc(doc.id)
+              .update({
+            'agentId': _currentAgentId,
+            'affectationMode': 'correction_automatique',
+            'dateCorrectionAffectation': FieldValue.serverTimestamp(),
+          });
+
+          corrected++;
+        }
+      }
+
+      print('✅ [CORRECTION] $corrected demandes corrigées');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ $corrected demandes corrigées'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Rafraîchir l'interface
+        setState(() {});
+      }
+
+    } catch (e) {
+      print('❌ [CORRECTION] Erreur: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

@@ -107,6 +107,24 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
           ),
         ),
         actions: [
+          // BOUTON PDF DEMO - GROS ET VISIBLE
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/demo-pdf'),
+              icon: Icon(Icons.picture_as_pdf, color: Colors.white),
+              label: Text('PDF DEMO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[600],
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.pushNamed(context, '/test-pdf'),
+            icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+            tooltip: 'Test PDF',
+          ),
           IconButton(
             onPressed: _loadData,
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
@@ -122,6 +140,14 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
         ],
       ),
       body: _isLoading ? _buildLoadingState() : _buildContent(),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.pushNamed(context, '/demo-pdf'),
+        backgroundColor: Colors.orange[600],
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.auto_awesome),
+        label: const Text('PDF DÉMO'),
+        tooltip: 'Générer PDF de démonstration complet',
+      ),
     );
   }
 
@@ -209,6 +235,34 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
               Expanded(child: _buildStatItem('Admins Agence', _globalStats['adminAgences']?.toString() ?? '0', Icons.admin_panel_settings_rounded)),
               Expanded(child: _buildStatItem('Agents', _globalStats['agents']?.toString() ?? '0', Icons.people_rounded)),
             ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Bouton PDF Démo
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/demo-pdf'),
+              icon: const Icon(Icons.auto_awesome, size: 24),
+              label: const Text(
+                '🇹🇳 GÉNÉRER PDF DÉMO COMPLET',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 4,
+              ),
+            ),
           ),
         ],
       ),

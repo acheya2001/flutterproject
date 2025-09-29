@@ -21,18 +21,9 @@ class ConducteurAuthService {
     try {
       debugPrint('[ConducteurAuthService] Début inscription conducteur: $email');
 
-      // Vérifier d'abord si l'email existe déjà
-      try {
-        final methods = await _auth.fetchSignInMethodsForEmail(email);
-        if (methods.isNotEmpty) {
-          return {
-            'success': false,
-            'error': 'Cet email est déjà utilisé',
-          };
-        }
-      } catch (e) {
-        debugPrint('[ConducteurAuthService] Erreur vérification email: $e');
-      }
+      // Vérifier d'abord si l'email existe déjà en tentant de créer le compte
+      // La nouvelle version de Firebase Auth ne fournit plus fetchSignInMethodsForEmail
+      // On laisse Firebase gérer la vérification lors de la création du compte
 
       // Créer l'utilisateur dans Firebase Auth avec gestion d'erreur améliorée
       UserCredential? userCredential;

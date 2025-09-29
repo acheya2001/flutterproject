@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'completer_documents_screen.dart';
 import 'choix_frequence_paiement_screen.dart';
 import 'contrat_actif_screen.dart';
+import '../../../services/test_documents_manquants_service.dart';
 import 'mes_contrats_dashboard.dart';
 import '../../../services/test_notifications_service.dart';
 
@@ -53,6 +54,54 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             icon: const Icon(Icons.delete_sweep),
             tooltip: 'Supprimer toutes les notifications',
           ),
+          // Bouton de test pour déboguer
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.bug_report, color: Colors.orange),
+            tooltip: 'Tests de débogage',
+            onSelected: (value) async {
+              switch (value) {
+                case 'test_docs':
+                  await TestDocumentsManquantsService.creerNotificationTestDocumentsManquants();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('🧪 Notification test documents manquants créée')),
+                  );
+                  break;
+                case 'test_paiement':
+                  await TestDocumentsManquantsService.creerNotificationTestPaiementRequis();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('🧪 Notification test paiement requis créée')),
+                  );
+                  break;
+                case 'verifier':
+                  await TestDocumentsManquantsService.verifierNotificationsExistantes();
+                  break;
+                case 'nettoyer':
+                  await TestDocumentsManquantsService.nettoyerNotificationsTest();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('🧹 Notifications de test supprimées')),
+                  );
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'test_docs',
+                child: Text('🧪 Test Documents Manquants'),
+              ),
+              const PopupMenuItem(
+                value: 'test_paiement',
+                child: Text('🧪 Test Paiement Requis'),
+              ),
+              const PopupMenuItem(
+                value: 'verifier',
+                child: Text('🔍 Vérifier Notifications'),
+              ),
+              const PopupMenuItem(
+                value: 'nettoyer',
+                child: Text('🧹 Nettoyer Tests'),
+              ),
+            ],
+          ),
         ],
       ),
       body: _currentUserId == null
@@ -77,6 +126,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 }
 
                 final notifications = snapshot.data?.docs ?? [];
+
+                // Debug: Afficher toutes les notifications reçues
+                print('🔍 CONDUCTEUR NOTIFICATIONS DEBUG:');
+                print('📊 Total notifications: ${notifications.length}');
+                for (final doc in notifications) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  print('📧 ${doc.id}: ${data['type']} - ${data['titre']}');
+                  print('   Message: ${data['message']}');
+                  print('   Date: ${data['dateCreation']?.toDate()}');
+                }
 
                 // Trier les notifications par date de création (plus récentes en premier)
                 notifications.sort((a, b) {

@@ -21,39 +21,39 @@ dependencies:
   cupertino_icons: ^1.0.2
 
   # Firebase - versions compatibles
-  firebase_core: ^2.24.2
-  firebase_auth: ^4.15.3
-  cloud_firestore: ^4.13.6
-  firebase_storage: ^11.5.6
-  firebase_messaging: ^14.6.7
-  firebase_analytics: ^10.4.5
-  firebase_crashlytics: ^3.3.5
-  firebase_app_check: ^0.2.1+8
-  cloud_functions: ^4.5.4
+  firebase_core: ^4.1.0
+  firebase_auth: ^6.0.2
+  cloud_firestore: ^6.0.1
+  firebase_storage: ^13.0.1
+  firebase_messaging: ^16.0.1
+  firebase_analytics: ^12.0.1
+  firebase_crashlytics: ^5.0.1
+  firebase_app_check: ^0.4.0+1
+  cloud_functions: ^6.0.1
 
   # Notifications - AJOUT IMPORTANT
-  flutter_local_notifications: ^17.0.0
-  timezone: ^0.9.2
+  flutter_local_notifications: ^19.4.2
+  timezone: ^0.10.1
 
   # Signature électronique - AJOUT NÉCESSAIRE
-  signature: ^5.4.0
+  signature: ^6.3.0
 
   # QR Code Scanner - Utilise mobile_scanner qui est déjà présent
 
   # Upload d'images - AJOUT NÉCESSAIRE
-  permission_handler: ^11.0.1
+  permission_handler: ^12.0.1
   flutter_image_compress: ^2.1.0
 
   # Export et partage - AJOUT NÉCESSAIRE
   path_provider: ^2.1.1
-  share_plus: ^7.2.1
+  share_plus: ^12.0.0
   open_file: ^3.3.2
 
   # Reactive streams - AJOUT NÉCESSAIRE
-  rxdart: ^0.27.7
+  rxdart: ^0.28.0
 
   # Graphiques et animations pour BI Dashboard
-  fl_chart: ^0.68.0
+  fl_chart: 0.69.0
   shimmer: ^3.0.0
   lottie: ^3.1.2
 
@@ -64,10 +64,10 @@ dependencies:
   flutter_native_splash: ^2.3.10
   cached_network_image: ^3.3.0
   flutter_svg: ^2.0.7
-  package_info_plus: ^4.0.0
-  flutter_dotenv: ^5.1.0
+  package_info_plus: ^8.3.1
+  flutter_dotenv: ^6.0.0
   equatable: ^2.0.5
-  flutter_riverpod: ^2.5.1
+  flutter_riverpod: ^3.0.0
 
   
   
@@ -77,27 +77,27 @@ dependencies:
   # Email service universel
   emailjs: ^4.0.0
   
-  logger: ^1.4.0
+  logger: ^2.6.1
   flutter_cache_manager: ^3.3.1
   provider: ^6.0.0
   
   # Rétrograder google_fonts pour être compatible
   google_fonts: ^6.3.0
   url_launcher: ^6.3.2
-  connectivity_plus: ^4.0.2
-  flutter_launcher_icons: ^0.13.1
+  connectivity_plus: ^7.0.0
+  flutter_launcher_icons: ^0.14.4
   smooth_page_indicator: ^1.1.0
   image: ^4.0.17
 
-  geolocator: ^10.1.0
+  geolocator: 14.0.1
   google_maps_flutter: ^2.5.0
   pdf: ^3.11.3
-  photo_view: ^0.14.0
+  photo_view: ^0.15.0
   flutter_signature_pad: ^3.0.1
   printing: ^5.11.0
-  geocoding: ^2.1.0
+  geocoding: ^4.0.0
   intl: ^0.20.2
-  audioplayers: ^5.2.0
+  audioplayers: ^6.5.1
 
   # QR Code pour sessions collaboratives
   qr_flutter: ^4.1.0
@@ -105,12 +105,12 @@ dependencies:
   # IA SIMPLE et GRATUITE pour PFE (sans dépendances externes)
   # speech_to_text: ^6.6.0  # Temporairement désactivé pour éviter les erreurs de build
   
-  google_sign_in: ^6.1.0
+  google_sign_in: ^7.1.1
   path: ^1.8.3
   flutter_animate: ^4.2.0
   
   # Utiliser une alternative à image_cropper
-  crop_your_image: ^0.7.5
+  crop_your_image: ^2.0.0
   
   # Ajout des dépendances manquantes pour la sérialisation JSON
   json_annotation: ^4.8.1
@@ -119,16 +119,16 @@ dependencies:
   flutter_spinkit: ^5.2.0
   
   # Dépendances pour les fonctionnalités de constat
-  flutter_tts: ^3.8.3
-  record: ^5.0.1
+  flutter_tts: ^4.2.3
+  record: ^6.1.1
 
   # Dépendances pour le constat collaboratif
-  mobile_scanner: ^3.5.6
+  mobile_scanner: ^7.0.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  flutter_lints: ^6.0.0
   
   # Ajout des dépendances de développement nécessaires
   build_runner: ^2.4.6

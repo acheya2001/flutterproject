@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'lib/core/services/firebase_email_service.dart';
+import 'lib/widgets/test_pdf_widget.dart';
 
 /// 🧪 Test rapide Gmail API
 void main() async {
@@ -76,6 +77,21 @@ class QuickTestWidget extends StatelessWidget {
                   backgroundColor: Colors.blue,
                   padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                 ),
+              ),
+              SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => TestPDFWidget()),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                ),
+                child: Text('📄 Tester PDF Amélioré'),
               ),
               SizedBox(height: 20),
               Text(

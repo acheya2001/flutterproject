@@ -22,6 +22,7 @@ import 'features/splash/presentation/screens/splash_screen.dart';
 import 'features/auth/presentation/screens/user_type_selection_screen_elegant.dart';
 import 'test_nouvelles_sections.dart';
 import 'demo_formulaire_moderne.dart';
+import 'widgets/demo_pdf_generator_widget.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/conducteur_login_screen.dart';
 
@@ -59,6 +60,9 @@ import 'features/conducteur/screens/conducteur_accidents_screen.dart';
 import 'features/agent/screens/pending_contracts_screen.dart';
 import 'features/agent/screens/pending_vehicles_management_screen.dart';
 import 'features/admin_agence/screens/agent_password_reset_screen.dart';
+
+// Import pour le test PDF
+import 'screens/test_pdf_screen.dart';
 
 // Imports pour les écrans d'assurance
 import 'features/conducteur/screens/add_vehicle_for_insurance_screen.dart';
@@ -237,6 +241,8 @@ class ConstatTunisieApp extends StatelessWidget {
         // Routes de test et démonstration
         '/test-nouvelles-sections': (context) => const TestNouvellesSections(),
         '/demo-formulaire-moderne': (context) => const DemoFormulaireModerne(),
+        '/test-pdf': (context) => const TestPdfScreen(),
+        '/demo-pdf': (context) => DemoPdfGeneratorWidget(),
       },
 
     );

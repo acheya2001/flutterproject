@@ -507,7 +507,10 @@ class _ElegantConducteurDashboardState extends State<ElegantConducteurDashboard>
         Expanded(
           child: _buildStatCard(
             title: 'Véhicules',
-            value: '${_vehicules.length}',
+            value: '${_demandes.where((d) {
+              final statut = d['statut'] ?? '';
+              return ['contrat_actif', 'documents_completes', 'frequence_choisie'].contains(statut);
+            }).length}',
             icon: Icons.directions_car,
             color: const Color(0xFF3B82F6),
           ),

@@ -26,26 +26,44 @@ class LoggingService {
   /// 📊 Log d'information
   static void info(String tag, String message, [dynamic data]) {
     _ensureInitialized();
-    _logger?.i('[$tag] $message', data);
+    if (data != null) {
+      _logger?.i('[$tag] $message\nData: $data');
+    } else {
+      _logger?.i('[$tag] $message');
+    }
   }
 
   /// ⚠️ Log d'avertissement
   static void warning(String tag, String message, [dynamic data]) {
     _ensureInitialized();
-    _logger?.w('[$tag] $message', data);
+    if (data != null) {
+      _logger?.w('[$tag] $message\nData: $data');
+    } else {
+      _logger?.w('[$tag] $message');
+    }
   }
 
   /// 🚨 Log d'erreur
   static void error(String tag, String message, [dynamic error, StackTrace? stackTrace]) {
     _ensureInitialized();
-    _logger?.e('[$tag] $message', error, stackTrace);
+    if (error != null && stackTrace != null) {
+      _logger?.e('[$tag] $message\nError: $error', error: error, stackTrace: stackTrace);
+    } else if (error != null) {
+      _logger?.e('[$tag] $message\nError: $error');
+    } else {
+      _logger?.e('[$tag] $message');
+    }
   }
 
   /// 🔧 Log de debug (uniquement en mode développement)
   static void debug(String tag, String message, [dynamic data]) {
     _ensureInitialized();
     if (kDebugMode) {
-      _logger?.d('[$tag] $message', data);
+      if (data != null) {
+        _logger?.d('[$tag] $message\nData: $data');
+      } else {
+        _logger?.d('[$tag] $message');
+      }
     }
   }
 
@@ -53,7 +71,11 @@ class LoggingService {
   static void performance(String tag, String operation, Duration duration, [Map<String, dynamic>? metadata]) {
     _ensureInitialized();
     final message = '$operation completed in ${duration.inMilliseconds}ms';
-    _logger?.i('[$tag] [PERFORMANCE] $message', metadata);
+    if (metadata != null) {
+      _logger?.i('[$tag] [PERFORMANCE] $message\nMetadata: $metadata');
+    } else {
+      _logger?.i('[$tag] [PERFORMANCE] $message');
+    }
   }
 
   /// 🔐 Log d'authentification (sans données sensibles)
@@ -93,20 +115,25 @@ class LoggingService {
   static void business(String tag, String event, Map<String, dynamic>? context) {
     _ensureInitialized();
     final sanitizedContext = _sanitizeBusinessContext(context);
-    _logger?.i('[$tag] [BUSINESS] $event', sanitizedContext);
+    if (sanitizedContext != null) {
+      _logger?.i('[$tag] [BUSINESS] $event\nContext: $sanitizedContext');
+    } else {
+      _logger?.i('[$tag] [BUSINESS] $event');
+    }
   }
 
   /// 🚨 Log d'exception avec gestion appropriée
   static void exception(String tag, AppException exception, [StackTrace? stackTrace]) {
     _ensureInitialized();
+    final exceptionData = {
+      'code': exception.code,
+      'userMessage': exception.userMessage,
+      'technicalMessage': exception.technicalMessage,
+    };
     _logger?.e(
-      '[$tag] [EXCEPTION] ${exception.runtimeType}: ${exception.message}',
-      {
-        'code': exception.code,
-        'userMessage': exception.userMessage,
-        'technicalMessage': exception.technicalMessage,
-      },
-      stackTrace ?? exception.stackTrace,
+      '[$tag] [EXCEPTION] ${exception.runtimeType}: ${exception.message}\nData: $exceptionData',
+      error: exception,
+      stackTrace: stackTrace ?? exception.stackTrace,
     );
   }
 

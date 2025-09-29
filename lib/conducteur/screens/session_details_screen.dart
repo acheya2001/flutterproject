@@ -6,9 +6,14 @@ import '../../models/collaborative_session_model.dart';
 import '../../services/collaborative_session_service.dart';
 import '../../services/collaborative_data_sync_service.dart';
 import '../../services/constat_pdf_service.dart';
+import '../../services/modern_tunisian_pdf_service.dart';
+import '../../services/complete_elegant_pdf_service.dart';
+import '../../services/complete_pdf_test_service.dart';
 import '../../widgets/modern_pdf_generator_widget.dart';
 import 'modern_single_accident_info_screen.dart';
 import 'modern_collaborative_sketch_screen.dart';
+import 'package:open_file/open_file.dart';
+import 'dart:io';
 
 /// 🎯 Écran "Détails de session" pour les sinistres collaboratifs
 /// 
@@ -143,6 +148,18 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
             icon: const Icon(Icons.picture_as_pdf),
             tooltip: 'Générer PDF',
           ),
+        // Bouton de recalcul du statut (pour debug/correction)
+        IconButton(
+          onPressed: _recalculerStatutSession,
+          icon: const Icon(Icons.refresh_outlined),
+          tooltip: 'Recalculer statut',
+        ),
+        // Bouton de correction directe (pour problèmes persistants)
+        IconButton(
+          onPressed: _correctionDirecte,
+          icon: const Icon(Icons.build, color: Colors.orange),
+          tooltip: 'Correction directe',
+        ),
         IconButton(
           onPressed: _chargerDonneesSession,
           icon: const Icon(Icons.refresh),
@@ -398,6 +415,105 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
                 );
               },
             ),
+
+          const SizedBox(height: 24),
+
+          // 🇹🇳 Section PDF Tunisien Original
+          _buildPDFTunisienSection(),
+
+          const SizedBox(height: 24),
+
+          // 🎯 Section PDF Complet et Élégant (NOUVEAU)
+          _buildPDFCompletElegantSection(),
+        ],
+      ),
+    );
+  }
+
+  /// 🇹🇳 Section PDF Tunisien
+  Widget _buildPDFTunisienSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.picture_as_pdf,
+                color: Colors.red[600],
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'PDF Format Tunisien Officiel',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red[800],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Génère un PDF au format officiel tunisien conforme aux standards '
+            'de l\'assurance automobile en Tunisie. Ce document peut être utilisé '
+            'pour les démarches administratives officielles.',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.red[700],
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Contenu du PDF tunisien :',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.red[800],
+            ),
+          ),
+          const SizedBox(height: 4),
+          ...const [
+            '• En-tête République Tunisienne',
+            '• Cases 1-5 : Informations générales',
+            '• Cases 6-14 : Détails par véhicule',
+            '• Case 15 : Croquis et signatures',
+            '• Format conforme aux assurances tunisiennes',
+          ].map((item) => Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 2),
+            child: Text(
+              item,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.red[700],
+              ),
+            ),
+          )),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _sessionData != null ? _genererPDFTunisien : null,
+              icon: const Icon(Icons.download),
+              label: const Text('Générer PDF Tunisien'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1561,6 +1677,559 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
     );
   }
 
+  /// 🎯 Section PDF Complet et Élégant (NOUVEAU)
+  Widget _buildPDFCompletElegantSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.purple[50]!, Colors.blue[50]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.purple[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple[600]!, Colors.blue[600]!],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.picture_as_pdf,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PDF COMPLET ET ÉLÉGANT',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple[800],
+                      ),
+                    ),
+                    Text(
+                      'NOUVEAU - Toutes les données de tous les participants',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Ce générateur PDF révolutionnaire récupère TOUTES les données des formulaires '
+            'de TOUS les participants (2, 3, 4+ conducteurs) et génère un rapport '
+            'totalement complet, élégant et professionnel. Parfait pour l\'envoi aux agents d\'assurance.',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.purple[700],
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.purple[300]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '✨ CONTENU DU PDF COMPLET :',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple[800],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...const [
+                  '🎨 Page de couverture élégante avec République Tunisienne',
+                  '📋 Informations générales complètes et résumé',
+                  '👤 Page détaillée pour CHAQUE participant avec TOUTES ses données',
+                  '🚨 Circonstances, dégâts et témoins de chaque participant',
+                  '📊 Tableau récapitulatif de tous les participants',
+                  '🎨 Croquis et signatures avec détails techniques',
+                  '💡 Page finale avec recommandations et contacts utiles',
+                ].map((item) => Padding(
+                  padding: EdgeInsets.only(left: 8, bottom: 4),
+                  child: Text(
+                    item,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.purple[700],
+                    ),
+                  ),
+                )),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _sessionData != null ? _genererPDFCompletElegant : null,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Générer PDF Complet et Élégant'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 3,
+              ),
+            ),
+          ),
+
+          // Bouton de test (uniquement en mode debug)
+          if (kDebugMode) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber[300]!),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.science, color: Colors.amber[700], size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'MODE TEST - Développement uniquement',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber[800],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _testerPDFAvecDonneesCompletes,
+                          icon: const Icon(Icons.bug_report, size: 16),
+                          label: const Text('Test PDF Complet', style: TextStyle(fontSize: 12)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.amber[600],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _nettoyerDonneesTest,
+                          icon: const Icon(Icons.cleaning_services, size: 16),
+                          label: const Text('Nettoyer', style: TextStyle(fontSize: 12)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.amber[700],
+                            side: BorderSide(color: Colors.amber[300]!),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 🎯 Générer le PDF complet et élégant (NOUVEAU)
+  Future<void> _genererPDFCompletElegant() async {
+    if (_sessionData == null) return;
+
+    try {
+      // Afficher un indicateur de chargement élégant
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple[600]!, Colors.blue[600]!],
+                  ),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Génération du PDF complet...',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple[800],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Récupération de toutes les données des participants',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Générer le PDF complet
+      final pdfUrl = await CompleteElegantPdfService.genererConstatCompletElegant(
+        sessionId: _sessionData!.id,
+      );
+
+      // Fermer le dialog de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher le succès avec design élégant
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.green[600]!, Colors.blue[600]!],
+                    ),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'PDF Complet Généré !',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green[800],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Votre rapport complet et élégant a été généré avec succès.\n'
+                  'Il contient toutes les données de tous les participants.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          try {
+                            final file = File(pdfUrl);
+                            if (await file.exists()) {
+                              final result = await OpenFile.open(pdfUrl);
+                              if (result.type != ResultType.done) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('PDF sauvegardé dans: $pdfUrl'),
+                                    duration: const Duration(seconds: 5),
+                                  ),
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Erreur ouverture PDF: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.open_in_new),
+                        label: const Text('Ouvrir'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue[600],
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close),
+                        label: const Text('Fermer'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      if (kDebugMode) {
+        print('✅ [SESSION_DETAILS] PDF complet élégant généré: $pdfUrl');
+      }
+
+    } catch (e) {
+      // Fermer le dialog de chargement si ouvert
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher l'erreur avec design élégant
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red[600],
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: const Icon(
+                    Icons.error,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Erreur de Génération',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red[800],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Une erreur s\'est produite lors de la génération du PDF complet:\n$e',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[600],
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Fermer'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      if (kDebugMode) {
+        print('❌ [SESSION_DETAILS] Erreur génération PDF complet: $e');
+      }
+    }
+  }
+
+  /// 🇹🇳 Générer le PDF au format tunisien
+  Future<void> _genererPDFTunisien() async {
+    if (_sessionData == null) return;
+
+    try {
+      // Afficher un indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Génération du PDF tunisien...'),
+            ],
+          ),
+        ),
+      );
+
+      // Générer le PDF
+      final pdfUrl = await ModernTunisianPdfService.genererConstatModerne(
+        sessionId: _sessionData!.id,
+      );
+
+      // Fermer le dialog de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher le succès
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('PDF tunisien généré avec succès !'),
+                    Text(
+                      'Sauvegardé dans Téléchargements',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  try {
+                    // Vérifier si le fichier existe
+                    final file = File(pdfUrl);
+                    if (await file.exists()) {
+                      // Ouvrir le PDF avec l'application par défaut
+                      final result = await OpenFile.open(pdfUrl);
+                      if (result.type != ResultType.done) {
+                        // Si l'ouverture échoue, afficher le chemin
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('PDF sauvegardé dans: $pdfUrl'),
+                            duration: const Duration(seconds: 5),
+                          ),
+                        );
+                      }
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Fichier non trouvé: $pdfUrl'),
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Erreur ouverture PDF: $e'),
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+                child: const Text(
+                  'Ouvrir',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+        ),
+        );
+      }
+
+      if (kDebugMode) {
+        print('✅ [SESSION_DETAILS] PDF tunisien généré: $pdfUrl');
+      }
+
+    } catch (e) {
+      // Fermer le dialog de chargement si ouvert
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher l'erreur
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Erreur génération PDF: $e'),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+        );
+      }
+
+      if (kDebugMode) {
+        print('❌ [SESSION_DETAILS] Erreur génération PDF tunisien: $e');
+      }
+    }
+  }
+
   void _gererValidationCroquis() {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null) return;
@@ -1731,6 +2400,310 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  /// 🧪 Tester le PDF avec des données complètes (mode debug uniquement)
+  Future<void> _testerPDFAvecDonneesCompletes() async {
+    if (!kDebugMode) return;
+
+    try {
+      // Afficher un indicateur de chargement pour le test
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.amber[600]!, Colors.orange[600]!],
+                  ),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Test en cours...',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber[800],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Création de données de test complètes\net génération du PDF',
+                style: TextStyle(fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Créer une session de test et générer le PDF
+      final pdfPath = await CompletePdfTestService.creerSessionTestEtGenererPDF();
+
+      // Fermer le dialog de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher le succès
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.green[600]!, Colors.teal[600]!],
+                    ),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Test Réussi !',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green[800],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Session de test créée avec 3 participants\n'
+                  'et PDF complet généré avec succès !',
+                  style: TextStyle(fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          try {
+                            final file = File(pdfPath);
+                            if (await file.exists()) {
+                              final result = await OpenFile.open(pdfPath);
+                              if (result.type != ResultType.done) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('PDF sauvegardé dans: $pdfPath'),
+                                    duration: const Duration(seconds: 5),
+                                  ),
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Erreur ouverture PDF: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.open_in_new),
+                        label: const Text('Ouvrir PDF'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[600],
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey[600],
+                        ),
+                        child: const Text('Fermer'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      print('✅ [TEST] PDF de test généré: $pdfPath');
+
+    } catch (e) {
+      // Fermer le dialog de chargement si ouvert
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher l'erreur
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur test PDF: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+
+      print('❌ [TEST] Erreur test PDF: $e');
+    }
+  }
+
+  /// 🧹 Nettoyer les données de test (mode debug uniquement)
+  Future<void> _nettoyerDonneesTest() async {
+    if (!kDebugMode) return;
+
+    try {
+      await CompletePdfTestService.nettoyerDonneesTest();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Données de test nettoyées avec succès'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur nettoyage: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 🔧 Recalculer le statut de session avec la nouvelle logique
+  Future<void> _recalculerStatutSession() async {
+    try {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🔧 Recalcul du statut en cours...'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Appeler la nouvelle méthode de recalcul
+      await CollaborativeSessionService.forcerRecalculStatutSession(widget.session.id);
+
+      // Recharger les données pour voir les changements
+      await _chargerDonneesSession();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Statut de session recalculé avec succès!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Erreur recalcul statut: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erreur recalcul statut: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
+  /// 🚨 Correction directe pour résoudre les problèmes de statut persistants
+  Future<void> _correctionDirecte() async {
+    try {
+      // Demander confirmation à l'utilisateur
+      final confirmation = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('🚨 Correction Directe'),
+          content: const Text(
+            'Cette action va analyser et corriger toutes les sessions avec des statuts incorrects.\n\n'
+            'Voulez-vous continuer ?'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('Corriger'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmation != true) return;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🚨 Correction directe en cours...'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // Appeler la méthode de correction directe
+      await CollaborativeSessionService.corrigerStatutSessionProblematique();
+
+      // Recharger les données pour voir les changements
+      await _chargerDonneesSession();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Correction directe terminée avec succès!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Erreur correction directe: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erreur correction directe: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 }

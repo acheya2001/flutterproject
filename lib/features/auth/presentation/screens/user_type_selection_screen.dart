@@ -3,6 +3,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../screens/login_screen.dart';
 import 'professional_account_request_screen.dart';
+import '../../../features/conducteur/screens/guest_join_session_screen.dart';
 
 /// 👥 Écran de sélection du type d'utilisateur
 class UserTypeSelectionScreen extends StatelessWidget {
@@ -148,14 +149,14 @@ class UserTypeSelectionScreen extends StatelessWidget {
                       _buildModernUserTypeCard(
                         context,
                         icon: Icons.person_outline,
-                        title: 'Conducteur / Client',
-                        subtitle: 'Déclarer un sinistre, consulter mes contrats',
+                        title: 'Conducteur',
+                        subtitle: '',
                         gradient: const LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
                         ),
-                        onTap: () => _navigateToLogin(context, 'driver'),
+                        onTap: () => _showConducteurOptions(context),
                       ),
 
                       const SizedBox(height: 16),
@@ -209,24 +210,6 @@ class UserTypeSelectionScreen extends StatelessWidget {
                       // Espace final pour éviter l'overflow
                       const SizedBox(height: 32),
                     ],
-                  ),
-                ),
-
-                // Bouton demande de compte professionnel
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _navigateToProfessionalRequest(context),
-                    icon: const Icon(Icons.work_outline),
-                    label: const Text('Demander un Compte Professionnel'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.primaryColor,
-                      side: BorderSide(color: AppTheme.primaryColor),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
                   ),
                 ),
 
@@ -391,11 +374,175 @@ class UserTypeSelectionScreen extends StatelessWidget {
     );
   }
 
+  /// 🚗 Afficher les options pour les conducteurs
+  void _showConducteurOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            const Text(
+              'Choisissez votre situation',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Option 1: Conducteur inscrit
+            _buildConducteurOption(
+              context,
+              icon: Icons.account_circle,
+              title: 'Conducteur',
+              subtitle: 'J\'ai un compte et je veux déclarer un sinistre',
+              color: Colors.blue,
+              onTap: () {
+                Navigator.pop(context);
+                _navigateToLogin(context, 'driver');
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            // Option 2: Rejoindre en tant qu'invité
+            _buildConducteurOption(
+              context,
+              icon: Icons.person_add,
+              title: 'Rejoindre en tant qu\'Invité',
+              subtitle: 'Je n\'ai pas de compte, rejoindre une session existante',
+              color: Colors.green,
+              onTap: () {
+                Navigator.pop(context);
+                _navigateToGuestJoin(context);
+              },
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _navigateToProfessionalRequest(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const ProfessionalAccountRequestScreen(),
+      ),
+    );
+  }
+
+  /// 🚗 Construire une option de conducteur
+  Widget _buildConducteurOption(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: color,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: Colors.grey.shade400,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 🎯 Naviguer vers l'écran de rejoindre en tant qu'invité
+  void _navigateToGuestJoin(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const GuestJoinSessionScreen(),
       ),
     );
   }
@@ -584,23 +731,25 @@ class UserTypeSelectionScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                          height: 1.3,
-                          shadows: [
-                            Shadow(
-                              offset: Offset(0, 1),
-                              blurRadius: 2,
-                              color: Colors.black26,
-                            ),
-                          ],
+                      if (subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                            height: 1.3,
+                            shadows: [
+                              Shadow(
+                                offset: Offset(0, 1),
+                                blurRadius: 2,
+                                color: Colors.black26,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

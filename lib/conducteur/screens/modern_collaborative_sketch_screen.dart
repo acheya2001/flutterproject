@@ -27,6 +27,34 @@ class _ModernCollaborativeSketchScreenState extends State<ModernCollaborativeSke
   List<SketchElement> _elementsCharges = [];
   bool _animationsInitialized = false;
 
+  /// 🔒 Vérifier si l'utilisateur actuel est le conducteur A (seul autorisé à modifier le croquis)
+  bool get _estConducteurA {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    final participantActuel = widget.session.participants.firstWhere(
+      (p) => p.userId == user.uid,
+      orElse: () => SessionParticipant(
+        userId: '',
+        nom: '',
+        prenom: '',
+        email: '',
+        telephone: '',
+        roleVehicule: '',
+        type: ParticipantType.inscrit,
+        statut: ParticipantStatus.en_attente,
+        estCreateur: false,
+      ),
+    );
+
+    return participantActuel.roleVehicule == 'A';
+  }
+
+  /// 🔒 Vérifier si le croquis est en mode lecture seule
+  bool get _estModeConsultationSeule {
+    return widget.readOnly || !_estConducteurA;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -293,12 +321,15 @@ class _ModernCollaborativeSketchScreenState extends State<ModernCollaborativeSke
               children: [
                 Icon(Icons.info_outline, color: Colors.blue[600]),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Dessinez ensemble le croquis de l\'accident. Chaque conducteur a sa couleur.',
+                    _estConducteurA
+                        ? 'Vous êtes le conducteur A. Vous pouvez modifier le croquis de l\'accident.'
+                        : 'Seul le conducteur A peut modifier le croquis. Vous pouvez le consulter.',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
+                      color: _estConducteurA ? Colors.green[700] : Colors.orange[700],
                     ),
                   ),
                 ),
@@ -330,9 +361,9 @@ class _ModernCollaborativeSketchScreenState extends State<ModernCollaborativeSke
                       key: ValueKey('sketch_${_elementsCharges.length}_${DateTime.now().millisecondsSinceEpoch}'),
                       width: double.infinity,
                       height: double.infinity,
-                      onSketchChanged: widget.readOnly ? null : _onSketchChanged, // 🔒 Désactiver modification si readOnly
+                      onSketchChanged: _estModeConsultationSeule ? null : _onSketchChanged, // 🔒 Seul conducteur A peut modifier
                       initialElements: _elementsCharges,
-                      isReadOnly: widget.readOnly, // 🔒 Utiliser le paramètre readOnly
+                      isReadOnly: _estModeConsultationSeule, // 🔒 Mode consultation pour tous sauf conducteur A
                     );
                   },
                 ),
@@ -340,7 +371,13 @@ class _ModernCollaborativeSketchScreenState extends State<ModernCollaborativeSke
             ),
           ),
 
-          // Boutons de validation pour les invités
+          // Boutons de validation pour les conducteurs en mode consultation
+          if (_estModeConsultationSeule && !widget.readOnly) ...[
+            const SizedBox(height: 20),
+            _buildBoutonsValidation(),
+          ],
+
+          // Boutons de validation pour les invités (mode readOnly original)
           if (widget.readOnly) ...[
             const SizedBox(height: 20),
             _buildBoutonsValidation(),

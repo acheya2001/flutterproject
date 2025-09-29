@@ -47,7 +47,7 @@ class TestNotificationsService {
         'conducteurEmail': conducteurEmail,
         'type': 'paiement_requis',
         'titre': 'Paiement en agence requis',
-        'message': 'Votre dossier est validé. Merci de vous présenter à l\'agence STAR Assurances - Tunis Centre pour finaliser le paiement de 250 DT.',
+        'message': 'Votre dossier est validé. Cliquez maintenant pour choisir votre fréquence de paiement et finaliser votre contrat.',
         'demandeId': 'test_demande_789',
         'dateCreation': FieldValue.serverTimestamp(),
         'lu': false,

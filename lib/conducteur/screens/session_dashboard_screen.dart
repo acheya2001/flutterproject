@@ -7,6 +7,7 @@ import '../../models/collaborative_session_model.dart';
 import '../../services/collaborative_session_service.dart';
 import '../../services/collaborative_data_sync_service.dart';
 import '../../services/signature_otp_service.dart';
+import '../../services/modern_tunisian_pdf_service.dart';
 import '../../services/conducteur_data_service.dart';
 import 'session_invitation_screen.dart';
 import 'collaborative_form_screen.dart';
@@ -1941,55 +1942,7 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
                 ),
               ],
 
-              // Bouton de debug pour les signatures (en mode développement)
-              if (pourcentage < 100) ...[
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _debuggerSignatures(sessionData['id']),
-                        icon: const Icon(Icons.bug_report, color: Colors.orange),
-                        label: const Text(
-                          'Debug',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.orange,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.orange),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _forcerMiseAJourSignatures(sessionData['id']),
-                        icon: const Icon(Icons.refresh, color: Colors.purple),
-                        label: const Text(
-                          'Fix',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.purple,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.purple),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+
             ],
           ),
         );
@@ -2404,54 +2357,7 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
     }
   }
 
-  /// 🐛 Déboguer les signatures
-  Future<void> _debuggerSignatures(String sessionId) async {
-    try {
-      await CollaborativeSessionService.debuggerSignatures(sessionId);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.info, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Debug terminé - Vérifiez la console pour les détails',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.blue,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Erreur debug: $e',
-                    style: const TextStyle(color: Colors.white),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 
   /// 🔍 Vérifier et corriger les statuts des participants
   Future<void> _verifierStatuts(String sessionId) async {
@@ -2542,73 +2448,7 @@ class _SessionDashboardScreenState extends State<SessionDashboardScreen>
     }
   }
 
-  /// 🔄 Forcer la mise à jour de la progression des signatures
-  Future<void> _forcerMiseAJourSignatures(String sessionId) async {
-    try {
-      print('🔄 [FIX] Début correction progression signatures');
 
-      // Afficher un indicateur de chargement
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Text('🔄 Correction en cours...'),
-              ],
-            ),
-            backgroundColor: Colors.purple,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
 
-      // Appeler la fonction de correction
-      await CollaborativeSessionService.forcerMiseAJourProgressionSignatures(sessionId);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('✅ Progression signatures corrigée !'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-
-      print('✅ [FIX] Correction progression signatures terminée');
-
-    } catch (e) {
-      print('❌ [FIX] Erreur correction: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(child: Text('❌ Erreur correction: $e')),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    }
-  }
 }

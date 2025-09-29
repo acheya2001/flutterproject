@@ -19,16 +19,50 @@ class ModernPDFGeneratorWidget extends StatefulWidget {
 class _ModernPDFGeneratorWidgetState extends State<ModernPDFGeneratorWidget> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('📄 PDF Agent'),
-        backgroundColor: Colors.blue,
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
       ),
-      body: const Center(
-        child: Text(
-          'Fonctionnalité PDF en développement',
-          style: TextStyle(fontSize: 18),
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.picture_as_pdf,
+            size: 60,
+            color: Colors.blue,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '📄 PDF Agent',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Fonctionnalité PDF en développement',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Session: ${widget.session.id}',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

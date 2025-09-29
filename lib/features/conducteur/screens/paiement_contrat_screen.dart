@@ -447,7 +447,7 @@ class _PaiementContratScreenState extends State<PaiementContratScreen> {
         'conducteurEmail': widget.demandeData['email'],
         'type': 'paiement_requis',
         'titre': 'Paiement en agence requis',
-        'message': 'Votre dossier est validé. Merci de vous présenter à l\'agence ${widget.demandeData['agenceNom']} pour finaliser le paiement de ${(montantTotal / nombrePaiements).toStringAsFixed(0)} DT.',
+        'message': 'Votre dossier est validé. Cliquez maintenant pour choisir votre fréquence de paiement et finaliser votre contrat.',
         'demandeId': widget.demandeId,
         'dateCreation': FieldValue.serverTimestamp(),
         'lu': false,

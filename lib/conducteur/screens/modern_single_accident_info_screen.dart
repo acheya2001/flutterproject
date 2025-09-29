@@ -8,6 +8,7 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import '../../services/accident_session_complete_service.dart';
@@ -148,12 +149,20 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
   // Variables pour les circonstances (ÉTAPE 5)
   List<int> _circonstancesSelectionnees = [];
 
+  // Variables pour les conditions d'accident (ÉTAPE 4)
+  List<String> _conditionsAccidentSelectionnees = [];
+
   // Variables pour la signature (ÉTAPE 6)
   Uint8List? _signatureData;
 
   // Variables pour la sauvegarde automatique
   String? _sessionId;
   Timer? _autoSaveTimer;
+
+  // 🚗 Variables pour la gestion des rôles de conducteurs A/B/C
+  String _roleVehiculeSelectionne = 'A'; // Par défaut A
+  final List<String> _rolesDisponibles = ['A', 'B', 'C'];
+  Map<String, String> _conducteursPresentsDansSession = {}; // roleVehicule -> nom du conducteur
 
   // 🎯 Système de progression par étapes (8 étapes) - Structure du matin
   int _etapeActuelle = 2; // Commencer à l'étape 2 (Informations Générales)
@@ -268,6 +277,68 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
   void _initialiserFormulaire() {
     _dateController.text = '${_dateAccident.day}/${_dateAccident.month}/${_dateAccident.year}';
     _heureController.text = '${_heureAccident.hour}:${_heureAccident.minute.toString().padLeft(2, '0')}';
+
+    // Attribution automatique du rôle selon l'ordre FIFO
+    _attribuerRoleAutomatique();
+  }
+
+  /// 🎯 Attribuer automatiquement le rôle du véhicule selon l'ordre FIFO
+  void _attribuerRoleAutomatique() {
+    // Si un rôle est déjà fourni par le widget, l'utiliser
+    if (widget.roleVehicule != null && widget.roleVehicule!.isNotEmpty) {
+      _roleVehiculeSelectionne = widget.roleVehicule!;
+      print('🎯 Rôle fourni par widget: $_roleVehiculeSelectionne');
+      return;
+    }
+
+    // Mode collaboratif - récupérer le rôle déjà attribué au participant
+    if (widget.session != null) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Chercher le participant actuel dans la session
+        final participantActuel = widget.session!.participants.firstWhere(
+          (p) => p.userId == user.uid,
+          orElse: () => SessionParticipant(
+            userId: '',
+            nom: '',
+            prenom: '',
+            email: '',
+            telephone: '',
+            roleVehicule: '',
+            type: ParticipantType.inscrit,
+            statut: ParticipantStatus.en_attente,
+            estCreateur: false,
+          ),
+        );
+
+        // Si le participant existe et a un rôle attribué, l'utiliser
+        if (participantActuel.userId.isNotEmpty && participantActuel.roleVehicule.isNotEmpty) {
+          _roleVehiculeSelectionne = participantActuel.roleVehicule;
+          print('🎯 Rôle récupéré depuis la session: $_roleVehiculeSelectionne pour utilisateur ${user.uid}');
+          return;
+        }
+      }
+
+      // Si pas de rôle trouvé, calculer le prochain rôle disponible
+      final rolesUtilises = widget.session!.participants
+          .map((p) => p.roleVehicule)
+          .where((role) => role.isNotEmpty)
+          .toSet();
+
+      // Trouver le premier rôle disponible dans l'ordre A, B, C, D, E...
+      final rolesEtendus = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+      for (final role in rolesEtendus) {
+        if (!rolesUtilises.contains(role)) {
+          _roleVehiculeSelectionne = role;
+          print('🎯 Rôle calculé automatiquement (FIFO): $_roleVehiculeSelectionne');
+          return;
+        }
+      }
+    }
+
+    // Par défaut, attribuer le rôle A
+    _roleVehiculeSelectionne = 'A';
+    print('🎯 Rôle par défaut attribué: $_roleVehiculeSelectionne');
   }
 
   /// 📊 Charger toutes les données du conducteur automatiquement
@@ -843,6 +914,9 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         ],
 
         const SizedBox(height: 24),
+        // 🚗 Sélection du rôle de conducteur (A, B, C)
+        _buildSelectionRoleConducteurSection(),
+        const SizedBox(height: 24),
         // 🚗 Gestion propriétaire/conducteur
         _buildProprietaireConducteurSection(),
       ],
@@ -1382,104 +1456,250 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
     }
   }
 
-  // 🎯 ÉTAPE 7/8: Signature électronique
+  // 🎯 ÉTAPE 7/8: Signature électronique - AMÉLIORÉE
   Widget _buildEtapeSignature() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSection(
-          'Signature électronique',
-          Icons.edit,
-          [
-            const Text(
-              'Signez le constat pour valider vos informations :',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        // Header moderne avec gradient
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.purple[600]!, Colors.blue[600]!],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const SizedBox(height: 20),
-
-            // Zone de signature
-            Container(
-              width: double.infinity,
-              height: 200,
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _signatureData != null ? Colors.green : Colors.grey[300]!,
-                  width: 2,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.purple.withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.draw,
+                  color: Colors.white,
+                  size: 28,
                 ),
               ),
-              child: _signatureData != null
-                  ? Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.memory(
-                            _signatureData!,
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: GestureDetector(
-                            onTap: _effacerSignature,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                              child: const Icon(
-                                Icons.close,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : GestureDetector(
-                      onTap: _signerConstat,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.edit,
-                            size: 48,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Appuyez pour signer',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Votre signature valide les informations saisies',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[500],
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Signature électronique',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Signez pour valider vos informations',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Zone de signature améliorée
+        Container(
+          width: double.infinity,
+          height: 250,
+          decoration: BoxDecoration(
+            color: _signatureData != null ? Colors.green[50] : Colors.grey[50],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _signatureData != null ? Colors.green[400]! : Colors.grey[300]!,
+              width: 3,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: (_signatureData != null ? Colors.green : Colors.grey).withOpacity(0.1),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: _signatureData != null
+              ? Stack(
+                  children: [
+                    // Signature affichée
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(13),
+                      child: Container(
+                        width: double.infinity,
+                        height: double.infinity,
+                        color: Colors.white,
+                        child: Image.memory(
+                          _signatureData!,
+                          width: double.infinity,
+                          height: double.infinity,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
 
-            const SizedBox(height: 16),
+                    // Badge de validation
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.green[600],
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified, color: Colors.white, size: 16),
+                            SizedBox(width: 4),
+                            Text(
+                              'Signée',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
 
-            // Bouton pour signer
-            SizedBox(
-              width: double.infinity,
+                    // Bouton effacer
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: GestureDetector(
+                        onTap: _effacerSignature,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.red[600],
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.red.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.refresh,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : GestureDetector(
+                  onTap: _estModeReadOnly ? null : _signerConstat,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: Colors.blue[300]!,
+                        width: 2,
+                        style: BorderStyle.solid,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[100],
+                            borderRadius: BorderRadius.circular(50),
+                          ),
+                          child: Icon(
+                            Icons.gesture,
+                            size: 48,
+                            color: Colors.blue[600],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Touchez pour signer',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.blue[700],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Votre signature valide toutes les informations\nsaisies dans ce constat',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Boutons d'action
+        Row(
+          children: [
+            if (_signatureData != null) ...[
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _effacerSignature,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refaire'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              flex: _signatureData != null ? 2 : 1,
               child: ElevatedButton.icon(
                 onPressed: _estModeReadOnly ? null : _signerConstat,
                 icon: Icon(_estModeReadOnly
@@ -1487,59 +1707,93 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                     : (_signatureData != null ? Icons.edit : Icons.draw)),
                 label: Text(_estModeReadOnly
                     ? 'Voir la signature'
-                    : (_signatureData != null ? 'Modifier la signature' : 'Signer le constat')),
+                    : (_signatureData != null ? 'Modifier' : 'Signer maintenant')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _estModeReadOnly
                       ? Colors.grey[400]
-                      : (_signatureData != null ? Colors.orange[600] : Colors.green[600]),
+                      : (_signatureData != null ? Colors.blue[600] : Colors.green[600]),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
             ),
-
-            if (_signatureData != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.check_circle, color: Colors.green[600], size: 20),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Signature enregistrée avec succès',
-                        style: TextStyle(
-                          color: Colors.green,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
+
+        // Message de confirmation
+        if (_signatureData != null) ...[
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.green[50]!, Colors.green[100]!],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green[300]!),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green[600],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(Icons.check, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Signature enregistrée avec succès !',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Vous pouvez maintenant finaliser votre constat',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
 
   // 🎯 ÉTAPE 8/8: Résumé Complet
   Widget _buildEtapeResumeComplet() {
-    // Charger le croquis quand on affiche le résumé
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      print('🔍 Chargement croquis depuis résumé...');
-      _chargerCroquisDepuisFirebase();
-    });
+    // Charger le croquis une seule fois quand on affiche le résumé
+    if (_croquisData.isEmpty && !_croquisChargeEnCours) {
+      _croquisChargeEnCours = true;
+      Future.delayed(Duration.zero, () async {
+        print('🔍 Chargement croquis depuis résumé...');
+        await _chargerCroquisDepuisFirebase();
+        if (mounted) {
+          setState(() {
+            _croquisChargeEnCours = false;
+          });
+        }
+      });
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2156,26 +2410,42 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
               }).toList(),
             ],
 
-            // Message si aucun témoin
+            // Message si aucun témoin - AMÉLIORÉ
             if (_temoins.isEmpty && (!_estModeCollaboratif || _temoinsPartages.isEmpty)) ...[
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[300]!),
+                  gradient: LinearGradient(
+                    colors: [Colors.blue[50]!, Colors.blue[100]!],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.blue[200]!),
                 ),
-                child: const Row(
+                child: Column(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.grey),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Aucun témoin ajouté. Vous pouvez ajouter des témoins si nécessaire.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
+                    Icon(
+                      Icons.people_outline,
+                      size: 48,
+                      color: Colors.blue[400],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Aucun témoin déclaré',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Les témoins peuvent aider à clarifier les circonstances de l\'accident.\nVous pouvez en ajouter en cliquant sur le bouton + ci-dessus.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
                       ),
                     ),
                   ],
@@ -2287,65 +2557,168 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
   Widget _buildTemoinCard(Temoin temoin, int index) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _getCouleurTypeAccident().withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _getCouleurTypeAccident().withOpacity(0.2)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.green[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: _getCouleurTypeAccident().withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: Text(
-                '${index + 1}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: _getCouleurTypeAccident(),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            // Avatar avec numéro
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.green[400]!, Colors.green[600]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(25),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  '${index + 1}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
-          ),
-          
-          const SizedBox(width: 12),
-          
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  temoin.nom,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+
+            const SizedBox(width: 16),
+
+            // Informations du témoin
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Nom
+                  Row(
+                    children: [
+                      const Icon(Icons.person, size: 16, color: Colors.grey),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          temoin.nom,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                if (temoin.telephone.isNotEmpty)
-                  Text(
-                    temoin.telephone,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
+
+                  const SizedBox(height: 8),
+
+                  // Téléphone
+                  if (temoin.telephone.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.phone, size: 16, color: Colors.grey),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            temoin.telephone,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+
+                  // Adresse
+                  if (temoin.adresse.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            temoin.adresse,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Actions
+            if (!_estModeReadOnly) ...[
+              const SizedBox(width: 8),
+              Column(
+                children: [
+                  // Bouton appeler (si téléphone disponible)
+                  if (temoin.telephone.isNotEmpty)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: IconButton(
+                        onPressed: () {
+                          // TODO: Implémenter l'appel téléphonique
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Appel vers ${temoin.telephone}'),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        icon: Icon(Icons.phone, color: Colors.blue[600], size: 20),
+                        tooltip: 'Appeler',
+                      ),
+                    ),
+
+                  // Bouton supprimer
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: IconButton(
+                      onPressed: () => _supprimerTemoin(index),
+                      icon: Icon(Icons.delete, color: Colors.red[600], size: 20),
+                      tooltip: 'Supprimer',
                     ),
                   ),
-              ],
-            ),
-          ),
-          
-          if (!_estModeReadOnly)
-            IconButton(
-              onPressed: () => _supprimerTemoin(index),
-              icon: const Icon(Icons.delete, color: Colors.red),
-              iconSize: 20,
-            ),
-        ],
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -3045,100 +3418,249 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
   }
 
   Widget _buildDialogueTemoin() {
+    final formKey = GlobalKey<FormState>();
     final nomController = TextEditingController();
     final adresseController = TextEditingController();
     final telephoneController = TextEditingController();
 
-    return AlertDialog(
-      title: const Text('Ajouter un témoin'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: nomController,
-            decoration: const InputDecoration(
-              labelText: 'Nom complet *',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: adresseController,
-            decoration: const InputDecoration(
-              labelText: 'Adresse',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: telephoneController,
-            decoration: const InputDecoration(
-              labelText: 'Téléphone',
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.phone,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            if (nomController.text.trim().isNotEmpty) {
-              final temoinData = {
-                'nom': nomController.text.trim(),
-                'adresse': adresseController.text.trim(),
-                'telephone': telephoneController.text.trim(),
-              };
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header avec icône
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.person_add,
+                      color: Colors.blue[600],
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Ajouter un témoin',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
 
-              if (_estModeCollaboratif && widget.session?.id != null) {
-                // Mode collaboratif : ajouter le témoin partagé
-                try {
-                  final user = FirebaseAuth.instance.currentUser;
-                  if (user != null) {
-                    await CollaborativeDataSyncService.ajouterTemoinPartage(
-                      sessionId: widget.session!.id,
-                      ajoutePar: user.uid,
-                      temoinData: temoinData,
-                    );
+              const SizedBox(height: 24),
+
+              // Champs du formulaire
+              TextFormField(
+                controller: nomController,
+                decoration: InputDecoration(
+                  labelText: 'Nom complet *',
+                  hintText: 'Ex: Ahmed Ben Ali',
+                  prefixIcon: const Icon(Icons.person),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Le nom est obligatoire';
                   }
-                } catch (e) {
-                  print('❌ Erreur ajout témoin partagé: $e');
-                  // Fallback en local si erreur
-                  if (mounted) {
-                    setState(() {
-                      _temoins.add(Temoin(
-                        nom: temoinData['nom']!,
-                        adresse: temoinData['adresse']!,
-                        telephone: temoinData['telephone']!,
-                      ));
-                    });
+                  if (value.trim().length < 2) {
+                    return 'Le nom doit contenir au moins 2 caractères';
                   }
-                }
-              } else {
-                // Mode normal : ajouter en local
-                if (mounted) {
-                  setState(() {
-                    _temoins.add(Temoin(
-                      nom: temoinData['nom']!,
-                      adresse: temoinData['adresse']!,
-                      telephone: temoinData['telephone']!,
-                    ));
-                  });
-                }
-              }
-              Navigator.pop(context);
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _getCouleurTypeAccident(),
+                  return null;
+                },
+                textCapitalization: TextCapitalization.words,
+              ),
+
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: adresseController,
+                decoration: InputDecoration(
+                  labelText: 'Adresse',
+                  hintText: 'Ex: Avenue Habib Bourguiba, Tunis',
+                  prefixIcon: const Icon(Icons.location_on),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                ),
+                maxLines: 2,
+                textCapitalization: TextCapitalization.words,
+              ),
+
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: telephoneController,
+                decoration: InputDecoration(
+                  labelText: 'Téléphone',
+                  hintText: 'Ex: +216 20 123 456',
+                  prefixIcon: const Icon(Icons.phone),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                ),
+                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value != null && value.trim().isNotEmpty) {
+                    // Validation basique du numéro de téléphone
+                    final phoneRegex = RegExp(r'^[\+]?[0-9\s\-\(\)]{8,}$');
+                    if (!phoneRegex.hasMatch(value.trim())) {
+                      return 'Format de téléphone invalide';
+                    }
+                  }
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 20),
+
+              // Note d'information
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[600], size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Les témoins peuvent aider à clarifier les circonstances de l\'accident',
+                        style: TextStyle(fontSize: 12, color: Colors.blue),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Boutons d'action
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Annuler'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        if (formKey.currentState!.validate()) {
+                          final temoinData = {
+                            'nom': nomController.text.trim(),
+                            'adresse': adresseController.text.trim(),
+                            'telephone': telephoneController.text.trim(),
+                          };
+
+                          if (_estModeCollaboratif && widget.session?.id != null) {
+                            // Mode collaboratif : ajouter le témoin partagé
+                            try {
+                              final user = FirebaseAuth.instance.currentUser;
+                              if (user != null) {
+                                await CollaborativeDataSyncService.ajouterTemoinPartage(
+                                  sessionId: widget.session!.id,
+                                  ajoutePar: user.uid,
+                                  temoinData: temoinData,
+                                );
+                              }
+                            } catch (e) {
+                              print('❌ Erreur ajout témoin partagé: $e');
+                              // Fallback en local si erreur
+                              if (mounted) {
+                                setState(() {
+                                  _temoins.add(Temoin(
+                                    nom: temoinData['nom']!,
+                                    adresse: temoinData['adresse']!,
+                                    telephone: temoinData['telephone']!,
+                                  ));
+                                });
+                              }
+                            }
+                          } else {
+                            // Mode normal : ajouter en local
+                            if (mounted) {
+                              setState(() {
+                                _temoins.add(Temoin(
+                                  nom: temoinData['nom']!,
+                                  adresse: temoinData['adresse']!,
+                                  telephone: temoinData['telephone']!,
+                                ));
+                              });
+                            }
+                          }
+
+                          Navigator.pop(context);
+
+                          // Afficher un message de succès
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Row(
+                                  children: [
+                                    const Icon(Icons.check_circle, color: Colors.white),
+                                    const SizedBox(width: 8),
+                                    Text('Témoin "${temoinData['nom']}" ajouté avec succès'),
+                                  ],
+                                ),
+                                backgroundColor: Colors.green,
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Ajouter'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          child: const Text('Ajouter'),
         ),
-      ],
+      ),
     );
   }
 
@@ -3236,7 +3758,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
       // 🎯 NOUVEAU: Créer automatiquement le véhicule du conducteur avec les infos du contrat
       final vehiculeConducteur = VehiculeAccident(
-        roleVehicule: 'A', // Le conducteur est toujours véhicule A
+        roleVehicule: _roleVehiculeSelectionne, // Utiliser le rôle sélectionné par l'utilisateur
         conducteurId: user.uid,
 
         // Informations véhicule depuis le contrat
@@ -3310,6 +3832,19 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
   /// 🎯 Terminer le formulaire en mode collaboratif
   Future<void> _terminerFormulaireCollaboratif() async {
     try {
+      // Test de connectivité Firestore
+      print('🔍 Test de connectivité Firestore...');
+      bool firestoreAccessible = false;
+      try {
+        await FirebaseFirestore.instance.collection('test').limit(1).get();
+        print('✅ Firestore accessible');
+        firestoreAccessible = true;
+      } catch (e) {
+        print('❌ Firestore inaccessible: $e');
+        print('💾 Activation du mode hors ligne - sauvegarde locale');
+        firestoreAccessible = false;
+      }
+
       final user = FirebaseAuth.instance.currentUser!;
 
       print('🎯 Début terminer formulaire collaboratif');
@@ -3338,6 +3873,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         // Point de choc et dégâts
         'pointChocSelectionne': _pointChocSelectionne,
         'degatsSelectionnes': _degatsSelectionnes,
+        'photosDegatUrls': _photosDegatUrls, // ✅ AJOUTÉ: Photos des dégâts
 
         // Observations
         'observationsController': _observationsController.text.trim(),
@@ -3353,10 +3889,13 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
         // Métadonnées
         'dateTermine': DateTime.now().toIso8601String(),
-        'roleVehicule': widget.roleVehicule ?? 'A',
+        'roleVehicule': widget.roleVehicule ?? _roleVehiculeSelectionne,
         'estCreateur': _estCreateur,
         'estUtilisateurInscrit': _estUtilisateurInscrit,
       };
+
+      print('📸 Photos incluses dans la sauvegarde: ${_photosDegatUrls.length} photos');
+      print('📋 Données formulaire préparées: ${donneesFormulaire.keys.toList()}');
 
       // Sauvegarder l'état final du formulaire
       List<bool> etapesValideesListe = List.generate(_nombreEtapes, (index) {
@@ -3368,31 +3907,73 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         etapesValideesListe[i] = true;
       }
 
-      // 🆕 Marquer le formulaire comme terminé AVANT la sauvegarde
-      await _mettreAJourEtatFormulaire(FormulaireStatus.termine);
-      print('✅ État formulaire mis à jour: terminé');
+      if (firestoreAccessible) {
+        // Mode en ligne - sauvegarde normale
+        print('🌐 Mode en ligne - sauvegarde Firestore');
 
-      await CollaborativeSessionStateService.sauvegarderEtatFormulaire(
-        sessionId: widget.session!.id!,
-        participantId: user.uid,
-        donneesFormulaire: donneesFormulaire,
-        etapeActuelle: _nombreEtapes.toString(),
-        etapesValidees: etapesValideesListe,
-      );
+        // 🆕 Marquer le formulaire comme terminé AVANT la sauvegarde
+        print('🔄 Mise à jour état formulaire...');
+        await _mettreAJourEtatFormulaire(FormulaireStatus.termine);
+        print('✅ État formulaire mis à jour: terminé');
 
-      // Si c'est le créateur, sauvegarder aussi les données communes
-      if (_estCreateur) {
-        await _sauvegarderDonneesCommunes();
+        print('🔄 Sauvegarde état formulaire...');
+        await CollaborativeSessionStateService.sauvegarderEtatFormulaire(
+          sessionId: widget.session!.id!,
+          participantId: user.uid,
+          donneesFormulaire: donneesFormulaire,
+          etapeActuelle: _nombreEtapes.toString(),
+          etapesValidees: etapesValideesListe,
+        );
+        print('✅ État formulaire sauvegardé');
+
+        // Si c'est le créateur, sauvegarder aussi les données communes
+        if (_estCreateur) {
+          print('🔄 Sauvegarde données communes (créateur)...');
+          await _sauvegarderDonneesCommunes();
+          print('✅ Données communes sauvegardées');
+        }
+
+        // Sauvegarder dans l'historique personnel des sinistres
+        print('🔄 Sauvegarde historique sinistres...');
+        await _sauvegarderDansHistoriqueSinistres(donneesFormulaire);
+      } else {
+        // Mode hors ligne - sauvegarde locale
+        print('💾 Mode hors ligne - sauvegarde locale');
+
+        // Sauvegarder localement avec SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        final donneesJson = jsonEncode({
+          'sessionId': widget.session!.id,
+          'userId': user.uid,
+          'donneesFormulaire': donneesFormulaire,
+          'etapesValidees': etapesValideesListe,
+          'timestamp': DateTime.now().toIso8601String(),
+          'photosCount': _photosDegatUrls.length,
+        });
+
+        await prefs.setString('formulaire_hors_ligne_${widget.session!.id}', donneesJson);
+        print('✅ Formulaire sauvegardé localement');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('📱 Formulaire sauvegardé localement (mode hors ligne)'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
       }
-
-      // Sauvegarder dans l'historique personnel des sinistres
-      await _sauvegarderDansHistoriqueSinistres(donneesFormulaire);
+      print('✅ Historique sinistres sauvegardé');
 
       // ❌ SUPPRIMÉ: _mettreAJourStatutSession() car redondant avec _mettreAJourEtatFormulaire()
       // Le statut est déjà correctement mis à jour par CollaborativeSessionService.mettreAJourEtatFormulaire()
 
+      print('✅ Toutes les sauvegardes terminées avec succès');
+
       if (mounted) {
         // Afficher message de succès
+        print('🔄 Affichage message de succès...');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -3403,7 +3984,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                   child: Text(
                     _estCreateur
                         ? 'Session créée avec succès ! Partagez le code avec les autres conducteurs.'
-                        : 'Votre formulaire a été enregistré avec succès !',
+                        : 'Votre formulaire a été enregistré avec succès ! (${_photosDegatUrls.length} photos incluses)',
                   ),
                 ),
               ],
@@ -3414,6 +3995,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         );
 
         // Naviguer vers le dashboard de session avec données complètes
+        print('🔄 Navigation vers SessionDashboardScreen...');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -3422,6 +4004,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
             ),
           ),
         );
+        print('✅ Navigation lancée');
       }
 
     } catch (e) {
@@ -3505,7 +4088,34 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       }
 
       final sessionData = sessionDoc.data()!;
-      final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+
+      // Gestion sécurisée du type de participants
+      List<Map<String, dynamic>> participants = [];
+      final participantsData = sessionData['participants'];
+
+      if (participantsData != null) {
+        if (participantsData is List) {
+          // Si c'est déjà une liste, la convertir en sécurité
+          participants = participantsData.map((item) {
+            if (item is Map<String, dynamic>) {
+              return item;
+            } else if (item is Map) {
+              return Map<String, dynamic>.from(item);
+            } else {
+              print('⚠️ Participant ignoré (type invalide): $item');
+              return <String, dynamic>{};
+            }
+          }).where((item) => item.isNotEmpty).toList();
+        } else if (participantsData is Map) {
+          // Si c'est un Map, le convertir en liste
+          print('🔄 Conversion Map vers List pour participants');
+          participants = [Map<String, dynamic>.from(participantsData)];
+        } else {
+          print('⚠️ Type de participants non supporté: ${participantsData.runtimeType}');
+        }
+      }
+
+      print('📊 Participants chargés: ${participants.length}');
 
       // Trouver le participant actuel et mettre à jour ses données
       bool participantTrouve = false;
@@ -3527,7 +4137,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           'formulaireComplete': true,
           'dateFormulaireFini': DateTime.now().toIso8601String(),
           'estCreateur': _estCreateur,
-          'roleVehicule': widget.roleVehicule ?? 'vehicule_a',
+          'roleVehicule': widget.roleVehicule ?? _roleVehiculeSelectionne,
           'statut': 'termine',
         });
       }
@@ -3606,7 +4216,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           'dateTermine': DateTime.now().toIso8601String(),
           'formulaireComplete': true,
           'estCreateur': _estCreateur,
-          'roleVehicule': widget.roleVehicule ?? 'vehicule_a',
+          'roleVehicule': widget.roleVehicule ?? _roleVehiculeSelectionne,
         });
       }
 
@@ -4641,7 +5251,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       await CollaborativeSessionService.ajouterSignature(
         sessionId: widget.session!.id!,
         userId: user.uid,
-        roleVehicule: widget.roleVehicule ?? 'A',
+        roleVehicule: widget.roleVehicule ?? _roleVehiculeSelectionne,
         signatureBase64: signatureBase64,
       );
 
@@ -4967,15 +5577,17 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
         // Véhicule et Conducteur
         _buildSectionResumeComplete(
-          'Véhicule et Conducteur',
+          'Véhicule et Conducteur $_roleVehiculeSelectionne',
           Icons.directions_car,
           [
+            'Rôle véhicule: Conducteur $_roleVehiculeSelectionne',
             'Marque: ${_marqueController.text}',
             'Modèle: ${_modeleController.text}',
             'Immatriculation: ${_immatriculationController.text}',
             'Conducteur: ${_nomConducteurController.text} ${_prenomConducteurController.text}',
             'Téléphone: ${_telephoneController.text}',
             'Adresse: ${_adresseController.text}',
+            'Permis de conduire: ${_conducteurAPermis ? "Oui" : "Non"}',
           ],
         ),
 
@@ -4986,9 +5598,9 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           'Assurance',
           Icons.security,
           [
-            'Compagnie: ${_compagnieController.text}',
-            'Agence: ${_agenceController.text}',
-            'N° Contrat: ${_numeroContratController.text}',
+            'Compagnie: ${_vehiculeSelectionne?['compagnieNom'] ?? (_compagnieController.text.isNotEmpty ? _compagnieController.text : "Non renseignée")}',
+            'Agence: ${_vehiculeSelectionne?['agenceAssurance'] ?? (_agenceController.text.isNotEmpty ? _agenceController.text : "Non renseignée")}',
+            'N° Contrat: ${_vehiculeSelectionne?['numeroContrat'] ?? (_numeroContratController.text.isNotEmpty ? _numeroContratController.text : "Non renseigné")}',
           ],
         ),
 
@@ -5007,14 +5619,14 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
         const SizedBox(height: 16),
 
-        // Observations
+        // Observations et Conditions
         _buildSectionResumeComplete(
-          'Observations',
+          'Observations et Conditions',
           Icons.visibility,
           [
-            'Observations générales: ${_observationsController.text.isNotEmpty ? _observationsController.text : "Aucune"}',
-            'Remarques additionnelles: ${_remarquesController.text.isNotEmpty ? _remarquesController.text : "Aucune"}',
-            'Circonstances: ${_circonstancesController.text.isNotEmpty ? _circonstancesController.text : "Aucune"}',
+            'Observations détaillées: ${_circonstancesController.text.isNotEmpty ? _circonstancesController.text : "Aucune"}',
+            'Remarques importantes: ${_detailsBlessesController.text.isNotEmpty ? _detailsBlessesController.text : "Aucune"}',
+            'Conditions de l\'accident: ${_conditionsAccidentSelectionnees.isNotEmpty ? _conditionsAccidentSelectionnees.join(", ") : "Aucune"}',
           ],
         ),
 
@@ -5032,20 +5644,18 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
         const SizedBox(height: 16),
 
+        // Témoins détaillés
+        _buildSectionTemoinsResume(),
+
+        const SizedBox(height: 16),
+
         // Croquis
         _buildSectionCroquisResume(),
 
         const SizedBox(height: 16),
 
         // Signature
-        _buildSectionResumeComplete(
-          'Signature',
-          Icons.edit,
-          [
-            'Statut signature: ${_signatureData != null ? "✅ Signée" : "❌ Non signée"}',
-            if (_signatureData != null) 'Signature enregistrée avec succès',
-          ],
-        ),
+        _buildSectionSignatureResume(),
 
         const SizedBox(height: 20),
 
@@ -5150,20 +5760,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(7),
-                          child: Image.file(
-                            File(photosUrls[index]),
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey[200],
-                                child: Icon(
-                                  Icons.broken_image,
-                                  color: Colors.grey[400],
-                                  size: 30,
-                                ),
-                              );
-                            },
-                          ),
+                          child: _buildImageWidget(photosUrls[index]),
                         ),
                       ),
                     ),
@@ -5387,26 +5984,84 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
     );
   }
 
-  /// 📸 Card pour photo du permis (recto/verso)
+  /// 📸 Card pour photo du permis (recto/verso) - AMÉLIORÉE
   Widget _buildPhotoPermisCard(bool isRecto) {
     final photo = isRecto ? _photoPermisRecto : _photoPermisVerso;
     final photoUrl = isRecto ? _photoPermisRectoUrl : _photoPermisVersoUrl;
+    final hasPhoto = photo != null || (photoUrl != null && photoUrl.isNotEmpty);
 
     return GestureDetector(
       onTap: () => _prendrePhotoPermis(isRecto),
       child: Container(
-        height: 120,
+        height: 140, // Augmenté pour une meilleure visibilité
         decoration: BoxDecoration(
-          color: Colors.grey[100],
+          color: hasPhoto ? Colors.white : Colors.grey[100],
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!),
+          border: Border.all(
+            color: hasPhoto ? Colors.green[300]! : Colors.grey[300]!,
+            width: hasPhoto ? 2 : 1,
+          ),
+          boxShadow: hasPhoto ? [
+            BoxShadow(
+              color: Colors.green.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ] : null,
         ),
-        child: photo != null || (photoUrl != null && photoUrl.isNotEmpty)
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: photo != null
-                    ? Image.file(photo, fit: BoxFit.cover)
-                    : Image.network(photoUrl!, fit: BoxFit.cover),
+        child: hasPhoto
+            ? Stack(
+                children: [
+                  // Image avec fit: contain pour éviter la coupure
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      child: _buildImageWidget(photoUrl ?? photo!.path),
+                    ),
+                  ),
+                  // Indicateur de zoom
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: GestureDetector(
+                        onTap: () => _voirImageEnGrand(photoUrl ?? photo!.path),
+                        child: const Icon(
+                          Icons.zoom_in,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Label du type de photo
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        isRecto ? 'RECTO' : 'VERSO',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               )
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -5418,16 +6073,205 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    isRecto ? 'Recto' : 'Verso',
+                    'Ajouter ${isRecto ? 'Recto' : 'Verso'}',
                     style: TextStyle(
                       color: Colors.grey[600],
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Touchez pour prendre une photo',
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 10,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
       ),
+    );
+  }
+
+  /// 🚫 Widget d'erreur pour les images
+  Widget _buildImageErrorWidget(String message) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.broken_image, color: Colors.grey[600], size: 32),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 12,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🚗 Section sélection du rôle de conducteur (A, B, C)
+  Widget _buildSelectionRoleConducteurSection() {
+    return _buildSection(
+      'Rôle du véhicule dans l\'accident',
+      Icons.directions_car,
+      [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue[200]!),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Rôle attribué automatiquement selon l\'ordre d\'arrivée (FIFO) :',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Sélection des rôles A, B, C
+              Row(
+                children: _rolesDisponibles.map((role) {
+                  final isSelected = _roleVehiculeSelectionne == role;
+                  final isOccupied = _conducteursPresentsDansSession.containsKey(role) &&
+                                   _conducteursPresentsDansSession[role] != null;
+
+                  return Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      child: Container(
+                        // Suppression de l'interactivité - rôle attribué automatiquement
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.green[100]
+                                : isOccupied
+                                    ? Colors.red[100]
+                                    : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.green[400]!
+                                  : isOccupied
+                                      ? Colors.red[400]!
+                                      : Colors.grey[300]!,
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Véhicule $role',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected
+                                      ? Colors.green[700]
+                                      : isOccupied
+                                          ? Colors.red[700]
+                                          : Colors.grey[700],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              if (isSelected) ...[
+                                const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                                const Text('Sélectionné', style: TextStyle(fontSize: 10, color: Colors.green)),
+                              ] else if (isOccupied) ...[
+                                const Icon(Icons.person, color: Colors.red, size: 20),
+                                Text(
+                                  _conducteursPresentsDansSession[role]!,
+                                  style: const TextStyle(fontSize: 10, color: Colors.red),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ] else ...[
+                                const Icon(Icons.radio_button_unchecked, color: Colors.grey, size: 20),
+                                const Text('Disponible', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Information sur l'attribution automatique
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, color: Colors.blue[600], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Le rôle $_roleVehiculeSelectionne a été attribué automatiquement selon votre ordre d\'arrivée dans la session (FIFO).',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Information sur le rôle attribué
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.green[600], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Vous déclarez l\'accident en tant que conducteur du véhicule $_roleVehiculeSelectionne',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -5814,31 +6658,37 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           ),
         ),
 
-        // Affichage des photos ajoutées
+        // Affichage des photos ajoutées - AMÉLIORÉ
         if (_photosDegatUrls.isNotEmpty) ...[
           const SizedBox(height: 16),
-          const Text(
-            'Photos ajoutées :',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          Row(
+            children: [
+              const Icon(Icons.photo_library, color: Colors.green, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Photos des dégâts (${_photosDegatUrls.length})',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
           SizedBox(
-            height: 100,
+            height: 120, // Augmenté pour une meilleure visibilité
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: _photosDegatUrls.length,
               itemBuilder: (context, index) {
                 return Container(
                   margin: const EdgeInsets.only(right: 12),
-                  width: 100,
+                  width: 120, // Augmenté pour une meilleure visibilité
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[300]!),
+                    border: Border.all(color: Colors.green[300]!, width: 2),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
+                        color: Colors.green.withOpacity(0.1),
+                        blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -5849,34 +6699,11 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                       GestureDetector(
                         onTap: () => _voirImageEnGrand(_photosDegatUrls[index]),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.file(
-                            File(_photosDegatUrls[index]),
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              print('❌ Erreur chargement image: $error');
-                              return Container(
-                                width: 100,
-                                height: 100,
-                                color: Colors.grey[200],
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.broken_image, color: Colors.grey[600], size: 24),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Erreur',
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 120,
+                            height: 120,
+                            child: _buildImageWidget(_photosDegatUrls[index]),
                           ),
                         ),
                       ),
@@ -5888,13 +6715,34 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(4),
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
                             Icons.zoom_in,
                             color: Colors.white,
-                            size: 12,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+
+                      // Numéro de la photo
+                      Positioned(
+                        bottom: 4,
+                        right: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
@@ -5909,13 +6757,13 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                             width: 24,
                             height: 24,
                             decoration: BoxDecoration(
-                              color: Colors.red,
+                              color: Colors.red.withOpacity(0.9),
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.3),
-                                  blurRadius: 2,
-                                  offset: const Offset(0, 1),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
@@ -6135,30 +6983,55 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.file(
-                      File(imagePath),
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(12),
+                    child: imagePath.startsWith('https://')
+                        ? Image.network(
+                            imagePath,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.broken_image, size: 48, color: Colors.grey[600]),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Impossible d\'afficher l\'image réseau',
+                                      style: TextStyle(color: Colors.grey[600]),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          )
+                        : Image.file(
+                            File(imagePath),
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.broken_image, size: 48, color: Colors.grey[600]),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Impossible d\'afficher l\'image locale',
+                                      style: TextStyle(color: Colors.grey[600]),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.broken_image, size: 48, color: Colors.grey[600]),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Impossible d\'afficher l\'image',
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
                   ),
                 ),
               ),
@@ -6358,14 +7231,35 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           _degatsSelectionnes = List<String>.from(donneesFormulaire['degatsSelectionnes'] as List);
         }
 
+        // 📸 Photos des dégâts - AJOUTÉ
+        if (donneesFormulaire['photosDegatUrls'] != null) {
+          _photosDegatUrls = List<String>.from(donneesFormulaire['photosDegatUrls'] as List);
+          print('📸 Photos rechargées depuis Firestore: ${_photosDegatUrls.length} photos');
+          for (int i = 0; i < _photosDegatUrls.length; i++) {
+            print('📸 Photo $i: ${_photosDegatUrls[i]}');
+          }
+        }
+
         // Observations
         if (donneesFormulaire['observationsController'] != null) {
           _observationsController.text = donneesFormulaire['observationsController'];
         }
 
-        // Circonstances
+        if (donneesFormulaire['circonstancesController'] != null) {
+          _circonstancesController.text = donneesFormulaire['circonstancesController'];
+        }
+
+        if (donneesFormulaire['remarquesController'] != null) {
+          _detailsBlessesController.text = donneesFormulaire['remarquesController'];
+        }
+
+        // Circonstances et conditions
         if (donneesFormulaire['circonstancesSelectionnees'] != null) {
           _circonstancesSelectionnees = List<int>.from(donneesFormulaire['circonstancesSelectionnees'] as List);
+        }
+
+        if (donneesFormulaire['conditionsAccidentSelectionnees'] != null) {
+          _conditionsAccidentSelectionnees = List<String>.from(donneesFormulaire['conditionsAccidentSelectionnees'] as List);
         }
 
         // Croquis
@@ -6593,9 +7487,12 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
         // Observations
         'observationsController': _observationsController.text.trim(),
+        'circonstancesController': _circonstancesController.text.trim(),
+        'remarquesController': _detailsBlessesController.text.trim(),
 
-        // Circonstances
+        // Circonstances et conditions
         'circonstancesSelectionnees': _circonstancesSelectionnees,
+        'conditionsAccidentSelectionnees': _conditionsAccidentSelectionnees,
 
         // Croquis
         'croquisData': _croquisData,
@@ -6606,7 +7503,7 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
         // Métadonnées
         'derniereMiseAJour': DateTime.now().toIso8601String(),
-        'roleVehicule': widget.roleVehicule ?? 'A',
+        'roleVehicule': widget.roleVehicule ?? _roleVehiculeSelectionne,
         'estCreateur': _estCreateur,
         'estUtilisateurInscrit': _estUtilisateurInscrit,
       };
@@ -6674,8 +7571,12 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
       'degatsSelectionnes': _degatsSelectionnes,
       'photosDegatUrls': _photosDegatUrls,
 
-      // Circonstances
+      // Observations et circonstances
+      'observationsController': _observationsController.text,
+      'circonstancesController': _circonstancesController.text,
+      'remarquesController': _detailsBlessesController.text,
       'circonstancesSelectionnees': _circonstancesSelectionnees,
+      'conditionsAccidentSelectionnees': _conditionsAccidentSelectionnees,
 
       // Croquis
       'croquisData': _croquisData,
@@ -6893,7 +7794,11 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
           labelStyle: TextStyle(color: _estModeReadOnly ? Colors.grey[400] : Colors.grey[700]),
           hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
         ),
-        style: const TextStyle(fontSize: 15, height: 1.4),
+        style: TextStyle(
+          fontSize: 15,
+          height: 1.4,
+          color: _estModeReadOnly ? Colors.grey[600] : Colors.black87,
+        ),
       ),
     );
   }
@@ -6930,12 +7835,19 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
   /// 🏷️ Chip pour les conditions
   Widget _buildConditionChip(String condition, Color couleur) {
-    // Pour simplifier, on utilise une liste temporaire
-    // Dans une vraie app, vous stockeriez cela dans l'état
+    final isSelected = _conditionsAccidentSelectionnees.contains(condition);
+
     return FilterChip(
       label: Text(condition),
-      selected: false, // À gérer avec l'état
-      onSelected: (selected) {
+      selected: isSelected,
+      onSelected: _estModeReadOnly ? null : (selected) {
+        setState(() {
+          if (selected) {
+            _conditionsAccidentSelectionnees.add(condition);
+          } else {
+            _conditionsAccidentSelectionnees.remove(condition);
+          }
+        });
         _sauvegarderAutomatiquement();
       },
       selectedColor: couleur.withOpacity(0.2),
@@ -7359,30 +8271,436 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
     );
   }
 
+  /// 👥 Section témoins dans le résumé
+  Widget _buildSectionTemoinsResume() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.people,
+                  color: Colors.blue[700],
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Témoins de l\'accident',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Contenu des témoins
+          if (_temoins.isNotEmpty || _temoinsPartages.isNotEmpty) ...[
+            // Témoins locaux
+            if (_temoins.isNotEmpty) ...[
+              ...(_temoins.asMap().entries.map((entry) {
+                final index = entry.key;
+                final temoin = entry.value;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.person, color: Colors.blue[600], size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Témoin ${index + 1}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[700],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Nom: ${temoin.nom}', style: const TextStyle(fontSize: 13)),
+                      if (temoin.adresse.isNotEmpty)
+                        Text('Adresse: ${temoin.adresse}', style: const TextStyle(fontSize: 13)),
+                      if (temoin.telephone.isNotEmpty)
+                        Text('Téléphone: ${temoin.telephone}', style: const TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                );
+              }).toList()),
+            ],
+
+            // Témoins partagés (mode collaboratif)
+            if (_temoinsPartages.isNotEmpty) ...[
+              ...(_temoinsPartages.entries.map((entry) {
+                final roleVehicule = entry.key;
+
+                // 🔧 Conversion sécurisée des témoins
+                List<dynamic> temoinsRole = [];
+                final temoinsData = entry.value;
+
+                if (temoinsData != null) {
+                  if (temoinsData is List) {
+                    temoinsRole = temoinsData;
+                  } else if (temoinsData is Map) {
+                    // Convertir Map en List si nécessaire
+                    temoinsRole = [temoinsData];
+                  } else {
+                    print('⚠️ [TÉMOINS] Type de données non supporté pour rôle $roleVehicule: ${temoinsData.runtimeType}');
+                  }
+                }
+
+                return Column(
+                  children: temoinsRole.asMap().entries.map((temoinEntry) {
+                    final index = temoinEntry.key;
+                    final temoinData = temoinEntry.value as Map<String, dynamic>;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.group, color: Colors.green[600], size: 16),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Témoin partagé $roleVehicule-${index + 1}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green[700],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text('Nom: ${temoinData['nom'] ?? ''}', style: const TextStyle(fontSize: 13)),
+                          if ((temoinData['adresse'] ?? '').isNotEmpty)
+                            Text('Adresse: ${temoinData['adresse']}', style: const TextStyle(fontSize: 13)),
+                          if ((temoinData['telephone'] ?? '').isNotEmpty)
+                            Text('Téléphone: ${temoinData['telephone']}', style: const TextStyle(fontSize: 13)),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                );
+              }).toList()),
+            ],
+
+            // Résumé
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.grey[600], size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Total: ${_temoins.length + _temoinsPartages.values.fold<int>(0, (sum, temoinsRole) {
+                      // 🔧 Conversion sécurisée pour le comptage
+                      int count = 0;
+                      if (temoinsRole is List) {
+                        count = temoinsRole.length;
+                      } else if (temoinsRole is Map) {
+                        count = 1; // Un Map = un témoin
+                      }
+                      return sum + count;
+                    })} témoin(s) déclaré(s)',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            // Aucun témoin
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[200]!, style: BorderStyle.solid),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 20,
+                    color: Colors.grey[500],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Aucun témoin déclaré',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'Optionnel',
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// ✍️ Section signature dans le résumé
+  Widget _buildSectionSignatureResume() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _signatureData != null ? Colors.green[100] : Colors.orange[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _signatureData != null ? Icons.verified : Icons.edit,
+                  color: _signatureData != null ? Colors.green[700] : Colors.orange[700],
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Signature électronique',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Contenu de la signature
+          if (_signatureData != null) ...[
+            // Signature présente
+            Container(
+              height: 150,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green[300]!),
+              ),
+              child: Stack(
+                children: [
+                  // Affichage de la signature
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      width: double.infinity,
+                      height: 150,
+                      child: Image.memory(
+                        _signatureData!,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+
+                  // Badge de validation
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green[600],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified, color: Colors.white, size: 14),
+                          SizedBox(width: 4),
+                          Text(
+                            'Validée',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Informations sur la signature
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green[600], size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Signature enregistrée avec succès',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Le constat est prêt à être finalisé',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            // Aucune signature
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange[200]!, style: BorderStyle.solid),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.warning,
+                        size: 20,
+                        color: Colors.orange[600],
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Aucune signature disponible',
+                          style: TextStyle(
+                            color: Colors.orange[700],
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Retournez à l\'étape 7 pour signer le constat avant de le finaliser',
+                    style: TextStyle(
+                      color: Colors.orange[600],
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   /// 🎨 Section croquis dans le résumé
   Widget _buildSectionCroquisResume() {
     print('🔍 [RÉSUMÉ CROQUIS] _croquisExiste: $_croquisExiste, _croquisData.length: ${_croquisData.length}');
 
-    // Forcer le rechargement du croquis si pas encore chargé
-    if (_croquisData.isEmpty && !_croquisChargeEnCours) {
-      _croquisChargeEnCours = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        print('🔄 Rechargement forcé du croquis depuis le résumé...');
-        await _chargerCroquisDepuisFirebase();
-        if (mounted) {
-          setState(() {
-            _croquisChargeEnCours = false;
-          });
-        }
-      });
-    }
-
-    // Si on est en mode collaboratif, essayer de charger depuis la session
-    if (_estModeCollaboratif && widget.session?.id != null && _croquisData.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await _chargerCroquisDepuisSessionCollaborative();
-      });
-    }
+    // Ne plus utiliser addPostFrameCallback ici pour éviter la boucle infinie
+    // Le croquis sera chargé une seule fois dans _buildEtapeResumeComplet()
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -7508,33 +8826,78 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
 
             const SizedBox(height: 12),
 
-            // Informations sur le croquis
+            // Informations sur le croquis - AMÉLIORÉES
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.green[50],
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.green[200]!),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.check_circle, color: Colors.green[600], size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Croquis créé avec ${_croquisData.length} éléments',
-                      style: TextStyle(
-                        color: Colors.green[700],
-                        fontWeight: FontWeight.w500,
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green[600], size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Croquis interactif créé avec ${_croquisData.length} éléments',
+                          style: TextStyle(
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
-                    ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green[600],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Terminé',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    'Terminé',
-                    style: TextStyle(
-                      color: Colors.green[600],
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+
+                  const SizedBox(height: 12),
+
+                  // Analyse des données JSON
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green[300]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.code, color: Colors.blue[600], size: 16),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Données JSON du croquis',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildCroquisDataAnalysis(),
+                      ],
                     ),
                   ),
                 ],
@@ -7927,6 +9290,227 @@ class _ModernSingleAccidentInfoScreenState extends State<ModernSingleAccidentInf
         ],
       )],
     );
+  }
+
+  /// 📊 Analyse des données JSON du croquis
+  Widget _buildCroquisDataAnalysis() {
+    if (_croquisData.isEmpty) {
+      return Text(
+        'Aucune donnée disponible',
+        style: TextStyle(
+          fontSize: 11,
+          color: Colors.grey[600],
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    }
+
+    // Analyser les types d'éléments
+    Map<String, int> elementTypes = {};
+    for (final element in _croquisData) {
+      final type = element['type'] as String? ?? 'unknown';
+      elementTypes[type] = (elementTypes[type] ?? 0) + 1;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Types d'éléments avec badges colorés
+        if (elementTypes.isNotEmpty) ...[
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: elementTypes.entries.map((entry) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getElementTypeColor(entry.key).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _getElementTypeColor(entry.key).withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _getElementTypeColor(entry.key),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${_getElementTypeName(entry.key)}: ${entry.value}',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: _getElementTypeColor(entry.key),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: 8),
+        ],
+
+        // Informations techniques
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.storage, size: 12, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Taille des données: ${_croquisData.toString().length} caractères',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.layers, size: 12, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Format: JSON interactif avec coordonnées vectorielles',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 🎨 Couleur selon le type d'élément
+  Color _getElementTypeColor(String type) {
+    switch (type) {
+      case 'vehicle': return Colors.blue[600]!;
+      case 'road': return Colors.grey[600]!;
+      case 'path': return Colors.green[600]!;
+      case 'line': return Colors.orange[600]!;
+      case 'circle': return Colors.purple[600]!;
+      case 'rectangle': return Colors.red[600]!;
+      case 'text': return Colors.teal[600]!;
+      case 'arrow': return Colors.indigo[600]!;
+      default: return Colors.black87;
+    }
+  }
+
+  /// 📝 Nom lisible du type d'élément
+  String _getElementTypeName(String type) {
+    switch (type) {
+      case 'vehicle': return 'Véhicules';
+      case 'road': return 'Routes';
+      case 'path': return 'Tracés';
+      case 'line': return 'Lignes';
+      case 'circle': return 'Cercles';
+      case 'rectangle': return 'Rectangles';
+      case 'text': return 'Textes';
+      case 'arrow': return 'Flèches';
+      default: return type.toUpperCase();
+    }
+  }
+
+  /// 🖼️ Widget pour afficher une image (locale ou URL)
+  Widget _buildImageWidget(String imagePath) {
+    // Vérifier si c'est une URL ou un chemin local
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      // URL Firebase ou autre
+      return Image.network(
+        imagePath,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: Colors.grey[200],
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                    : null,
+                strokeWidth: 2,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[200],
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.broken_image,
+                  color: Colors.grey[400],
+                  size: 24,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Image\ninaccessible',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      // Fichier local
+      return Image.file(
+        File(imagePath),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[200],
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.broken_image,
+                  color: Colors.grey[400],
+                  size: 24,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Image locale\nnon accessible',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    }
   }
 
 }

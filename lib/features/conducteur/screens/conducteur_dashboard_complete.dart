@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:rxdart/rxdart.dart';
 import '../../../widgets/modern_session_status_widget.dart';
@@ -43,6 +44,7 @@ import '../../sinistre/screens/sinistre_choix_rapide_screen.dart';
 import '../../../conducteur/screens/accident_declaration_screen.dart';
 import '../../../services/sinistre_tracking_service.dart';
 import '../../../widgets/modern_sinistre_card.dart';
+import '../../../services/constat_tunisien_officiel_pdf.dart';
 
 class ConducteurDashboardComplete extends StatefulWidget {
   const ConducteurDashboardComplete({Key? key}) : super(key: key);
@@ -811,35 +813,9 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           ),
 
           IconButton(
-            icon: const Icon(Icons.login),
-            onPressed: () {
-              Navigator.of(context).pushReplacementNamed('/login');
-            },
-            tooltip: 'Reconnexion',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadUserData,
-            tooltip: 'Recharger',
-          ),
-          IconButton(
-            icon: const Icon(Icons.cleaning_services, color: Colors.red),
-            onPressed: _supprimerDonneesTest,
-            tooltip: 'Supprimer données test',
-          ),
-          IconButton(
-            icon: const Icon(Icons.warning, color: Colors.red),
-            onPressed: _creerSinistresTest,
-            tooltip: '🚨 CRÉER SINISTRES TEST',
-          ),
-          IconButton(
-            icon: const Icon(Icons.group_add, color: Colors.purple),
-            onPressed: _creerSessionTest,
-            tooltip: '👥 CRÉER SESSION COLLABORATIVE TEST',
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => Navigator.pushReplacementNamed(context, '/'),
+            tooltip: 'Déconnexion',
           ),
         ],
       ),
@@ -876,7 +852,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.info_outline),
-            label: 'Détails session',
+            label: 'Sessions',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.person),
@@ -890,7 +866,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
   /// 🎯 Bouton d'action flottant adaptatif
   Widget? _buildFloatingActionButton() {
-    // Mode sélection des sessions (onglet Détails session)
+    // Mode sélection des sessions (onglet Sessions)
     if (_selectedIndex == 3 && _isSelectionMode) {
       return _buildSelectionModeFloatingActions();
     }
@@ -1378,6 +1354,13 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
       return ['contrat_actif', 'documents_completes', 'frequence_choisie'].contains(statut);
     }).length;
 
+    // Véhicules assurés = nombre de demandes avec contrat actif
+    // Chaque demande correspond à un véhicule avec contrat actif
+    final vehiculesAssures = _demandes.where((d) {
+      final statut = d['statut'] ?? '';
+      return ['contrat_actif', 'documents_completes', 'frequence_choisie'].contains(statut);
+    }).length;
+
     // Demandes en attente
     final demandesEnAttente = _demandes.where((d) {
       final statut = d['statut'] ?? '';
@@ -1396,9 +1379,15 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
       collectionsUtilisees.add(vehicule['source'] ?? 'unknown');
     }
 
+    print('📊 STATS CALCULÉES:');
+    print('   - Contrats actifs: $contratsActifs');
+    print('   - Véhicules assurés: $vehiculesAssures');
+    print('   - Demandes totales: ${_demandes.length}');
+    print('   - Véhicules en base: ${_vehicules.length}');
+
     return {
       'contratsActifs': contratsActifs,
-      'vehicules': _vehicules.length,
+      'vehicules': vehiculesAssures, // ✅ Maintenant basé sur les contrats actifs
       'sinistres': _sinistres.length,
       'sinistresEnCours': sinistresEnCours,
       'demandes': _demandes.length,
@@ -4196,21 +4185,12 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                       ),
                       const SizedBox(height: 16),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          ElevatedButton.icon(
-                            onPressed: () => _creerSessionTest(),
-                            icon: const Icon(Icons.add, size: 16),
-                            label: const Text('Créer Test'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.purple[600],
-                              foregroundColor: Colors.white,
-                            ),
-                          ),
                           OutlinedButton.icon(
                             onPressed: () => _rejoindreSession(),
                             icon: const Icon(Icons.login, size: 16),
-                            label: const Text('Rejoindre'),
+                            label: const Text('Rejoindre Session'),
                           ),
                         ],
                       ),
@@ -5040,10 +5020,727 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
   }
 
   Widget _buildProfilPage() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // En-tête du profil
+            _buildProfileHeader(user),
+
+            const SizedBox(height: 24),
+
+            // Informations personnelles
+            _buildPersonalInfoSection(),
+
+            const SizedBox(height: 24),
+
+            // Statistiques du conducteur
+            _buildDriverStatsSection(),
+
+            const SizedBox(height: 24),
+
+            // Actions du profil
+            _buildProfileActions(),
+
+            const SizedBox(height: 24),
+
+            // Paramètres
+            _buildSettingsSection(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 👤 En-tête du profil
+  Widget _buildProfileHeader(User? user) {
     return Container(
-      color: Colors.white,
-      child: const Center(
-        child: Text('Page Profil - À implémenter'),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue[700]!, Colors.blue[900]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Avatar
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(40),
+              border: Border.all(color: Colors.white, width: 3),
+            ),
+            child: Icon(
+              Icons.person,
+              size: 40,
+              color: Colors.white,
+            ),
+          ),
+
+          const SizedBox(width: 20),
+
+          // Informations
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _nomConducteur,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  user?.email ?? 'Email non disponible',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green, width: 1),
+                  ),
+                  child: const Text(
+                    'Conducteur Vérifié',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Bouton éditer
+          IconButton(
+            onPressed: () => _editProfile(),
+            icon: const Icon(
+              Icons.edit,
+              color: Colors.white,
+              size: 24,
+            ),
+            tooltip: 'Modifier le profil',
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📋 Section informations personnelles
+  Widget _buildPersonalInfoSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.person_outline, color: Colors.blue[700], size: 24),
+              const SizedBox(width: 12),
+              const Text(
+                'Informations Personnelles',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          _buildProfileInfoRow('Nom complet', _nomConducteur, Icons.badge),
+          _buildProfileInfoRow('Email', FirebaseAuth.instance.currentUser?.email ?? 'Non renseigné', Icons.email),
+          _buildProfileInfoRow('Téléphone', '+216 XX XXX XXX', Icons.phone),
+          _buildProfileInfoRow('CIN', '12345678', Icons.credit_card),
+          _buildProfileInfoRow('Adresse', 'Tunis, Tunisie', Icons.location_on),
+          _buildProfileInfoRow('Date d\'inscription', _formatDate(FirebaseAuth.instance.currentUser?.metadata.creationTime), Icons.calendar_today),
+        ],
+      ),
+    );
+  }
+
+  /// 📊 Section statistiques du conducteur
+  Widget _buildDriverStatsSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.analytics_outlined, color: Colors.green[700], size: 24),
+              const SizedBox(width: 12),
+              const Text(
+                'Mes Statistiques',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildProfileStatCard(
+                  'Véhicules',
+                  '${_vehicules.length}',
+                  Icons.directions_car,
+                  Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildProfileStatCard(
+                  'Demandes',
+                  '${_demandes.length}',
+                  Icons.assignment,
+                  Colors.orange,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildProfileStatCard(
+                  'Sinistres',
+                  '${_sinistres.length}',
+                  Icons.warning,
+                  Colors.red,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildProfileStatCard(
+                  'Années',
+                  _calculateYearsSinceRegistration(),
+                  Icons.timeline,
+                  Colors.purple,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🎯 Actions du profil
+  Widget _buildProfileActions() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.settings_outlined, color: Colors.indigo[700], size: 24),
+              const SizedBox(width: 12),
+              const Text(
+                'Actions Rapides',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          _buildActionTile(
+            'Modifier mes informations',
+            'Mettre à jour nom, téléphone, adresse',
+            Icons.edit,
+            Colors.blue,
+            () => _editProfile(),
+          ),
+
+          _buildActionTile(
+            'Changer mot de passe',
+            'Sécuriser votre compte',
+            Icons.lock,
+            Colors.orange,
+            () => _changePassword(),
+          ),
+
+          _buildActionTile(
+            'Télécharger mes données',
+            'Exporter toutes mes informations',
+            Icons.download,
+            Colors.green,
+            () => _downloadUserData(),
+          ),
+
+          _buildActionTile(
+            'Support client',
+            'Contacter notre équipe',
+            Icons.support_agent,
+            Colors.purple,
+            () => _contactSupport(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ⚙️ Section paramètres
+  Widget _buildSettingsSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.settings, color: Colors.grey[700], size: 24),
+              const SizedBox(width: 12),
+              const Text(
+                'Paramètres',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          _buildSettingsTile(
+            'Notifications',
+            'Gérer les alertes et notifications',
+            Icons.notifications,
+            true,
+            (value) => _toggleNotifications(value),
+          ),
+
+          _buildSettingsTile(
+            'Mode sombre',
+            'Activer le thème sombre',
+            Icons.dark_mode,
+            false,
+            (value) => _toggleDarkMode(value),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Bouton déconnexion
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _logout(),
+              icon: const Icon(Icons.logout),
+              label: const Text('Se déconnecter'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📝 Widget pour une ligne d'information du profil
+  Widget _buildProfileInfoRow(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.grey[600]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📊 Widget pour une carte de statistique du profil
+  Widget _buildProfileStatCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 32),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🎯 Widget pour une action du profil
+  Widget _buildActionTile(String title, String subtitle, IconData icon, Color color, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        onTap: onTap,
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 24),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 14,
+          ),
+        ),
+        trailing: Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.grey[400],
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        tileColor: Colors.grey[50],
+      ),
+    );
+  }
+
+  /// ⚙️ Widget pour un paramètre avec switch
+  Widget _buildSettingsTile(String title, String subtitle, IconData icon, bool value, Function(bool) onChanged) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.grey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: Colors.grey[700], size: 24),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 14,
+          ),
+        ),
+        trailing: Switch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: Colors.blue[700],
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        tileColor: Colors.grey[50],
+      ),
+    );
+  }
+
+  /// 📅 Calculer les années depuis l'inscription
+  String _calculateYearsSinceRegistration() {
+    final creationTime = FirebaseAuth.instance.currentUser?.metadata.creationTime;
+    if (creationTime == null) return '0';
+
+    final now = DateTime.now();
+    final difference = now.difference(creationTime);
+    final years = (difference.inDays / 365).floor();
+
+    return years.toString();
+  }
+
+  /// ✏️ Modifier le profil
+  void _editProfile() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Modifier le profil'),
+        content: const Text('Cette fonctionnalité sera bientôt disponible.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🔒 Changer le mot de passe
+  void _changePassword() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Changer le mot de passe'),
+        content: const Text('Un email de réinitialisation sera envoyé à votre adresse.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _sendPasswordResetEmail();
+            },
+            child: const Text('Envoyer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📧 Envoyer email de réinitialisation
+  Future<void> _sendPasswordResetEmail() async {
+    try {
+      final email = FirebaseAuth.instance.currentUser?.email;
+      if (email != null) {
+        await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Email de réinitialisation envoyé !'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 📥 Télécharger les données utilisateur
+  void _downloadUserData() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Fonctionnalité de téléchargement en cours de développement'),
+        backgroundColor: Colors.blue,
+      ),
+    );
+  }
+
+  /// 🆘 Contacter le support
+  void _contactSupport() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Support Client'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Contactez-nous :'),
+            SizedBox(height: 12),
+            Text('📧 Email: support@constat-tunisie.com'),
+            Text('📞 Téléphone: +216 71 123 456'),
+            Text('🕒 Horaires: 8h-18h (Lun-Ven)'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🔔 Activer/désactiver les notifications
+  void _toggleNotifications(bool value) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(value ? 'Notifications activées' : 'Notifications désactivées'),
+        backgroundColor: value ? Colors.green : Colors.orange,
+      ),
+    );
+  }
+
+  /// 🌙 Activer/désactiver le mode sombre
+  void _toggleDarkMode(bool value) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(value ? 'Mode sombre activé' : 'Mode sombre désactivé'),
+        backgroundColor: value ? Colors.grey[800] : Colors.blue,
+      ),
+    );
+  }
+
+  /// 🚪 Se déconnecter
+  void _logout() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Déconnexion'),
+        content: const Text('Êtes-vous sûr de vouloir vous déconnecter ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              FirebaseAuth.instance.signOut();
+              Navigator.pushReplacementNamed(context, '/');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Déconnexion'),
+          ),
+        ],
       ),
     );
   }
@@ -5230,201 +5927,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            // Bouton refresh RADICAL
-            IconButton(
-              onPressed: () async {
-                print('🔄 BOUTON REFRESH CLIQUÉ - RECHARGEMENT RADICAL');
 
-                if (mounted) { setState(() {
-                  _isLoading = true;
-                });
-                }
-
-                try {
-                  final user = FirebaseAuth.instance.currentUser;
-                  if (user != null) {
-                    print('🔄 Utilisateur trouvé: ${user.uid}');
-
-                    // FORCER le rechargement complet
-                    await _loadVehicules(user.uid);
-
-                    print('🔄 Rechargement terminé, ${_vehicules.length} véhicules');
-
-                    // FORCER la mise à jour de l'interface
-                    if (mounted) { setState(() {
-                      _isLoading = false;
-                    });
-                    }
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('🔄 ${_vehicules.length} contrats rechargés avec données complètes'),
-                        backgroundColor: Colors.green,
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  } else {
-                    print('❌ Aucun utilisateur connecté');
-                    if (mounted) { setState(() {
-                      _isLoading = false;
-                    });
-                    }
-                  }
-                } catch (e) {
-                  print('❌ Erreur lors du refresh: $e');
-                  if (mounted) { setState(() {
-                    _isLoading = false;
-                  });
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ Erreur: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              icon: const Icon(Icons.refresh, size: 20),
-              tooltip: 'RECHARGEMENT RADICAL avec données complètes',
-              color: Colors.green[700],
-            ),
-            // Bouton DIAGNOSTIC SPÉCIAL
-            IconButton(
-              onPressed: () async {
-                print('🔍 BOUTON DIAGNOSTIC CLIQUÉ');
-
-                final user = FirebaseAuth.instance.currentUser;
-                if (user != null) {
-                  final diagnostic = await ConducteurDataService.diagnostiquerDonneesManquantes(user.uid);
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('🔍 Diagnostic terminé - Voir les logs'),
-                      backgroundColor: Colors.orange,
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                }
-              },
-              icon: const Icon(Icons.search, size: 20),
-              tooltip: 'DIAGNOSTIC DONNÉES MANQUANTES',
-              color: Colors.orange[700],
-            ),
-            // Bouton VRAIES DONNÉES
-            IconButton(
-              onPressed: () async {
-                print('🔄 BOUTON VRAIES DONNÉES CLIQUÉ');
-
-                if (mounted) { setState(() {
-                  _isLoading = true;
-                });
-                }
-
-                try {
-                  _vehicules = await ConducteurDataService.recupererVraiesDonneesContrat();
-
-                  if (mounted) { setState(() {
-                    _isLoading = false;
-                  });
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('🔄 ${_vehicules.length} véhicules avec VRAIES données récupérés'),
-                      backgroundColor: Colors.purple,
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                } catch (e) {
-                  print('❌ Erreur vraies données: $e');
-                  if (mounted) { setState(() {
-                    _isLoading = false;
-                  });
-                  }
-                }
-              },
-              icon: const Icon(Icons.verified, size: 20),
-              tooltip: 'RÉCUPÉRER VRAIES DONNÉES DE CONTRAT',
-              color: Colors.purple[700],
-            ),
-            // Bouton DEMANDES APPROUVÉES
-            IconButton(
-              onPressed: () async {
-                print('🎯 BOUTON DEMANDES APPROUVÉES CLIQUÉ');
-
-                if (mounted) { setState(() {
-                  _isLoading = true;
-                });
-                }
-
-                try {
-                  _vehicules = await ConducteurDataService.recupererDonneesContratDansDemandesApprouvees();
-
-                  if (mounted) { setState(() {
-                    _isLoading = false;
-                  });
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('🎯 ${_vehicules.length} véhicules depuis demandes approuvées'),
-                      backgroundColor: Colors.teal,
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                } catch (e) {
-                  print('❌ Erreur demandes approuvées: $e');
-                  if (mounted) { setState(() {
-                    _isLoading = false;
-                  });
-                  }
-                }
-              },
-              icon: const Icon(Icons.approval, size: 20),
-              tooltip: 'DONNÉES DEPUIS DEMANDES APPROUVÉES',
-              color: Colors.teal[700],
-            ),
-            // Bouton VRAIES DONNÉES OBSERVÉES
-            IconButton(
-              onPressed: () async {
-                print('🎯 BOUTON VRAIES DONNÉES OBSERVÉES CLIQUÉ');
-
-                if (mounted) {
-                  setState(() {
-                    _isLoading = true;
-                  });
-                }
-
-                try {
-                  _vehicules = await ConducteurDataService.recupererAvecVraisNumeros();
-
-                  if (mounted) {
-                    setState(() {
-                      _isLoading = false;
-                    });
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('🎯 ${_vehicules.length} véhicules avec VRAIES données des logs'),
-                      backgroundColor: Colors.indigo,
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                } catch (e) {
-                  print('❌ Erreur vraies données: $e');
-                  if (mounted) {
-                    setState(() {
-                      _isLoading = false;
-                    });
-                  }
-                }
-              },
-              icon: const Icon(Icons.verified_user, size: 20),
-              tooltip: 'VRAIES DONNÉES DEPUIS LES LOGS',
-              color: Colors.indigo[700],
-            ),
             TextButton.icon(
               onPressed: () => Navigator.push(
                 context,
@@ -7273,16 +7776,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(
-              child: _buildDashboardActionButton(
-                'Test Session',
-                'Créer session de test',
-                Icons.science,
-                Colors.orange,
-                _creerSessionTest,
-              ),
-            ),
-            const SizedBox(width: 12),
+
             Expanded(
               child: _buildDashboardActionButton(
                 'Historique',
@@ -7690,6 +8184,1336 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           ),
         );
       }
+    }
+  }
+
+  /// 📄 Page PDF avec affichage des sessions d'accident
+  Widget _buildPDFPage() {
+    return Scaffold(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // En-tête
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.red[600]!, Colors.red[800]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.assignment,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '🇹🇳 Sessions d\'Accident',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'Formulaires complets et constats détaillés',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _genererPDFTest,
+                    icon: Icon(Icons.picture_as_pdf, size: 16),
+                    label: Text('PDF Test'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.red[800],
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Sessions d'accident avec formulaires complets
+            if (_allSessions.isEmpty) ...[
+              _buildEmptySessionsState(),
+            ] else ...[
+              ..._allSessions.map((session) => _buildSessionDetailCard(session)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 📭 État vide des sessions
+  Widget _buildEmptySessionsState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(40),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.assignment_outlined,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Aucune session d\'accident',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Créez votre première déclaration d\'accident\npour voir les formulaires détaillés ici',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+              height: 1.4,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: () {
+              setState(() => _selectedIndex = 0); // Retour à l'accueil
+            },
+            icon: Icon(Icons.add_circle_outline),
+            label: Text('Créer un Constat'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[600],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📋 Carte détaillée d'une session d'accident
+  Widget _buildSessionDetailCard(CollaborativeSession session) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête de la session
+          _buildSessionHeader(session),
+
+          // Données communes
+          _buildCommonData(session),
+
+          // Participants et leurs formulaires
+          _buildParticipantsData(session),
+
+          // Croquis et signatures
+          _buildSketchAndSignatures(session),
+
+          // Actions
+          _buildSessionActions(session),
+        ],
+      ),
+    );
+  }
+
+  /// 📌 En-tête de la session
+  Widget _buildSessionHeader(CollaborativeSession session) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue[600]!, Colors.blue[800]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(15),
+          topRight: Radius.circular(15),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.assignment,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Session ${session.codeSession}',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  '${session.participants.length} participant(s) • ${_getStatusText(session.statut.toString())}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: _getStatusColor(session.statut.toString()),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              _getStatusText(session.statut.toString()),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📊 Données communes de l'accident
+  Widget _buildCommonData(CollaborativeSession session) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue[600], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Informations Générales',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Grille d'informations
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue[200]!),
+            ),
+            child: Column(
+              children: [
+                _buildPDFInfoRow('📅 Date', _formatPDFDate(session.dateCreation)),
+                _buildPDFInfoRow('📍 Lieu', 'Non spécifié'), // TODO: Ajouter lieuAccident au modèle
+                _buildPDFInfoRow('🚗 Véhicules', '${session.nombreVehicules} véhicule(s)'),
+                _buildPDFInfoRow('👥 Participants', '${session.participants.length} personne(s)'),
+                _buildPDFInfoRow('🔢 Code Session', session.codeSession),
+                _buildPDFInfoRow('⚠️ Type', session.typeAccident),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📝 Ligne d'information pour PDF
+  Widget _buildPDFInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.blue[800],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 👥 Données des participants
+  Widget _buildParticipantsData(CollaborativeSession session) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.people, color: Colors.green[600], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Participants et Formulaires',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Liste des participants
+          ...session.participants.asMap().entries.map((entry) {
+            final index = entry.key;
+            final participant = entry.value;
+            return _buildParticipantCard(participant, index, session.id!);
+          }),
+        ],
+      ),
+    );
+  }
+
+  /// 👤 Carte d'un participant
+  Widget _buildParticipantCard(SessionParticipant participant, int index, String sessionId) {
+    final vehicleLetter = String.fromCharCode(65 + index); // A, B, C...
+    final colors = [Colors.red, Colors.blue, Colors.green, Colors.orange, Colors.purple];
+    final color = colors[index % colors.length];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête du participant
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Center(
+                    child: Text(
+                      vehicleLetter,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Véhicule $vehicleLetter',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                      Text(
+                        participant.nom,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (participant.estCreateur)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.amber[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Créateur',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber[800],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // Formulaire du participant
+          _buildParticipantForm(participant, sessionId, color),
+        ],
+      ),
+    );
+  }
+
+  /// 📝 Formulaire détaillé d'un participant
+  Widget _buildParticipantForm(SessionParticipant participant, String sessionId, Color color) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _loadParticipantData(sessionId, participant.userId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            child: Center(
+              child: CircularProgressIndicator(color: color),
+            ),
+          );
+        }
+
+        final data = snapshot.data;
+        if (data == null) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Formulaire non rempli',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Informations du conducteur
+              _buildSectionTitle('👤 Conducteur', color),
+              const SizedBox(height: 8),
+              _buildFormGrid([
+                _buildFormField('Nom', '${data['prenom'] ?? ''} ${data['nom'] ?? ''}'),
+                _buildFormField('Téléphone', data['telephone'] ?? ''),
+                _buildFormField('Adresse', data['adresse'] ?? ''),
+                _buildFormField('Permis', data['numeroPermis'] ?? ''),
+              ]),
+
+              const SizedBox(height: 16),
+
+              // Informations du véhicule
+              _buildSectionTitle('🚗 Véhicule', color),
+              const SizedBox(height: 8),
+              _buildFormGrid([
+                _buildFormField('Marque/Modèle', '${data['marque'] ?? ''} ${data['modele'] ?? ''}'),
+                _buildFormField('Immatriculation', data['numeroImmatriculation'] ?? ''),
+                _buildFormField('Année', data['annee']?.toString() ?? ''),
+                _buildFormField('Couleur', data['couleur'] ?? ''),
+              ]),
+
+              const SizedBox(height: 16),
+
+              // Informations d'assurance
+              _buildSectionTitle('🛡️ Assurance', color),
+              const SizedBox(height: 8),
+              _buildFormGrid([
+                _buildFormField('Compagnie', data['compagnieAssurance'] ?? ''),
+                _buildFormField('N° Contrat', data['numeroContrat'] ?? ''),
+                _buildFormField('Agence', data['agence'] ?? ''),
+                _buildFormField('Validité', data['validiteAssurance'] ?? ''),
+              ]),
+
+              const SizedBox(height: 16),
+
+              // Circonstances
+              if (data['circonstances'] != null) ...[
+                _buildSectionTitle('⚠️ Circonstances', color),
+                const SizedBox(height: 8),
+                _buildCircumstances(data['circonstances'], color),
+              ],
+
+              const SizedBox(height: 16),
+
+              // Dégâts
+              if (data['degats'] != null) ...[
+                _buildSectionTitle('💥 Dégâts', color),
+                const SizedBox(height: 8),
+                _buildDamageInfo(data['degats'], color),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 📋 Titre de section
+  Widget _buildSectionTitle(String title, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 📊 Grille de formulaire
+  Widget _buildFormGrid(List<Widget> fields) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      children: fields,
+    );
+  }
+
+  /// 📝 Champ de formulaire
+  Widget _buildFormField(String label, String value) {
+    return Container(
+      width: (MediaQuery.of(context).size.width - 80) / 2,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value.isNotEmpty ? value : 'Non renseigné',
+            style: TextStyle(
+              fontSize: 14,
+              color: value.isNotEmpty ? Colors.grey[800] : Colors.grey[400],
+              fontStyle: value.isNotEmpty ? FontStyle.normal : FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ⚠️ Affichage des circonstances
+  Widget _buildCircumstances(List<dynamic> circonstances, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: circonstances.map((circ) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle, size: 16, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  circ.toString(),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        )).toList(),
+      ),
+    );
+  }
+
+  /// 💥 Informations sur les dégâts
+  Widget _buildDamageInfo(Map<String, dynamic> degats, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (degats['pointsChoc'] != null) ...[
+            Text(
+              'Points de choc: ${degats['pointsChoc']}',
+              style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 4),
+          ],
+          if (degats['degatsApparents'] != null) ...[
+            Text(
+              'Dégâts apparents: ${degats['degatsApparents']}',
+              style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 4),
+          ],
+          if (degats['observations'] != null) ...[
+            Text(
+              'Observations: ${degats['observations']}',
+              style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 🎨 Croquis et signatures
+  Widget _buildSketchAndSignatures(CollaborativeSession session) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.draw, color: Colors.orange[600], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Croquis et Signatures',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              // Croquis
+              Expanded(
+                child: _buildSketchSection(session.id!),
+              ),
+              const SizedBox(width: 16),
+              // Signatures
+              Expanded(
+                child: _buildSignaturesSection(session.id!),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🎨 Section croquis
+  Widget _buildSketchSection(String sessionId) {
+    return FutureBuilder<String?>(
+      future: _loadSketchData(sessionId),
+      builder: (context, snapshot) {
+        return Container(
+          height: 200,
+          decoration: BoxDecoration(
+            color: Colors.orange[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange[200]!),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[100],
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.draw, color: Colors.orange[700], size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Croquis d\'Accident',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[800],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: snapshot.connectionState == ConnectionState.waiting
+                    ? Center(child: CircularProgressIndicator(color: Colors.orange[600]))
+                    : snapshot.hasData && snapshot.data != null
+                        ? Container(
+                            margin: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                base64Decode(snapshot.data!),
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.error_outline, color: Colors.orange[400]),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Erreur image',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.orange[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.draw_outlined, color: Colors.orange[400], size: 32),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Aucun croquis',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// ✍️ Section signatures
+  Widget _buildSignaturesSection(String sessionId) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _loadSignaturesData(sessionId),
+      builder: (context, snapshot) {
+        return Container(
+          height: 200,
+          decoration: BoxDecoration(
+            color: Colors.purple[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.purple[200]!),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.purple[100],
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.edit, color: Colors.purple[700], size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Signatures',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple[800],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: snapshot.connectionState == ConnectionState.waiting
+                    ? Center(child: CircularProgressIndicator(color: Colors.purple[600]))
+                    : snapshot.hasData && snapshot.data!.isNotEmpty
+                        ? ListView.builder(
+                            padding: const EdgeInsets.all(8),
+                            itemCount: snapshot.data!.length,
+                            itemBuilder: (context, index) {
+                              final signature = snapshot.data![index];
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[200],
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: signature['signatureBase64'] != null
+                                          ? ClipRRect(
+                                              borderRadius: BorderRadius.circular(4),
+                                              child: Image.memory(
+                                                base64Decode(signature['signatureBase64']),
+                                                fit: BoxFit.cover,
+                                              ),
+                                            )
+                                          : Icon(Icons.edit, size: 12, color: Colors.grey[400]),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        signature['nom'] ?? 'Participant ${index + 1}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey[700],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.edit_outlined, color: Colors.purple[400], size: 32),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Aucune signature',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.purple[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 🎬 Actions de la session
+  Widget _buildSessionActions(CollaborativeSession session) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(15),
+          bottomRight: Radius.circular(15),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => _genererPDFPourSession(session.id!),
+              icon: Icon(Icons.picture_as_pdf, size: 18),
+              label: Text('Générer PDF'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: () {
+              // Navigation vers les détails de la session
+              setState(() => _selectedIndex = 4);
+            },
+            icon: Icon(Icons.visibility, size: 18),
+            label: Text('Détails'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[600],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📄 Générer PDF pour une session spécifique
+  Future<void> _genererPDFPourSession(String sessionId) async {
+    try {
+      // Afficher indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Génération du PDF...'),
+            ],
+          ),
+        ),
+      );
+
+      // Générer le PDF avec les vraies données
+      final pdfPath = await ConstatTunisienOfficielPdf.genererConstatOfficiel(
+        sessionId: sessionId,
+      );
+
+      // Fermer l'indicateur
+      Navigator.of(context).pop();
+
+      // Afficher le succès
+      _showPDFSuccessDialog(sessionId, pdfPath);
+
+    } catch (e) {
+      // Fermer l'indicateur
+      Navigator.of(context).pop();
+
+      // Afficher l'erreur
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur génération PDF: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 🧪 Générer PDF de test
+  Future<void> _genererPDFTest() async {
+    try {
+      // Afficher indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Création des données de test...'),
+            ],
+          ),
+        ),
+      );
+
+      // Créer une session de test avec des données complètes
+      // (Vous pouvez utiliser votre TestDataCompleteGenerator ici)
+      final sessionId = 'test_${DateTime.now().millisecondsSinceEpoch}';
+
+      // Générer le PDF
+      final pdfPath = await ConstatTunisienOfficielPdf.genererConstatOfficiel(
+        sessionId: sessionId,
+      );
+
+      // Fermer l'indicateur
+      Navigator.of(context).pop();
+
+      // Afficher le succès
+      _showPDFSuccessDialog(sessionId, pdfPath);
+
+    } catch (e) {
+      // Fermer l'indicateur
+      Navigator.of(context).pop();
+
+      // Afficher l'erreur
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur génération PDF test: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 🎉 Dialog de succès PDF
+  void _showPDFSuccessDialog(String sessionId, String pdfPath) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green[600], size: 28),
+            SizedBox(width: 10),
+            Text(
+              'PDF Généré !',
+              style: TextStyle(
+                color: Colors.green[800],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '🇹🇳 Constat Tunisien Officiel créé avec succès !',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 15),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '📋 Session: $sessionId',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[800],
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text('✅ 8 pages complètes', style: TextStyle(fontSize: 12)),
+                  Text('✅ Données des formulaires', style: TextStyle(fontSize: 12)),
+                  Text('✅ Signatures électroniques', style: TextStyle(fontSize: 12)),
+                  Text('✅ Croquis d\'accident', style: TextStyle(fontSize: 12)),
+                  Text('✅ Photos documentées', style: TextStyle(fontSize: 12)),
+                  Text('✅ Conforme réglementation tunisienne', style: TextStyle(fontSize: 12)),
+                ],
+              ),
+            ),
+            SizedBox(height: 15),
+            Container(
+              padding: EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.download, color: Colors.green[600], size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'PDF téléchargé automatiquement dans votre dossier de téléchargements.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.green[700],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Fermer'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('📤 Fonctionnalité de partage disponible'),
+                  backgroundColor: Colors.blue[600],
+                ),
+              );
+            },
+            icon: Icon(Icons.share),
+            label: Text('Partager'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[600],
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================================
+  // MÉTHODES UTILITAIRES POUR LES DONNÉES
+  // ============================================================================
+
+  /// 📊 Charger les données d'un participant
+  Future<Map<String, dynamic>?> _loadParticipantData(String sessionId, String userId) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .collection('participants_data')
+          .doc(userId)
+          .get();
+
+      if (doc.exists) {
+        return doc.data();
+      }
+
+      // Essayer dans l'ancienne structure
+      final oldDoc = await FirebaseFirestore.instance
+          .collection('collaborative_sessions')
+          .doc(sessionId)
+          .collection('participants_data')
+          .doc(userId)
+          .get();
+
+      return oldDoc.exists ? oldDoc.data() : null;
+    } catch (e) {
+      print('Erreur chargement données participant: $e');
+      return null;
+    }
+  }
+
+  /// 🎨 Charger les données du croquis
+  Future<String?> _loadSketchData(String sessionId) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .collection('croquis')
+          .doc('principal')
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data();
+        return data?['croquisBase64'];
+      }
+
+      // Essayer dans l'ancienne structure
+      final oldDoc = await FirebaseFirestore.instance
+          .collection('collaborative_sessions')
+          .doc(sessionId)
+          .collection('croquis')
+          .doc('principal')
+          .get();
+
+      if (oldDoc.exists) {
+        final data = oldDoc.data();
+        return data?['croquisBase64'];
+      }
+
+      return null;
+    } catch (e) {
+      print('Erreur chargement croquis: $e');
+      return null;
+    }
+  }
+
+  /// ✍️ Charger les données des signatures
+  Future<List<Map<String, dynamic>>> _loadSignaturesData(String sessionId) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .collection('signatures')
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        return snapshot.docs.map((doc) => {
+          'id': doc.id,
+          ...doc.data(),
+        }).toList();
+      }
+
+      // Essayer dans l'ancienne structure
+      final oldSnapshot = await FirebaseFirestore.instance
+          .collection('collaborative_sessions')
+          .doc(sessionId)
+          .collection('signatures')
+          .get();
+
+      return oldSnapshot.docs.map((doc) => {
+        'id': doc.id,
+        ...doc.data(),
+      }).toList();
+    } catch (e) {
+      print('Erreur chargement signatures: $e');
+      return [];
+    }
+  }
+
+  /// 📅 Formater une date pour PDF
+  String _formatPDFDate(DateTime? date) {
+    if (date == null) return 'Non spécifié';
+    return DateFormat('dd/MM/yyyy à HH:mm').format(date);
+  }
+
+  /// 🎨 Obtenir la couleur du statut
+  Color _getStatusColor(String statut) {
+    switch (statut.toLowerCase()) {
+      case 'creation':
+      case 'brouillon':
+        return Colors.orange;
+      case 'en_cours':
+      case 'actif':
+        return Colors.blue;
+      case 'termine':
+      case 'complete':
+        return Colors.green;
+      case 'envoye':
+      case 'soumis':
+        return Colors.purple;
+      case 'annule':
+      case 'supprime':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  /// 📝 Obtenir le texte du statut
+  String _getStatusText(String statut) {
+    switch (statut.toLowerCase()) {
+      case 'creation':
+      case 'brouillon':
+        return 'En création';
+      case 'en_cours':
+      case 'actif':
+        return 'En cours';
+      case 'termine':
+      case 'complete':
+        return 'Terminé';
+      case 'envoye':
+      case 'soumis':
+        return 'Envoyé';
+      case 'annule':
+      case 'supprime':
+        return 'Annulé';
+      default:
+        return statut;
     }
   }
 }

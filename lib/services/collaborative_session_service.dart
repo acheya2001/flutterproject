@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/collaborative_session_model.dart';
 import 'collaborative_pdf_service.dart';
+import 'modern_tunisian_pdf_service.dart';
 import 'agent_notification_service.dart';
 import '../models/guest_participant_model.dart';
 import '../models/accident_session_complete.dart';
@@ -310,7 +311,34 @@ class CollaborativeSessionService {
       }
 
       final sessionData = sessionDoc.data()!;
-      final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+
+      // Gestion sécurisée du type de participants
+      List<Map<String, dynamic>> participants = [];
+      final participantsData = sessionData['participants'];
+
+      if (participantsData != null) {
+        if (participantsData is List) {
+          // Si c'est déjà une liste, la convertir en sécurité
+          participants = participantsData.map((item) {
+            if (item is Map<String, dynamic>) {
+              return item;
+            } else if (item is Map) {
+              return Map<String, dynamic>.from(item);
+            } else {
+              print('⚠️ [STATUT] Participant ignoré (type invalide): $item');
+              return <String, dynamic>{};
+            }
+          }).where((item) => item.isNotEmpty).toList();
+        } else if (participantsData is Map) {
+          // Si c'est un Map, le convertir en liste
+          print('🔄 [STATUT] Conversion Map vers List pour participants');
+          participants = [Map<String, dynamic>.from(participantsData)];
+        } else {
+          print('⚠️ [STATUT] Type de participants non supporté: ${participantsData.runtimeType}');
+        }
+      }
+
+      print('📊 [STATUT] Participants chargés: ${participants.length}');
 
       // Trouver et mettre à jour le participant
       bool participantTrouve = false;
@@ -638,12 +666,10 @@ class CollaborativeSessionService {
       final participantsData = await _recupererDonneesParticipants(sessionId, participants);
       final croquisData = await _recupererDonneesCroquis(sessionId);
 
-      // 5. Générer le PDF
-      print('📄 [FINALISATION] Génération du PDF...');
-      final pdfUrl = await CollaborativePdfService.genererConstatCollaboratif(
+      // 5. Générer le PDF au format tunisien officiel
+      print('📄 [FINALISATION] Génération du PDF format tunisien...');
+      final pdfUrl = await ModernTunisianPdfService.genererConstatModerne(
         sessionId: sessionId,
-        sessionData: sessionData,
-        participantsData: participantsData,
       );
 
       // 6. Mettre à jour la session avec l'URL du PDF
@@ -993,6 +1019,115 @@ class CollaborativeSessionService {
     }
   }
 
+  /// 🔧 Forcer la recalculation complète du statut de session
+  static Future<void> forcerRecalculStatutSession(String sessionId) async {
+    try {
+      print('🔧 [RECALCUL-STATUT] Début recalcul statut pour session $sessionId');
+
+      final sessionDoc = await _firestore.collection(_sessionsCollection).doc(sessionId).get();
+      if (!sessionDoc.exists) {
+        print('❌ [RECALCUL-STATUT] Session non trouvée');
+        return;
+      }
+
+      final sessionData = sessionDoc.data()!;
+      final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+
+      print('🔍 [RECALCUL-STATUT] Participants trouvés: ${participants.length}');
+
+      // Recalculer la progression avec la nouvelle logique
+      final progression = await _calculerProgression(participants, sessionId);
+      final nouveauStatutSession = _determinerStatutSession(participants, progression);
+
+      print('🔍 [RECALCUL-STATUT] Ancienne progression: ${sessionData['progression']}');
+      print('🔍 [RECALCUL-STATUT] Nouvelle progression: ${progression.toMap()}');
+      print('🔍 [RECALCUL-STATUT] Ancien statut: ${sessionData['statut']}');
+      print('🔍 [RECALCUL-STATUT] Nouveau statut: ${nouveauStatutSession.name}');
+
+      // Mettre à jour la session avec le nouveau statut
+      await _firestore.collection(_sessionsCollection).doc(sessionId).update({
+        'progression': progression.toMap(),
+        'statut': nouveauStatutSession.name,
+        'dateModification': Timestamp.fromDate(DateTime.now()),
+      });
+
+      print('✅ [RECALCUL-STATUT] Statut session recalculé avec succès');
+      print('✅ [RECALCUL-STATUT] Nouveau statut: ${nouveauStatutSession.name}');
+
+    } catch (e) {
+      print('❌ [RECALCUL-STATUT] Erreur: $e');
+      rethrow;
+    }
+  }
+
+  /// 🚨 CORRECTION DIRECTE - Méthode pour corriger immédiatement le problème de statut
+  static Future<void> corrigerStatutSessionProblematique() async {
+    try {
+      print('🚨 CORRECTION DIRECTE - Recherche des sessions problématiques...');
+
+      // Rechercher les sessions avec statut "finalise" mais progression incomplète
+      final sessionsQuery = await _firestore
+          .collection(_sessionsCollection)
+          .where('statut', isEqualTo: 'finalise')
+          .get();
+
+      print('🔍 Sessions "finalisées" trouvées: ${sessionsQuery.docs.length}');
+
+      for (final sessionDoc in sessionsQuery.docs) {
+        final sessionData = sessionDoc.data();
+        final sessionId = sessionDoc.id;
+        final participants = List<Map<String, dynamic>>.from(sessionData['participants'] ?? []);
+
+        print('\n📋 Analyse session: $sessionId');
+        print('   • Participants: ${participants.length}');
+
+        // Calculer la vraie progression
+        final progression = await _calculerProgression(participants, sessionId);
+        final total = participants.length;
+
+        // Vérifier si la session est vraiment finalisée
+        final vraimementFinalisee = progression.formulairesTermines == total &&
+                                   progression.croquisValides == total &&
+                                   progression.signaturesEffectuees == total &&
+                                   total > 0;
+
+        print('   • Formulaires: ${progression.formulairesTermines}/$total');
+        print('   • Croquis: ${progression.croquisValides}/$total');
+        print('   • Signatures: ${progression.signaturesEffectuees}/$total');
+        print('   • Vraiment finalisée? ${vraimementFinalisee ? "✅ Oui" : "❌ Non"}');
+
+        if (!vraimementFinalisee) {
+          // Cette session a un statut incorrect, la corriger
+          final nouveauStatut = _determinerStatutSession(participants, progression);
+
+          print('   🔧 CORRECTION NÉCESSAIRE:');
+          print('      • Ancien statut: finalise ❌');
+          print('      • Nouveau statut: ${nouveauStatut.name} ✅');
+
+          // Mettre à jour le statut et la progression
+          await _firestore.collection(_sessionsCollection).doc(sessionId).update({
+            'statut': nouveauStatut.name,
+            'progression': progression.toMap(),
+            'dateModification': Timestamp.fromDate(DateTime.now()),
+            'correctionAppliquee': true,
+            'correctionDate': Timestamp.fromDate(DateTime.now()),
+          });
+
+          print('   ✅ Session corrigée avec succès!');
+        } else {
+          print('   ✅ Session correctement finalisée, aucune correction nécessaire');
+        }
+      }
+
+      print('\n🎉 CORRECTION DIRECTE TERMINÉE!');
+      print('   Toutes les sessions problématiques ont été corrigées.');
+
+    } catch (e) {
+      print('❌ Erreur lors de la correction directe: $e');
+      rethrow;
+    }
+  }
+
   /// 🔧 Méthodes utilitaires privées
   static Future<SessionProgress> _calculerProgression(List<Map<String, dynamic>> participants, [String? sessionId]) async {
     int participantsRejoints = 0;
@@ -1000,27 +1135,54 @@ class CollaborativeSessionService {
     int croquisValides = 0;
     int signaturesEffectuees = 0;
 
+    print('🔍 [PROGRESSION] ===== CALCUL PROGRESSION DÉTAILLÉ =====');
+
     for (final participant in participants) {
       final statut = participant['statut'] as String?;
       final aSigne = participant['aSigne'] as bool? ?? false;
+      final formulaireStatus = participant['formulaireStatus'] as String?;
+      final formulaireComplete = participant['formulaireComplete'] as bool? ?? false;
+      final userId = participant['userId'] as String? ?? 'inconnu';
+
+      print('🔍 [PROGRESSION] Participant $userId:');
+      print('   - statut: $statut');
+      print('   - formulaireStatus: $formulaireStatus');
+      print('   - formulaireComplete: $formulaireComplete');
+      print('   - aSigne: $aSigne');
 
       if (statut != null && statut != 'en_attente') {
         participantsRejoints++;
       }
 
-      if (statut == 'formulaire_fini' || statut == 'croquis_valide' || statut == 'signe') {
+      // 🔥 CORRECTION: Utiliser formulaireStatus et formulaireComplete pour déterminer si terminé
+      if (formulaireStatus == 'termine' || formulaireComplete == true || statut == 'formulaire_fini') {
         formulairesTermines++;
+        print('   ✅ Formulaire terminé');
+      } else {
+        print('   ❌ Formulaire non terminé');
       }
 
       if (statut == 'croquis_valide' || statut == 'signe') {
         croquisValides++;
+        print('   ✅ Croquis validé');
+      } else {
+        print('   ❌ Croquis non validé');
       }
 
       // Compter les signatures depuis le statut OU le champ aSigne
       if (statut == 'signe' || aSigne) {
         signaturesEffectuees++;
+        print('   ✅ Signature effectuée');
+      } else {
+        print('   ❌ Signature non effectuée');
       }
     }
+
+    print('🔍 [PROGRESSION] RÉSULTATS:');
+    print('   - Participants rejoints: $participantsRejoints/${participants.length}');
+    print('   - Formulaires terminés: $formulairesTermines/${participants.length}');
+    print('   - Croquis validés: $croquisValides/${participants.length}');
+    print('   - Signatures effectuées: $signaturesEffectuees/${participants.length}');
 
     // 🔥 CORRECTION: Compter aussi depuis la sous-collection signatures si sessionId fourni
     if (sessionId != null) {
@@ -1057,28 +1219,52 @@ class CollaborativeSessionService {
   static SessionStatus _determinerStatutSession(List<Map<String, dynamic>> participants, SessionProgress progression) {
     final total = participants.length;
 
-    // Vérifier si tous ont signé
-    if (progression.signaturesEffectuees == total && total > 0) {
-      return SessionStatus.finalise; // Changé de 'signe' à 'finalise'
+    print('🔍 [STATUT] ===== CALCUL STATUT SESSION =====');
+    print('🔍 [STATUT] Total participants: $total');
+    print('🔍 [STATUT] Formulaires terminés: ${progression.formulairesTermines}/$total');
+    print('🔍 [STATUT] Croquis validés: ${progression.croquisValides}/$total');
+    print('🔍 [STATUT] Signatures effectuées: ${progression.signaturesEffectuees}/$total');
+
+    // 🔥 CORRECTION: Vérifier si TOUT est terminé avant de finaliser
+    if (progression.formulairesTermines == total &&
+        progression.croquisValides == total &&
+        progression.signaturesEffectuees == total &&
+        total > 0) {
+      print('✅ [STATUT] TOUTES CONDITIONS REMPLIES → finalise');
+      print('✅ [STATUT] Détail: formulaires(${progression.formulairesTermines}/$total), croquis(${progression.croquisValides}/$total), signatures(${progression.signaturesEffectuees}/$total)');
+      return SessionStatus.finalise;
+    }
+    // Vérifier si tous ont signé (mais pas tout terminé)
+    else if (progression.signaturesEffectuees == total && total > 0) {
+      print('🔄 [STATUT] SIGNATURES COMPLÈTES mais session incomplète');
+      print('🔄 [STATUT] Manque: formulaires(${progression.formulairesTermines}/$total), croquis(${progression.croquisValides}/$total)');
+      print('🔄 [STATUT] Résultat: signe (pas finalise)');
+      return SessionStatus.signe; // Garder statut "signé" jusqu'à finalisation complète
     }
     // Vérifier si tous ont validé le croquis
     else if (progression.croquisValides == total && total > 0) {
+      print('🔄 [STATUT] CROQUIS VALIDÉS → pret_signature');
       return SessionStatus.pret_signature;
     }
     // Vérifier si tous ont terminé leur formulaire
     else if (progression.formulairesTermines == total && total > 0) {
+      print('🔄 [STATUT] FORMULAIRES TERMINÉS → validation_croquis');
       return SessionStatus.validation_croquis;
     }
     // Vérifier si tous ont rejoint
     else if (progression.participantsRejoints == total && total > 0) {
+      print('🔄 [STATUT] PARTICIPANTS REJOINTS → en_cours');
       return SessionStatus.en_cours;
     }
     // Quelques participants ont rejoint
     else if (progression.participantsRejoints > 0) {
+      print('🔄 [STATUT] QUELQUES PARTICIPANTS REJOINTS → attente_participants');
+      print('🔄 [STATUT] Rejoints: ${progression.participantsRejoints}/$total');
       return SessionStatus.attente_participants;
     }
     // Aucun participant
     else {
+      print('🔄 [STATUT] AUCUN PARTICIPANT → creation');
       return SessionStatus.creation;
     }
   }

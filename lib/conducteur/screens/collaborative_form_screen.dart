@@ -1,8 +1,13 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dart:async';
 import '../../models/collaborative_session_model.dart';
 import '../../services/collaborative_session_service.dart';
 import '../../services/conducteur_data_service.dart';
+import '../../services/cloudinary_service.dart';
 import 'session_dashboard_screen.dart';
 
 /// 📋 Formulaire collaboratif pour conducteurs inscrits
@@ -35,7 +40,12 @@ class _CollaborativeFormScreenState extends State<CollaborativeFormScreen>with T
   List<String> _circonstancesSelectionnees = [];
   List<String> _pointsChocSelectionnes = [];
   List<String> _degatsSelectionnes = [];
-  
+
+  // Photos des dégâts
+  List<String> _photosDegatUrls = [];
+  bool _isUploadingPhoto = false;
+  final ImagePicker _picker = ImagePicker();
+
   // Données du conducteur
   Map<String, dynamic>? _donneesConducteur;
   bool _donneesChargees = false;
@@ -196,9 +206,14 @@ class _CollaborativeFormScreenState extends State<CollaborativeFormScreen>with T
             
             // Dégâts apparents
             _buildSectionDegats(),
-            
+
             const SizedBox(height: 24),
-            
+
+            // Photos des dégâts
+            _buildSectionPhotos(),
+
+            const SizedBox(height: 24),
+
             // Observations
             _buildSectionObservations(),
             
@@ -520,6 +535,184 @@ class _CollaborativeFormScreenState extends State<CollaborativeFormScreen>with T
     );
   }
 
+  Widget _buildSectionPhotos() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.camera_alt, color: Colors.blue[800]),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Photos des dégâts',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+              Text(
+                '${_photosDegatUrls.length}/5',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Boutons d'ajout de photos
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isUploadingPhoto ? null : () => _ajouterPhoto(ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('Caméra'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isUploadingPhoto ? null : () => _ajouterPhoto(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library),
+                  label: const Text('Galerie'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          if (_isUploadingPhoto) ...[
+            const SizedBox(height: 16),
+            const Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 12),
+                  Text('Upload en cours...'),
+                ],
+              ),
+            ),
+          ],
+
+          // Affichage des photos
+          if (_photosDegatUrls.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Photos ajoutées:',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 100,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _photosDegatUrls.length,
+                itemBuilder: (context, index) {
+                  final photoUrl = _photosDegatUrls[index];
+                  return Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: photoUrl.startsWith('file://')
+                              ? Image.file(
+                                  File(photoUrl.substring(7)),
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover,
+                                )
+                              : Image.network(
+                                  photoUrl,
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: 100,
+                                      height: 100,
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.error),
+                                    );
+                                  },
+                                ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () => _supprimerPhoto(index),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionObservations() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -652,68 +845,93 @@ class _CollaborativeFormScreenState extends State<CollaborativeFormScreen>with T
     }
   }
 
+
+
   Future<void> _sauvegarderFormulaire() async {
-    if (!_formKey.currentState!.validate()) return;
+    print('🔄 DÉBUT _sauvegarderFormulaire()');
+
+    if (!_formKey.currentState!.validate()) {
+      print('❌ Validation du formulaire échouée');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Utilisateur non connecté');
+      if (user == null) {
+        print('❌ Utilisateur non connecté');
+        throw Exception('Utilisateur non connecté');
+      }
+
+      print('✅ Utilisateur connecté: ${user.uid}');
 
       // Préparer les données du formulaire
       final donneesFormulaire = {
         'circonstances': _circonstancesSelectionnees,
         'pointsChoc': _pointsChocSelectionnes,
         'degatsApparents': _degatsSelectionnes,
+        'photosDegatUrls': _photosDegatUrls,
         'observations': _observationsController.text.trim(),
         'remarques': _remarquesController.text.trim(),
         'donneesPersonnelles': _donneesConducteur,
         'dateModification': DateTime.now().toIso8601String(),
       };
 
-      // Sauvegarder via le service collaboratif
-      await CollaborativeSessionService.sauvegarderDonneesFormulaire(
-        sessionId: widget.session.id,
-        userId: user.uid,
-        donneesFormulaire: donneesFormulaire,
-      );
+      print('📋 Données préparées: ${donneesFormulaire.keys.toList()}');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Formulaire sauvegardé avec succès'),
-            ],
+      // Sauvegarder directement dans Firestore (plus simple et plus fiable)
+      print('🔄 Début sauvegarde formulaire...');
+
+      await _sauvegarderDirectement(user.uid, donneesFormulaire);
+
+      print('✅ Sauvegarde terminée avec succès');
+
+      if (mounted) {
+        print('✅ Affichage du message de succès');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Formulaire sauvegardé avec succès'),
+              ],
+            ),
+            backgroundColor: Colors.green,
           ),
-          backgroundColor: Colors.green,
-        ),
-      );
+        );
 
-      // Retourner au dashboard avec rechargement de la session
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => SessionDashboardScreen(session: widget.session),
-        ),
-      );
+        print('🔄 Navigation vers SessionDashboardScreen');
+        // Retourner au dashboard avec rechargement de la session
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SessionDashboardScreen(session: widget.session),
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(child: Text('Erreur: $e')),
-            ],
+      print('❌ ERREUR lors de la sauvegarde: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Erreur: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      print('🔄 Fin _sauvegarderFormulaire() - _isLoading = false');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -757,6 +975,139 @@ class _CollaborativeFormScreenState extends State<CollaborativeFormScreen>with T
       'Pneu crevé',
       'Jante voilée',
     ];
+  }
+
+  /// 📸 Ajouter une photo des dégâts
+  Future<void> _ajouterPhoto(ImageSource source) async {
+    if (_photosDegatUrls.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Maximum 5 photos autorisées'),
+            ],
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isUploadingPhoto = true);
+
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+
+      if (image != null) {
+        // Upload vers Cloudinary
+        final photoUrl = await CloudinaryService.uploadImage(
+          File(image.path),
+          'sinistres/degats',
+        );
+
+        if (photoUrl != null) {
+          setState(() {
+            _photosDegatUrls.add(photoUrl);
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text('Photo ajoutée (${_photosDegatUrls.length}/5)'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          throw Exception('Échec de l\'upload');
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Erreur: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isUploadingPhoto = false);
+    }
+  }
+
+  /// 🗑️ Supprimer une photo
+  void _supprimerPhoto(int index) {
+    setState(() {
+      _photosDegatUrls.removeAt(index);
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.delete, color: Colors.white),
+            const SizedBox(width: 8),
+            Text('Photo supprimée (${_photosDegatUrls.length}/5)'),
+          ],
+        ),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
+  /// 💾 Sauvegarde directe et simplifiée
+  Future<void> _sauvegarderDirectement(String userId, Map<String, dynamic> donneesFormulaire) async {
+    try {
+      print('🔄 DÉBUT _sauvegarderDirectement()');
+      print('📋 Session ID: ${widget.session.id}');
+      print('👤 User ID: $userId');
+
+      // Import Firebase Firestore
+      final firestore = FirebaseFirestore.instance;
+
+      final documentData = {
+        ...donneesFormulaire,
+        'userId': userId,
+        'dateModification': FieldValue.serverTimestamp(),
+        'complete': true,
+        'version': DateTime.now().millisecondsSinceEpoch, // Version pour éviter les conflits
+      };
+
+      print('📄 Données à sauvegarder: ${documentData.keys.toList()}');
+
+      // Sauvegarder directement dans la sous-collection formulaires
+      final docRef = firestore
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .collection('formulaires')
+          .doc(userId);
+
+      print('🔗 Chemin Firestore: sessions_collaboratives/${widget.session.id}/formulaires/$userId');
+
+      await docRef.set(documentData, SetOptions(merge: true)); // Merge pour ne pas écraser les données existantes
+
+      print('✅ Sauvegarde directe réussie dans Firestore');
+    } catch (e) {
+      print('❌ Erreur sauvegarde directe: $e');
+      print('❌ Stack trace: ${StackTrace.current}');
+      throw e;
+    }
   }
 }
 

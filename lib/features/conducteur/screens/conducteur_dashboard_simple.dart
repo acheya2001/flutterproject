@@ -164,7 +164,10 @@ class _ConducteurDashboardSimpleState extends State<ConducteurDashboardSimple> {
               Expanded(
                 child: _buildStatCard(
                   'Véhicules',
-                  _vehicules.length.toString(),
+                  _demandes.where((d) {
+                    final statut = d['statut'] ?? '';
+                    return ['contrat_actif', 'documents_completes', 'frequence_choisie'].contains(statut);
+                  }).length.toString(),
                   Icons.directions_car,
                   Colors.green,
                 ),

@@ -199,7 +199,7 @@ class CollaborativeParticipantsStatusWidget extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        '${participant.prenom} ${participant.nom}',
+                        '${participant.roleVehicule} - ${participant.prenom.isNotEmpty ? participant.prenom : 'Conducteur'} ${participant.nom.isNotEmpty ? participant.nom : participant.roleVehicule}',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
