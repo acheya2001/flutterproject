@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'constat_agent_notification_service.dart';
 
 /// 👨‍💼 Service pour gérer les experts qui travaillent avec plusieurs compagnies
 class ExpertMultiCompagnieService {
@@ -192,6 +193,9 @@ class ExpertMultiCompagnieService {
       });
 
       // Mettre à jour le sinistre
+      final sinistreDoc = await _firestore.collection('sinistres').doc(sinistreId).get();
+      final sinistreData = sinistreDoc.data();
+
       await _firestore
           .collection('sinistres')
           .doc(sinistreId)
@@ -204,6 +208,29 @@ class ExpertMultiCompagnieService {
         'status': 'en_expertise',
         'derniereMiseAJour': FieldValue.serverTimestamp(),
       });
+
+      // Mettre à jour le statut dans constats_finalises si sessionId existe
+      final sessionId = sinistreData?['sessionId'];
+      if (sessionId != null) {
+        // Récupérer les données de l'expert
+        final expertDoc = await _firestore.collection('experts').doc(expertId).get();
+        final expertData = expertDoc.data();
+
+        if (expertData != null) {
+          await ConstatAgentNotificationService.mettreAJourStatutExpertAssigne(
+            sessionId: sessionId,
+            expertInfo: {
+              'id': expertId,
+              'nom': expertData['nom'] ?? '',
+              'prenom': expertData['prenom'] ?? '',
+              'codeExpert': expertData['codeExpert'] ?? '',
+              'telephone': expertData['telephone'] ?? '',
+              'email': expertData['email'] ?? '',
+            },
+            missionId: assignationId,
+          );
+        }
+      }
 
       debugPrint('✅ Expert $expertId assigné au sinistre $sinistreId');
       return {

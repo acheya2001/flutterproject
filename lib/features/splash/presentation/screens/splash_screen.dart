@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'dart:async';
 
-import '../../../onboarding/presentation/screens/onboarding_screen.dart';
+import '../../../onboarding/screens/onboarding_screen.dart';
 import '../../../../core/theme/app_theme.dart';
 
 /// 🌟 Écran de démarrage avec animation

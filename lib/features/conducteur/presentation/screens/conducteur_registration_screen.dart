@@ -366,7 +366,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                _obscurePassword ? Icons.visibility_off : Icons.visibility,
                               ),
                               onPressed: () {
                                 if (mounted) setState(() {
@@ -400,7 +400,7 @@ class _ConducteurRegistrationScreenState extends State<ConducteurRegistrationScr
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                                _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
                               ),
                               onPressed: () {
                                 if (mounted) setState(() {

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/theme/app_theme.dart';
@@ -413,6 +413,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('✅ Connexion réussie (mode direct) - $userRole'),
+
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 2),
             ),
@@ -666,6 +667,7 @@ class _LoginScreenState extends State<LoginScreen> {
             return result;
           } else {
             print('[LOGIN] ❌ Échec connexion conducteur: ${result['error']}');
+
             return result;
           }
         } catch (e) {
@@ -706,6 +708,7 @@ class _LoginScreenState extends State<LoginScreen> {
             };
           } else {
             print('[LOGIN] ❌ Échec connexion agent: ${result['error']}');
+
             return result;
           }
         }
@@ -891,6 +894,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     } on FirebaseAuthException catch (e) {
       print('[LOGIN] ❌ Erreur Firebase Auth: ${e.code} - ${e.message}');
+
 
       String errorMessage;
       switch (e.code) {

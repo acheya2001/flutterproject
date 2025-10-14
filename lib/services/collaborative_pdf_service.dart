@@ -4,13 +4,12 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:intl/intl.dart';
+import 'cloudinary_pdf_service.dart';
 
 /// 📄 Service de génération PDF pour les constats collaboratifs
 class CollaborativePdfService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static final FirebaseStorage _storage = FirebaseStorage.instance;
 
   /// 📄 Générer le PDF complet du constat collaboratif
   static Future<String> genererConstatCollaboratif({
@@ -56,12 +55,16 @@ class CollaborativePdfService {
     final directory = await getApplicationDocumentsDirectory();
     final fileName = 'constat_${sessionId}_${DateTime.now().millisecondsSinceEpoch}.pdf';
     final file = File('${directory.path}/$fileName');
-    await file.writeAsBytes(await pdf.save());
+    final pdfBytes = await pdf.save();
+    await file.writeAsBytes(pdfBytes);
 
-    // Uploader vers Firebase Storage
-    final storageRef = _storage.ref().child('constats/$sessionId/$fileName');
-    await storageRef.putFile(file);
-    final downloadUrl = await storageRef.getDownloadURL();
+    // Uploader vers Cloudinary
+    final downloadUrl = await CloudinaryPdfService.uploadPdf(
+      pdfBytes: pdfBytes,
+      fileName: fileName,
+      sessionId: sessionId,
+      folder: 'constats_collaboratifs',
+    );
 
     // Sauvegarder les métadonnées dans Firestore
     await _sauvegarderMetadonnees(sessionId, downloadUrl, fileName, participantsData);

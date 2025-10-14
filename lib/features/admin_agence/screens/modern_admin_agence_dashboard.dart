@@ -6,6 +6,7 @@ import '../../../services/admin_agence_diagnostic_service.dart';
 import '../widgets/alerts_panel.dart';
 import 'agence_info_screen.dart';
 import 'agents_management_screen.dart';
+import 'experts_management_screen.dart';
 import 'bi_dashboard_screen.dart';
 import 'contract_management_screen.dart';
 import 'demandes_contrats_screen.dart';
@@ -557,8 +558,9 @@ class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
           _buildNavItem(0, 'Accueil', Icons.dashboard_rounded),
           _buildNavItem(1, 'Mon Agence', Icons.business_rounded),
           _buildNavItem(2, 'Agents', Icons.people_rounded),
-          _buildNavItem(3, 'Statistiques', Icons.analytics_rounded),
-          _buildNavItem(4, 'Contrats', Icons.description_rounded),
+          _buildNavItem(3, 'Experts', Icons.engineering_rounded),
+          _buildNavItem(4, 'Statistiques', Icons.analytics_rounded),
+          _buildNavItem(5, 'Contrats', Icons.description_rounded),
         ],
       ),
     );
@@ -625,16 +627,22 @@ class _ModernAdminAgenceDashboardState extends State<ModernAdminAgenceDashboard>
           onAgentUpdated: _loadAllData, // Rafraîchir quand un agent est modifié
         );
       case 3:
+        return ExpertsManagementScreen(
+          agenceData: _agenceData!,
+          userData: widget.userData!,
+          onExpertUpdated: _loadAllData, // Rafraîchir quand un expert est modifié
+        );
+      case 4:
         return BIDashboardScreen(
           agenceId: _agenceData!['id'] ?? '',
           agenceData: _agenceData!,
         );
-      case 4:
+      case 5:
         return ContractManagementScreen(
           agenceId: _agenceData!['id'] ?? '',
           agenceData: _agenceData!,
         );
-      case 5:
+      case 6:
         return DemandesContratsScreen(
           agenceId: _agenceData!['id'] ?? '',
           agenceData: _agenceData!,

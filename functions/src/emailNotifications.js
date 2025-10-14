@@ -189,6 +189,114 @@ exports.sendVehicleStatusEmail = functions.https.onCall(async (data, context) =>
 });
 
 /**
+ * 📧 Envoyer PDF de constat à un agent spécifique
+ */
+exports.sendConstatPdfToAgent = functions.https.onCall(async (data, context) => {
+  try {
+    const {
+      to,
+      agentName,
+      constatsId,
+      location,
+      vehiclePlates,
+      agencyName,
+      participantName,
+      pdfUrl
+    } = data;
+
+    const htmlTemplate = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #2E7D32; color: white; padding: 20px; text-align: center; }
+            .content { padding: 20px; background: #f9f9f9; }
+            .constat-info { background: white; padding: 15px; margin: 15px 0; border-left: 4px solid #2E7D32; }
+            .participant-info { background: #E8F5E8; padding: 12px; margin: 10px 0; border-radius: 5px; }
+            .button { display: inline-block; background: #2E7D32; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 15px 0; }
+            .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+            .pdf-info { background: #FFF3E0; padding: 15px; margin: 15px 0; border-left: 4px solid #FF9800; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>📄 Constat PDF - Votre Client</h1>
+                <p>Constat Tunisie - Notification Agent</p>
+            </div>
+
+            <div class="content">
+                <h2>Bonjour ${agentName || 'Agent'},</h2>
+
+                <p>Votre client <strong>${participantName}</strong> a été impliqué dans un accident de la route.
+                Le constat a été finalisé et le PDF complet est disponible.</p>
+
+                <div class="participant-info">
+                    <h3>👤 Votre client concerné :</h3>
+                    <p><strong>${participantName}</strong></p>
+                </div>
+
+                <div class="constat-info">
+                    <h3>📋 Détails du constat :</h3>
+                    <ul>
+                        <li><strong>Code Constat :</strong> ${constatsId}</li>
+                        <li><strong>Lieu :</strong> ${location || 'Non spécifié'}</li>
+                        <li><strong>Véhicules impliqués :</strong> ${vehiclePlates ? vehiclePlates.join(', ') : 'Non spécifié'}</li>
+                        <li><strong>Agence :</strong> ${agencyName}</li>
+                        <li><strong>Date :</strong> ${new Date().toLocaleDateString('fr-TN')}</li>
+                    </ul>
+                </div>
+
+                <div class="pdf-info">
+                    <h3>📄 Document PDF :</h3>
+                    <p>Le PDF complet du constat contient :</p>
+                    <ul>
+                        <li>Informations détaillées de l'accident</li>
+                        <li>Données des véhicules et conducteurs</li>
+                        <li>Croquis de l'accident</li>
+                        <li>Signatures électroniques</li>
+                        <li>Recommandations pour le traitement</li>
+                    </ul>
+                </div>
+
+                <p><strong>Action requise :</strong> Veuillez télécharger le PDF et traiter le dossier selon vos procédures internes.</p>
+
+                <a href="${pdfUrl}" class="button">
+                    📥 Télécharger le PDF
+                </a>
+            </div>
+
+            <div class="footer">
+                <p>Cet email a été envoyé automatiquement par Constat Tunisie</p>
+                <p>© 2024 Constat Tunisie - Tous droits réservés</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+
+    const mailOptions = {
+      from: 'Constat Tunisie <constat.tunisie.app@gmail.com>',
+      to: to,
+      subject: `📄 PDF Constat - Client ${participantName} - ${constatsId}`,
+      html: htmlTemplate
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    console.log(`✅ Email PDF constat envoyé à ${to} pour client ${participantName}`);
+    return { success: true, message: 'Email PDF envoyé avec succès' };
+
+  } catch (error) {
+    console.error('❌ Erreur envoi email PDF constat:', error);
+    throw new functions.https.HttpsError('internal', 'Erreur lors de l\'envoi de l\'email PDF');
+  }
+});
+
+/**
  * 📧 Envoyer notification de nouveau constat aux agents
  */
 exports.sendConstatNotificationEmail = functions.https.onCall(async (data, context) => {

@@ -9,6 +9,7 @@ import 'mes_vehicules_screen.dart';
 import '../../services/document_download_service.dart';
 import '../../../conducteur/screens/accident_declaration_screen.dart';
 import '../../sinistre/screens/sinistre_choix_rapide_screen.dart';
+import 'suivi_constats_screen.dart';
 
 /// 🏠 Dashboard principal du conducteur
 class ConducteurDashboardScreen extends ConsumerStatefulWidget {
@@ -257,6 +258,20 @@ class _ConducteurDashboardScreenState extends ConsumerState<ConducteurDashboardS
                     ),
                   );
                 },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                title: 'Suivi Constats',
+                subtitle: 'Suivre mes constats',
+                icon: Icons.track_changes,
+                color: const Color(0xFF8B5CF6),
+                onTap: () => _openSuiviConstats(),
               ),
             ),
           ],
@@ -1537,6 +1552,57 @@ class _ConducteurDashboardScreenState extends ConsumerState<ConducteurDashboardS
         builder: (context) => const MesVehiculesScreen(),
       ),
     );
+  }
+
+  /// 📋 Ouvrir l'écran de suivi des constats
+  void _openSuiviConstats() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Vous devez être connecté'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Récupérer les données du conducteur
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Données utilisateur non trouvées'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final userData = userDoc.data()!;
+      userData['uid'] = user.uid;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SuiviConstatsScreen(conducteurData: userData),
+        ),
+      );
+
+    } catch (e) {
+      debugPrint('[DASHBOARD] ❌ Erreur ouverture suivi constats: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   /// 📄 Télécharger l'attestation d'assurance

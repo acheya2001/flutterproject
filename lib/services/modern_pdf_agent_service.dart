@@ -298,6 +298,67 @@ class ModernPDFAgentService {
     );
   }
 
+  /// 🚗 Page des véhicules et conducteurs
+  static Future<pw.Page> _buildPageVehicules(
+    CollaborativeSession session,
+    Map<String, dynamic> sessionData,
+  ) async {
+    final participants = session.participants;
+
+    return pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(30),
+      header: (context) => _buildModernHeader('VÉHICULES & CONDUCTEURS', context),
+      footer: (context) => _buildModernFooter(context),
+      build: (context) => [
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            // Titre de section
+            _buildSectionCard(
+              'VÉHICULES IMPLIQUÉS',
+              [
+                pw.Text(
+                  'Nombre de véhicules: ${participants.length}',
+                  style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+                ),
+              ],
+            ),
+
+            pw.SizedBox(height: 20),
+
+            // Détails de chaque véhicule
+            ...participants.asMap().entries.map((entry) {
+              final index = entry.key;
+              final participant = entry.value;
+              final vehiculeLetter = String.fromCharCode(65 + index); // A, B, C...
+
+              return pw.Container(
+                margin: const pw.EdgeInsets.only(bottom: 20),
+                child: _buildSectionCard(
+                  'VÉHICULE $vehiculeLetter - ${participant.prenom} ${participant.nom}',
+                  [
+                    _buildInfoRow('Conducteur:', '${participant.prenom} ${participant.nom}'),
+                    _buildInfoRow('Rôle:', participant.roleVehicule),
+                    _buildInfoRow('Statut:', participant.statut.name),
+                    _buildInfoRow('A signé:', participant.dateSignature != null ? 'OUI ✅' : 'NON ❌'),
+                    _buildInfoRow('Type:', participant.type.name),
+                    _buildInfoRow('Email:', participant.email),
+                    _buildInfoRow('Téléphone:', participant.telephone),
+                    if (participant.adresse != null)
+                      _buildInfoRow('Adresse:', participant.adresse!),
+                    if (participant.cin != null)
+                      _buildInfoRow('CIN:', participant.cin!),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ],
+    );
+  }
+
   /// 📋 Page des circonstances et analyse
   static Future<pw.Page> _buildPageCirconstances(
     CollaborativeSession session,
@@ -311,8 +372,9 @@ class ModernPDFAgentService {
       header: (context) => _buildModernHeader('CIRCONSTANCES & ANALYSE', context),
       footer: (context) => _buildModernFooter(context),
       build: (context) => [
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
           // Informations générales de l'accident
           _buildSectionCard(
             'INFORMATIONS GÉNÉRALES',
@@ -343,8 +405,9 @@ class ModernPDFAgentService {
               'OBSERVATIONS',
               constatOfficiel.observations.map((obs) => pw.Text('• $obs', style: const pw.TextStyle(fontSize: 11))).toList(),
             ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -359,8 +422,9 @@ class ModernPDFAgentService {
       header: (context) => _buildModernHeader('CROQUIS & PHOTOS', context),
       footer: (context) => _buildModernFooter(context),
       build: (context) => [
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
           // Section croquis
           _buildSectionCard(
             'CROQUIS DE L\'ACCIDENT',
@@ -492,8 +556,9 @@ class ModernPDFAgentService {
               ],
             ),
           ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -511,8 +576,9 @@ class ModernPDFAgentService {
       header: (context) => _buildModernHeader('RECOMMANDATIONS & ACTIONS', context),
       footer: (context) => _buildModernFooter(context),
       build: (context) => [
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
           // Actions prioritaires
           _buildSectionCard(
             'ACTIONS PRIORITAIRES',
@@ -581,8 +647,9 @@ class ModernPDFAgentService {
               ],
             ),
           ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 

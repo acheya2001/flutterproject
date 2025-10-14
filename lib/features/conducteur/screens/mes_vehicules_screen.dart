@@ -174,44 +174,6 @@ class _MesVehiculesScreenState extends State<MesVehiculesScreen> {
           // Alertes d'expiration
           _buildAlerteExpiration(),
 
-          // Bouton de test pour les notifications d'expiration (mode debug)
-          if (true) // Remplacer par kDebugMode en production
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              child: ElevatedButton.icon(
-                onPressed: _testerNotificationsExpiration,
-                icon: const Icon(Icons.notification_add),
-                label: const Text('Tester Notifications Expiration'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple[600],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-
-          // Bouton pour mettre à jour les informations financières manquantes
-          if (_vehicules.any((v) => v['primeAnnuelle'] == null))
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              child: ElevatedButton.icon(
-                onPressed: _mettreAJourInformationsFinancieres,
-                icon: const Icon(Icons.update),
-                label: const Text('Mettre à jour les informations financières'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange[600],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-
           ..._vehicules.map((vehicule) => _buildVehiculeCard(vehicule)).toList(),
         ],
       ),
@@ -459,9 +421,35 @@ class _MesVehiculesScreenState extends State<MesVehiculesScreen> {
   }
 
   Widget _buildInfoItem(String label, String value, IconData icon) {
+    // Couleurs spécifiques selon le type d'information
+    Color iconColor;
+    Color valueColor;
+
+    switch (label) {
+      case 'Année':
+        iconColor = Colors.blue[600]!;
+        valueColor = Colors.blue[700]!;
+        break;
+      case 'Couleur':
+        iconColor = Colors.purple[600]!;
+        valueColor = Colors.purple[700]!;
+        break;
+      case 'Contrat N°':
+        iconColor = Colors.green[600]!;
+        valueColor = Colors.green[700]!;
+        break;
+      case 'Expire le':
+        iconColor = Colors.orange[600]!;
+        valueColor = Colors.orange[700]!;
+        break;
+      default:
+        iconColor = Colors.grey[600]!;
+        valueColor = const Color(0xFF1F2937);
+    }
+
     return Row(
       children: [
-        Icon(icon, size: 16, color: Colors.grey[600]),
+        Icon(icon, size: 18, color: iconColor),
         const SizedBox(width: 8),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,15 +458,16 @@ class _MesVehiculesScreenState extends State<MesVehiculesScreen> {
               label,
               style: TextStyle(
                 fontSize: 12,
+                fontWeight: FontWeight.w500,
                 color: Colors.grey[600],
               ),
             ),
             Text(
               value,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1F2937),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: valueColor,
               ),
             ),
           ],

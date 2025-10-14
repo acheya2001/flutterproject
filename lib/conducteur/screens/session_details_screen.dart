@@ -6,13 +6,22 @@ import '../../models/collaborative_session_model.dart';
 import '../../services/collaborative_session_service.dart';
 import '../../services/collaborative_data_sync_service.dart';
 import '../../services/constat_pdf_service.dart';
+import '../../services/constat_agent_notification_service.dart';
+import '../../services/complete_elegant_pdf_service.dart';
+import '../../verification_agent_screen.dart';
+import '../../test_notifications_simple.dart';
+import '../../debug_agent_notifications.dart';
+import '../../test_notification_simple.dart';
+import '../../test_agent_notifications_dashboard.dart';
 import '../../services/modern_tunisian_pdf_service.dart';
 import '../../services/complete_elegant_pdf_service.dart';
 import '../../services/complete_pdf_test_service.dart';
 import '../../widgets/modern_pdf_generator_widget.dart';
+import '../../services/constat_status_test_service.dart';
 import 'modern_single_accident_info_screen.dart';
 import 'modern_collaborative_sketch_screen.dart';
 import 'package:open_file/open_file.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 
 /// 🎯 Écran "Détails de session" pour les sinistres collaboratifs
@@ -56,7 +65,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _chargerDonneesSession();
   }
 
@@ -141,25 +150,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
         ],
       ),
       actions: [
-        // Bouton PDF (si session terminée)
-        if (_sessionData?.statut == SessionStatus.signe || _sessionData?.statut == SessionStatus.finalise)
-          IconButton(
-            onPressed: _genererPdf,
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'Générer PDF',
-          ),
-        // Bouton de recalcul du statut (pour debug/correction)
-        IconButton(
-          onPressed: _recalculerStatutSession,
-          icon: const Icon(Icons.refresh_outlined),
-          tooltip: 'Recalculer statut',
-        ),
-        // Bouton de correction directe (pour problèmes persistants)
-        IconButton(
-          onPressed: _correctionDirecte,
-          icon: const Icon(Icons.build, color: Colors.orange),
-          tooltip: 'Correction directe',
-        ),
+        // Bouton d'actualisation
         IconButton(
           onPressed: _chargerDonneesSession,
           icon: const Icon(Icons.refresh),
@@ -188,10 +179,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
             icon: Icon(Icons.draw_outlined, size: 20),
             text: 'Croquis',
           ),
-          Tab(
-            icon: Icon(Icons.picture_as_pdf, size: 20),
-            text: 'PDF Agent',
-          ),
+
         ],
       ),
     );
@@ -258,7 +246,6 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
         _buildParticipantsTab(),
         _buildFormulairesTab(),
         _buildCroquisTab(),
-        _buildPDFAgentTab(),
       ],
     );
   }
@@ -274,6 +261,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
           const SizedBox(height: 16),
           _buildProgressionSignatures(),
           const SizedBox(height: 24),
+          _buildEtapesProcessus(),
+          const SizedBox(height: 24),
           _buildInfosSession(),
           const SizedBox(height: 24),
           _buildInfosAccident(),
@@ -284,17 +273,86 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
 
   /// 👥 Onglet Participants
   Widget _buildParticipantsTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildStatutParticipants(),
-          const SizedBox(height: 16),
-          ..._sessionData!.participants.map((participant) => 
-            _buildParticipantCard(participant)
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final sessionData = snapshot.data!.data() as Map<String, dynamic>;
+        final participants = sessionData['participants'] as List? ?? [];
+        final nombreVehicules = sessionData['nombreVehicules'] ?? 2;
+
+        print('🔍 [PARTICIPANTS-TAB] ===== ANALYSE PARTICIPANTS =====');
+        print('🔍 [PARTICIPANTS-TAB] Nombre de véhicules attendus: $nombreVehicules');
+        print('🔍 [PARTICIPANTS-TAB] Participants trouvés: ${participants.length}');
+
+        for (int i = 0; i < participants.length; i++) {
+          final participant = participants[i];
+          print('   - Participant $i: ${participant['nom']} ${participant['prenom']} (${participant['userId']})');
+          print('     Statut: ${participant['statut']}, Role: ${participant['roleVehicule']}');
+        }
+
+        if (participants.length < nombreVehicules) {
+          print('⚠️ [PARTICIPANTS-TAB] MANQUE ${nombreVehicules - participants.length} participant(s)!');
+          print('⚠️ [PARTICIPANTS-TAB] Vérifiez si le 3ème conducteur a rejoint la session');
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              _buildStatutParticipants(),
+              const SizedBox(height: 16),
+
+              // Afficher un avertissement si des participants manquent
+              if (participants.length < nombreVehicules)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange[300]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.orange[600]),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Participants manquants',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange[800],
+                              ),
+                            ),
+                            Text(
+                              '${nombreVehicules - participants.length} conducteur(s) n\'ont pas encore rejoint la session',
+                              style: TextStyle(color: Colors.orange[700]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              ...participants.map((participantData) {
+                final participant = SessionParticipant.fromMap(participantData as Map<String, dynamic>);
+                return _buildParticipantCard(participant);
+              }),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -343,88 +401,298 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
                 Row(
                   children: [
                     Icon(
-                      Icons.info_outline,
-                      color: Colors.blue[600],
-                      size: 20,
+                      Icons.email_outlined,
+                      color: Colors.blue[700],
+                      size: 24,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Génération PDF pour Agents',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[800],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Notification des Agents d\'Assurance',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[800],
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Text(
-                  'Cette fonctionnalité génère automatiquement un rapport PDF moderne et professionnel '
-                  'contenant toutes les informations du constat. Le PDF est ensuite envoyé par email '
-                  'aux agents d\'assurance concernés pour traitement du sinistre.',
+                  'Cette fonctionnalité permet de notifier automatiquement les agents d\'assurance responsables des véhicules impliqués dans l\'accident.',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.blue[700],
                     height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'Contenu du PDF :',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue[800],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                ...const [
-                  '• Informations générales de l\'accident',
-                  '• Détails des véhicules et conducteurs',
-                  '• Circonstances déclarées',
-                  '• Références aux croquis et photos',
-                  '• Recommandations et actions prioritaires',
-                ].map((item) => Padding(
-                  padding: EdgeInsets.only(left: 16, bottom: 2),
-                  child: Text(
-                    item,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.blue[700],
-                    ),
-                  ),
-                )),
               ],
             ),
           ),
 
           const SizedBox(height: 24),
 
-          // Widget de génération PDF
-          if (_sessionData != null)
-            ModernPDFGeneratorWidget(
-              session: _sessionData!,
-              onPDFGenerated: () {
-                // Optionnel : actions après génération
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('PDF généré et envoyé avec succès !'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              },
+          // Statut de la session
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _sessionData?.statut.name == 'finalise'
+                  ? Colors.green[50]
+                  : Colors.orange[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _sessionData?.statut.name == 'finalise'
+                    ? Colors.green[200]!
+                    : Colors.orange[200]!,
+              ),
             ),
+            child: Row(
+              children: [
+                Icon(
+                  _sessionData?.statut.name == 'finalise'
+                      ? Icons.check_circle_outline
+                      : Icons.warning_outlined,
+                  color: _sessionData?.statut.name == 'finalise'
+                      ? Colors.green[700]
+                      : Colors.orange[700],
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _sessionData?.statut.name == 'finalise'
+                            ? 'Session finalisée'
+                            : 'Session non finalisée',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _sessionData?.statut.name == 'finalise'
+                              ? Colors.green[800]
+                              : Colors.orange[800],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _sessionData?.statut.name == 'finalise'
+                            ? 'Vous pouvez maintenant utiliser les fonctionnalités PDF'
+                            : 'Finalisez d\'abord la session pour pouvoir utiliser les fonctionnalités PDF',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _sessionData?.statut.name == 'finalise'
+                              ? Colors.green[700]
+                              : Colors.orange[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
 
           const SizedBox(height: 24),
 
-          // 🇹🇳 Section PDF Tunisien Original
-          _buildPDFTunisienSection(),
+          // Bouton Notifier les Agents
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _sessionData?.statut.name == 'finalise'
+                  ? _notifierAgents
+                  : null,
+              icon: const Icon(Icons.email, color: Colors.white),
+              label: const Text(
+                'Notifier les Agents',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _sessionData?.statut.name == 'finalise'
+                    ? Colors.green[600]
+                    : Colors.grey[400],
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-          // 🎯 Section PDF Complet et Élégant (NOUVEAU)
-          _buildPDFCompletElegantSection(),
+          // Bouton Générer PDF Complet et Élégant
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _sessionData?.statut.name == 'finalise'
+                  ? () => _genererPDFCompletElegant()
+                  : null,
+              icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+              label: const Text(
+                'Générer PDF Complet et Élégant',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _sessionData?.statut.name == 'finalise'
+                    ? Colors.purple[600]
+                    : Colors.grey[400],
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+
+          if (_sessionData?.statut.name != 'finalise') ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Le constat doit être finalisé avant d\'utiliser ces fonctionnalités',
+                      style: TextStyle(
+                        color: Colors.orange[700],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Bouton test dashboard agent (temporaire)
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _ouvrirTestDashboardAgent,
+              icon: const Icon(Icons.dashboard, color: Colors.white),
+              label: const Text(
+                '🧪 Test Dashboard Agent',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple[600],
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+
+        ],
+      ),
+    );
+  }
+
+  /// 📧 Section Envoi aux Agents
+  Widget _buildEnvoiAgentsSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.send,
+                color: Colors.green[600],
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Envoyer aux Agents d\'Assurance',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green[800],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Envoyez automatiquement le PDF du constat aux agents d\'assurance responsables de chaque conducteur.',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.green[700],
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Bouton d'envoi
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _sessionData?.statut.name == 'finalise'
+                  ? _notifierAgents
+                  : null,
+              icon: const Icon(Icons.email, color: Colors.white),
+              label: const Text(
+                'Notifier les Agents',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _sessionData?.statut.name == 'finalise'
+                    ? Colors.green[600]
+                    : Colors.grey[400],
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+
+          if (_sessionData?.statut.name != 'finalise') ...[
+            const SizedBox(height: 8),
+            Text(
+              '⚠️ Le constat doit être finalisé avant l\'envoi aux agents',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.orange[700],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+
+
         ],
       ),
     );
@@ -521,35 +789,51 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
 
   /// 📊 Progression globale
   Widget _buildProgressionGlobale() {
-    return StreamBuilder<QuerySnapshot>(
+    return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('sessions_collaboratives')
           .doc(widget.session.id)
-          .collection('participants_data')
           .snapshots(),
       builder: (context, snapshot) {
         int termines = 0;
         int signes = 0;
-        final total = _sessionData!.participants.length;
+        int total = 0;
+        double pourcentage = 0.0;
 
-        if (snapshot.hasData) {
-          for (final doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final donneesFormulaire = data['donneesFormulaire'] as Map<String, dynamic>? ?? {};
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final sessionData = snapshot.data!.data() as Map<String, dynamic>;
+          final progression = sessionData['progression'] as Map<String, dynamic>? ?? {};
+          final participants = sessionData['participants'] as List? ?? [];
 
-            // Compter les formulaires terminés
-            if (data['statut'] == 'termine' || donneesFormulaire['etapeActuelle'] == '7') {
-              termines++;
-            }
+          total = participants.length;
+          termines = progression['formulairesTermines'] ?? 0;
+          signes = progression['signaturesEffectuees'] ?? 0;
 
-            // Compter les signatures
-            if (donneesFormulaire['aSigne'] == true || donneesFormulaire['signatureData'] != null) {
-              signes++;
+          print('🔍 [PROGRESSION-UI] ===== CALCUL PROGRESSION =====');
+          print('🔍 [PROGRESSION-UI] Total participants: $total');
+          print('🔍 [PROGRESSION-UI] Formulaires terminés: $termines');
+          print('🔍 [PROGRESSION-UI] Signatures effectuées: $signes');
+          print('🔍 [PROGRESSION-UI] Progression brute: $progression');
+
+          // 🔥 CORRECTION: Logique simplifiée
+          if (total > 0) {
+            // Si tous les formulaires sont terminés ET toutes les signatures effectuées, alors 100%
+            if (termines >= total && signes >= total) {
+              pourcentage = 1.0;
+              print('🔍 [PROGRESSION-UI] ✅ Tout terminé -> 100%');
+            } else {
+              // Sinon, calculer basé sur la moyenne des étapes complétées
+              final progressionFormulaires = termines / total;
+              final progressionSignatures = signes / total;
+              pourcentage = (progressionFormulaires + progressionSignatures) / 2;
+              print('🔍 [PROGRESSION-UI] 📊 Progression formulaires: ${(progressionFormulaires * 100).toInt()}%');
+              print('🔍 [PROGRESSION-UI] 📊 Progression signatures: ${(progressionSignatures * 100).toInt()}%');
+              print('🔍 [PROGRESSION-UI] 📊 Moyenne: ${(pourcentage * 100).toInt()}%');
             }
           }
-        }
 
-        final pourcentage = total > 0 ? (termines / total) : 0.0;
+          print('🔍 [PROGRESSION-UI] 🎯 RÉSULTAT FINAL: ${(pourcentage * 100).toInt()}%');
+        }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -614,7 +898,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
           ),
           const SizedBox(height: 12),
           Text(
-            '${(pourcentage * 100).toInt()}% des formulaires terminés',
+            '${(pourcentage * 100).toInt()}% du processus terminé',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
@@ -622,10 +906,10 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            'Signatures: $signes/$total',
+            'Formulaires: $termines/$total • Signatures: $signes/$total',
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 14,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -633,6 +917,115 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
       ),
     );
       },
+    );
+  }
+
+  /// 📋 Étapes du processus avec coches vertes en temps réel
+  Widget _buildEtapesProcessus() {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink();
+        }
+
+        final sessionData = snapshot.data!.data() as Map<String, dynamic>;
+        final progression = sessionData['progression'] as Map<String, dynamic>? ?? {};
+        final participants = sessionData['participants'] as List? ?? [];
+        final nombreVehicules = sessionData['nombreVehicules'] ?? 2;
+
+        final participantsRejoints = progression['participantsRejoints'] ?? 0;
+        final formulairesTermines = progression['formulairesTermines'] ?? 0;
+        final croquisValides = progression['croquisValides'] ?? 0;
+        final signaturesEffectuees = progression['signaturesEffectuees'] ?? 0;
+        final statut = sessionData['statut'] ?? '';
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.list_alt, color: Colors.green[600], size: 24),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Étapes du processus',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              _buildEtapeItem('1', 'Invitation des participants', participantsRejoints >= nombreVehicules),
+              _buildEtapeItem('2', 'Remplissage des formulaires', formulairesTermines >= nombreVehicules),
+              _buildEtapeItem('3', 'Validation du croquis', croquisValides >= nombreVehicules),
+              _buildEtapeItem('4', 'Signatures électroniques', signaturesEffectuees >= nombreVehicules),
+              _buildEtapeItem('5', 'Finalisation du constat', statut == 'finalise'),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 📋 Item d'étape avec coche verte
+  Widget _buildEtapeItem(String numero, String titre, bool complete) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: complete ? Colors.green[600] : Colors.grey[400],
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Center(
+              child: complete
+                  ? const Icon(Icons.check, color: Colors.white, size: 18)
+                  : Text(
+                      numero,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              titre,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: complete ? Colors.green[800] : Colors.grey[700],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1980,14 +2373,41 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
                         onPressed: () async {
                           Navigator.of(context).pop();
                           try {
-                            final file = File(pdfUrl);
-                            if (await file.exists()) {
-                              final result = await OpenFile.open(pdfUrl);
-                              if (result.type != ResultType.done) {
+                            // Vérifier si c'est une URL ou un fichier local
+                            if (pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://')) {
+                              // C'est une URL en ligne (Cloudinary)
+                              final uri = Uri.parse(pdfUrl);
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('PDF sauvegardé dans: $pdfUrl'),
-                                    duration: const Duration(seconds: 5),
+                                    content: Text('🌐 PDF ouvert dans le navigateur'),
+                                    duration: const Duration(seconds: 3),
+                                    backgroundColor: Colors.green[600],
+                                  ),
+                                );
+                              } else {
+                                throw Exception('Impossible d\'ouvrir l\'URL');
+                              }
+                            } else {
+                              // C'est un fichier local
+                              final file = File(pdfUrl);
+                              if (await file.exists()) {
+                                final result = await OpenFile.open(pdfUrl);
+                                if (result.type != ResultType.done) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('PDF sauvegardé dans: $pdfUrl'),
+                                      duration: const Duration(seconds: 5),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Fichier PDF non trouvé: $pdfUrl'),
+                                    duration: const Duration(seconds: 3),
+                                    backgroundColor: Colors.red,
                                   ),
                                 );
                               }
@@ -2503,14 +2923,41 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
                         onPressed: () async {
                           Navigator.of(context).pop();
                           try {
-                            final file = File(pdfPath);
-                            if (await file.exists()) {
-                              final result = await OpenFile.open(pdfPath);
-                              if (result.type != ResultType.done) {
+                            // Vérifier si c'est une URL ou un fichier local
+                            if (pdfPath.startsWith('http://') || pdfPath.startsWith('https://')) {
+                              // C'est une URL en ligne (Cloudinary)
+                              final uri = Uri.parse(pdfPath);
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('PDF sauvegardé dans: $pdfPath'),
-                                    duration: const Duration(seconds: 5),
+                                    content: Text('🌐 PDF ouvert dans le navigateur'),
+                                    duration: const Duration(seconds: 3),
+                                    backgroundColor: Colors.green[600],
+                                  ),
+                                );
+                              } else {
+                                throw Exception('Impossible d\'ouvrir l\'URL');
+                              }
+                            } else {
+                              // C'est un fichier local
+                              final file = File(pdfPath);
+                              if (await file.exists()) {
+                                final result = await OpenFile.open(pdfPath);
+                                if (result.type != ResultType.done) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('PDF sauvegardé dans: $pdfPath'),
+                                      duration: const Duration(seconds: 5),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Fichier PDF non trouvé: $pdfPath'),
+                                    duration: const Duration(seconds: 3),
+                                    backgroundColor: Colors.red,
                                   ),
                                 );
                               }
@@ -2705,5 +3152,705 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen>
         );
       }
     }
+  }
+
+  /// 🔧 Forcer le recalcul de la progression (débogage)
+  Future<void> _forcerRecalculProgression() async {
+    try {
+      print('🔧 [DEBUG] Forçage du recalcul de progression...');
+
+      // Appeler la méthode de recalcul du service
+      await CollaborativeSessionService.forcerRecalculStatutSession(widget.session.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🔧 Progression recalculée'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ [DEBUG] Erreur recalcul progression: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 🔍 Diagnostiquer la session (débogage)
+  Future<void> _diagnostiquerSession() async {
+    try {
+      print('🔍 [DIAGNOSTIC] ===== DIAGNOSTIC SESSION =====');
+
+      final sessionDoc = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .get();
+
+      if (!sessionDoc.exists) {
+        print('❌ [DIAGNOSTIC] Session non trouvée !');
+        return;
+      }
+
+      final sessionData = sessionDoc.data()!;
+      final nombreVehicules = sessionData['nombreVehicules'] ?? 0;
+      final participants = sessionData['participants'] as List? ?? [];
+      final statut = sessionData['statut'] ?? '';
+
+      print('🔍 [DIAGNOSTIC] Configuration session :');
+      print('   - ID: ${widget.session.id}');
+      print('   - Code: ${sessionData['codeSession']}');
+      print('   - Nombre véhicules configuré: $nombreVehicules');
+      print('   - Participants actuels: ${participants.length}');
+      print('   - Statut: $statut');
+      print('   - Créateur: ${sessionData['conducteurCreateur']}');
+
+      print('🔍 [DIAGNOSTIC] Détail participants :');
+      for (int i = 0; i < participants.length; i++) {
+        final participant = participants[i];
+        print('   $i. ${participant['nom']} ${participant['prenom']} (${participant['roleVehicule']})');
+        print('      UserID: ${participant['userId']}');
+        print('      Statut: ${participant['statut']}');
+        print('      A signé: ${participant['aSigne']}');
+      }
+
+      if (participants.length < nombreVehicules) {
+        print('⚠️ [DIAGNOSTIC] PROBLÈME DÉTECTÉ :');
+        print('   - Manque ${nombreVehicules - participants.length} participant(s)');
+        print('   - Vérifiez si tous les conducteurs ont rejoint la session');
+        print('   - Code de session à partager: ${sessionData['codeSession']}');
+      }
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('🔍 Diagnostic Session'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Véhicules configurés: $nombreVehicules'),
+                  Text('Participants présents: ${participants.length}'),
+                  Text('Statut: $statut'),
+                  const SizedBox(height: 16),
+                  if (participants.length < nombreVehicules) ...[
+                    const Text(
+                      '⚠️ Participants manquants',
+                      style: TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text('Manque: ${nombreVehicules - participants.length} conducteur(s)'),
+                    const SizedBox(height: 8),
+                    Text('Code à partager: ${sessionData['codeSession']}'),
+                  ] else ...[
+                    const Text(
+                      '✅ Tous les participants présents',
+                      style: TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Fermer'),
+              ),
+            ],
+          ),
+        );
+      }
+
+    } catch (e) {
+      print('❌ [DIAGNOSTIC] Erreur: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erreur diagnostic: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// ⚙️ Corriger la configuration de la session (débogage)
+  Future<void> _corrigerConfigurationSession() async {
+    try {
+      final sessionDoc = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .get();
+
+      if (!sessionDoc.exists) {
+        print('❌ Session non trouvée !');
+        return;
+      }
+
+      final sessionData = sessionDoc.data()!;
+      final nombreVehicules = sessionData['nombreVehicules'] ?? 0;
+      final participants = sessionData['participants'] as List? ?? [];
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('⚙️ Corriger Configuration'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Configuration actuelle: $nombreVehicules véhicules'),
+                Text('Participants présents: ${participants.length}'),
+                const SizedBox(height: 16),
+                const Text('Que voulez-vous faire ?'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Annuler'),
+              ),
+              if (participants.length < nombreVehicules)
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    await _ajusterNombreVehicules(participants.length);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                  child: Text('Ajuster à ${participants.length} véhicules'),
+                ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _afficherCodeSession();
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                child: const Text('Partager code session'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Erreur correction: $e');
+    }
+  }
+
+  /// 🔧 Ajuster le nombre de véhicules dans la session
+  Future<void> _ajusterNombreVehicules(int nouveauNombre) async {
+    try {
+      print('🔧 Ajustement nombre véhicules: $nouveauNombre');
+
+      await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(widget.session.id)
+          .update({
+        'nombreVehicules': nouveauNombre,
+      });
+
+      // Forcer le recalcul de la progression
+      await CollaborativeSessionService.forcerRecalculStatutSession(widget.session.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Configuration ajustée à $nouveauNombre véhicules'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      // Recharger les données
+      await _chargerDonneesSession();
+
+    } catch (e) {
+      print('❌ Erreur ajustement: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 📱 Afficher le code de session pour partage
+  void _afficherCodeSession() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('📱 Code de Session'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[300]!),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Code à partager:',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.session.codeSession,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Le 3ème conducteur doit:\n'
+              '1. Ouvrir l\'app Constat Tunisie\n'
+              '2. Choisir "Rejoindre une session"\n'
+              '3. Saisir ce code',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🧪 Tester les statuts des constats (debug)
+  Future<void> _testerStatuts() async {
+    try {
+      print('🧪 [TEST] Début test statuts pour session: ${widget.session.id}');
+
+      // Afficher un dialog de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('🧪 Test des statuts en cours...'),
+              SizedBox(height: 8),
+              Text(
+                'Vérification et simulation du flux complet',
+                style: TextStyle(fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Lancer le test complet
+      await ConstatStatusTestService.testerFluxComplet(widget.session.id!);
+
+      // Fermer le dialog de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher le résultat
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('🧪 Test Terminé'),
+            content: const Text(
+              'Le test du flux de statuts a été exécuté.\n\n'
+              'Consultez les logs de debug pour voir les détails.\n\n'
+              'Les statuts ont été mis à jour dans la base de données.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _chargerDonneesSession(); // Recharger pour voir les changements
+                },
+                child: const Text('Actualiser'),
+              ),
+            ],
+          ),
+        );
+      }
+
+    } catch (e) {
+      // Fermer le dialog de chargement si ouvert
+      if (mounted) Navigator.of(context).pop();
+
+      print('❌ [TEST] Erreur test statuts: $e');
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('❌ Erreur'),
+            content: Text('Erreur lors du test: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
+  /// 🧪 Tester la notification des agents (debug)
+  Future<void> _testerNotificationAgents() async {
+    try {
+      print('🧪 [DEBUG] Début test notification agents');
+
+      // Afficher un dialog de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('🧪 Test en cours...'),
+              SizedBox(height: 8),
+              Text(
+                'Vérification des contrats et agents',
+                style: TextStyle(fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Tester avec la session actuelle
+      final resultat = await ConstatAgentNotificationService.envoyerConstatAuxAgents(
+        sessionId: widget.session.id,
+      );
+
+      // Fermer le dialog de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher le résultat détaillé
+      _afficherResultatTest(resultat);
+    } catch (e) {
+      print('❌ [DEBUG] Erreur test: $e');
+      if (mounted) Navigator.of(context).pop();
+      _afficherErreurEnvoi(e.toString());
+    }
+  }
+
+  /// 🧪 Afficher le résultat du test
+  void _afficherResultatTest(Map<String, dynamic> resultat) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.bug_report, color: Colors.purple),
+            SizedBox(width: 8),
+            Text('🧪 Résultat du test'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('📊 Résumé:'),
+              const SizedBox(height: 8),
+              Text('• Succès: ${resultat['success']}'),
+              Text('• Total agents: ${resultat['totalAgents'] ?? 0}'),
+              Text('• Notifications réussies: ${resultat['notificationsReussies'] ?? 0}'),
+              Text('• Notifications échouées: ${resultat['notificationsEchouees'] ?? 0}'),
+
+              if (resultat['error'] != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red[200]!),
+                  ),
+                  child: Text(
+                    '❌ Erreur: ${resultat['error']}',
+                    style: TextStyle(color: Colors.red[700]),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 16),
+              const Text(
+                '💡 Vérifiez les logs dans la console pour plus de détails',
+                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🔍 Ouvrir l'écran de vérification des agents
+  void _ouvrirVerificationAgent() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const VerificationAgentScreen(),
+      ),
+    );
+  }
+
+  /// 📋 Ouvrir le test simple des notifications
+  void _ouvrirTestSimple() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TestNotificationsSimple(),
+      ),
+    );
+  }
+
+  /// 🔍 Ouvrir le debug des notifications agent
+  void _ouvrirDebugNotifications() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const DebugAgentNotifications(),
+      ),
+    );
+  }
+
+  /// 🧪 Ouvrir le test simple de notification
+  void _ouvrirTestSimpleNotification() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TestNotificationSimple(),
+      ),
+    );
+  }
+
+  /// 🧪 Ouvrir le test du dashboard agent
+  void _ouvrirTestDashboardAgent() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TestAgentNotificationsDashboard(),
+      ),
+    );
+  }
+
+
+
+  /// 📱 Notifier les agents d'assurance
+  Future<void> _notifierAgents() async {
+    try {
+      // Afficher un dialog de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Notification des agents...'),
+              SizedBox(height: 8),
+              Text(
+                'Identification des agents et création des notifications',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Envoyer le PDF aux agents
+      final resultat = await ConstatAgentNotificationService.envoyerConstatAuxAgents(
+        sessionId: widget.session.id,
+      );
+
+      // Fermer le dialog de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher le résultat
+      if (resultat['success']) {
+        _afficherResultatEnvoi(resultat);
+      } else {
+        _afficherErreurEnvoi(resultat['error']);
+      }
+
+    } catch (e) {
+      // Fermer le dialog de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      print('❌ Erreur envoi PDF agents: $e');
+      _afficherErreurEnvoi(e.toString());
+    }
+  }
+
+  /// ✅ Afficher le résultat des notifications
+  void _afficherResultatEnvoi(Map<String, dynamic> resultat) {
+    final notificationsReussies = resultat['notificationsReussies'] ?? 0;
+    final notificationsEchouees = resultat['notificationsEchouees'] ?? 0;
+    final totalAgents = resultat['totalAgents'] ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              notificationsEchouees == 0 ? Icons.check_circle : Icons.warning,
+              color: notificationsEchouees == 0 ? Colors.green : Colors.orange,
+            ),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text('Résultat des notifications'),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('📊 Résumé:'),
+            const SizedBox(height: 8),
+            Text('• Total agents: $totalAgents'),
+            Text('• Notifications réussies: $notificationsReussies'),
+            if (notificationsEchouees > 0) Text('• Notifications échouées: $notificationsEchouees'),
+
+            if (notificationsReussies > 0) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '✅ PDF envoyé avec succès',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green[800],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Les agents d\'assurance ont été notifiés et peuvent consulter le constat dans leur dashboard.',
+                      style: TextStyle(color: Colors.green[700]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ❌ Afficher une erreur d'envoi
+  void _afficherErreurEnvoi(String erreur) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.error, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Erreur d\'envoi'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Une erreur s\'est produite lors de la notification des agents:'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red[200]!),
+              ),
+              child: Text(
+                erreur,
+                style: TextStyle(
+                  color: Colors.red[700],
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Veuillez réessayer plus tard ou contacter le support technique.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
   }
 }

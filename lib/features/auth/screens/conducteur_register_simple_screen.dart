@@ -47,7 +47,7 @@ class _ConducteurRegisterSimpleScreenState extends ConsumerState<ConducteurRegis
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
           'Inscription Conducteur',
@@ -315,69 +315,130 @@ class _ConducteurRegisterSimpleScreenState extends ConsumerState<ConducteurRegis
     bool obscureText = false,
     bool isPassword = false,
   }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      obscureText: isPassword ? (label.contains('Confirmer') ? _obscureConfirmPassword : _obscurePassword) : obscureText,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: const Color(0xFF3B82F6)),
-        suffixIcon: isPassword
-            ? IconButton(
-                icon: Icon(
-                  (label.contains('Confirmer') ? _obscureConfirmPassword : _obscurePassword)
-                      ? Icons.visibility_off
-                      : Icons.visibility,
-                  color: Colors.grey[600],
-                ),
-                onPressed: () {
-                  setState(() {
-                    if (label.contains('Confirmer')) {
-                      _obscureConfirmPassword = !_obscureConfirmPassword;
-                    } else {
-                      _obscurePassword = !_obscurePassword;
-                    }
-                  });
-                },
-              )
-            : null,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
-        ),
-        filled: true,
-        fillColor: Colors.white,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      validator: validator,
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        obscureText: isPassword ? (label.contains('Confirmer') ? _obscureConfirmPassword : _obscurePassword) : obscureText,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF1E293B),
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey[600],
+          ),
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3B82F6).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              color: const Color(0xFF3B82F6),
+              size: 20,
+            ),
+          ),
+          suffixIcon: isPassword
+              ? Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  child: IconButton(
+                    icon: Icon(
+                      (label.contains('Confirmer') ? _obscureConfirmPassword : _obscurePassword)
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: Colors.grey[600],
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        if (label.contains('Confirmer')) {
+                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                        } else {
+                          _obscurePassword = !_obscurePassword;
+                        }
+                      });
+                    },
+                  ),
+                )
+              : null,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(
+              color: Color(0xFF3B82F6),
+              width: 2,
+            ),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 20,
+          ),
+        ),
+        validator: validator,
+      ),
     );
   }
 
   Widget _buildSubmitButton() {
-    return SizedBox(
+    return Container(
       width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF3B82F6),
+            Color(0xFF2563EB),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3B82F6).withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         onPressed: _isLoading ? null : _submitForm,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF3B82F6),
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
         child: _isLoading
             ? const SizedBox(
-                width: 20,
-                height: 20,
+                width: 24,
+                height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -386,8 +447,10 @@ class _ConducteurRegisterSimpleScreenState extends ConsumerState<ConducteurRegis
             : const Text(
                 'Créer mon compte',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 0.5,
                 ),
               ),
       ),

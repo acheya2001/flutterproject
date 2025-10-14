@@ -24,6 +24,7 @@ import 'agent_clients_improved_screen.dart';
 import 'create_contract_screen.dart';
 import 'agent_requests_screen.dart';
 import 'sinistres_screen.dart';
+import 'constats_recus_screen.dart';
 import '../widgets/insured_vehicle_action_widget.dart';
 
 /// 🏠 Dashboard principal de l'agent
@@ -89,6 +90,11 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
 
               if (compagnieDoc.exists) {
                 _agenceInfo!['compagnieInfo'] = compagnieDoc.data();
+                // Enrichir _agentInfo avec le compagnieId pour les écrans suivants
+                _agentInfo!['compagnieId'] = compagnieId;
+                _agentInfo!['compagnieNom'] = compagnieDoc.data()?['nom'] ?? '';
+
+                debugPrint('[AGENT_DASHBOARD] ✅ Agent enrichi avec compagnieId: $compagnieId');
               }
             }
           }
@@ -823,6 +829,25 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
                     builder: (context) => SinistresScreen(
                       agentData: _agentInfo!,
                       userData: _agentInfo!,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionCard(
+                  'Constats PDF',
+                  'PDF reçus des conducteurs',
+                  Icons.picture_as_pdf_rounded,
+                  const Color(0xFF8B5CF6),
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ConstatsRecusScreen(),
                     ),
                   ),
                 ),
@@ -4707,6 +4732,19 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
     final type = data['type'] ?? '';
 
     switch (type) {
+      case 'nouveau_constat':
+        // Naviguer vers l'écran des sinistres (onglet constats)
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SinistresScreen(
+              agentData: _agentInfo!,
+              userData: _agentInfo!,
+            ),
+          ),
+        );
+        break;
+
       case 'documents_completes':
       case 'frequence_choisie':
         // Naviguer vers l'écran des demandes

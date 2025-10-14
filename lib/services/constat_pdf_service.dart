@@ -6,6 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:printing/printing.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 
 /// 📄 Service de génération PDF pour constat d'accident complet
 class ConstatPdfService {
@@ -526,6 +529,327 @@ class ConstatPdfService {
     } catch (e) {
       print('❌ Erreur impression PDF: $e');
       rethrow;
+    }
+  }
+
+  // ========== NOUVELLES MÉTHODES POUR ENVOI À L'AGENT ==========
+
+  /// 📤 Envoyer le PDF du constat à l'agent responsable
+  static Future<Map<String, dynamic>> sendConstatPdfToAgent({
+    required String sinistreId,
+    required Uint8List pdfBytes,
+    required String fileName,
+    String? message,
+  }) async {
+    try {
+      debugPrint('[CONSTAT_PDF] 📤 Envoi PDF constat pour sinistre: $sinistreId');
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Utilisateur non authentifié');
+      }
+
+      // 1. Récupérer les informations du sinistre
+      final sinistreDoc = await _firestore.collection('sinistres').doc(sinistreId).get();
+      if (!sinistreDoc.exists) {
+        throw Exception('Sinistre non trouvé');
+      }
+
+      final sinistreData = sinistreDoc.data()!;
+      final agenceId = sinistreData['agenceId'];
+      final compagnieId = sinistreData['compagnieId'];
+      final conducteurId = sinistreData['conducteurId'];
+
+      if (conducteurId != user.uid) {
+        throw Exception('Accès non autorisé à ce sinistre');
+      }
+
+      // 2. Trouver l'agent responsable
+      final agentInfo = await _findResponsibleAgent(agenceId, compagnieId);
+      if (agentInfo == null) {
+        throw Exception('Aucun agent trouvé pour cette agence');
+      }
+
+      // 3. Uploader le PDF vers Firebase Storage
+      final pdfUrl = await _uploadPdfToStorage(
+        pdfBytes: pdfBytes,
+        fileName: fileName,
+        sinistreId: sinistreId,
+        conducteurId: conducteurId,
+      );
+
+      // 4. Créer l'enregistrement d'envoi
+      final envoi = await _createEnvoiRecord(
+        sinistreId: sinistreId,
+        agentId: agentInfo['id'],
+        pdfUrl: pdfUrl,
+        fileName: fileName,
+        message: message,
+        sinistreData: sinistreData,
+        agentInfo: agentInfo,
+      );
+
+      // 5. Mettre à jour le statut du sinistre
+      await _updateSinistreStatus(sinistreId, envoi['id']);
+
+      // 6. Envoyer notification à l'agent
+      await _notifyAgent(agentInfo, sinistreData, envoi);
+
+      // 7. Envoyer notification au conducteur (confirmation)
+      await _notifyConducteur(conducteurId, sinistreData, agentInfo);
+
+      debugPrint('[CONSTAT_PDF] ✅ PDF envoyé avec succès à l\'agent ${agentInfo['prenom']} ${agentInfo['nom']}');
+
+      return {
+        'success': true,
+        'envoiId': envoi['id'],
+        'agentInfo': agentInfo,
+        'pdfUrl': pdfUrl,
+        'message': 'PDF envoyé avec succès à l\'agent responsable',
+      };
+
+    } catch (e) {
+      debugPrint('[CONSTAT_PDF] ❌ Erreur envoi PDF: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
+
+  /// 🔍 Trouver l'agent responsable de l'agence
+  static Future<Map<String, dynamic>?> _findResponsibleAgent(String agenceId, String compagnieId) async {
+    try {
+      // Chercher d'abord dans l'agence spécifique
+      final agenceAgentsQuery = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'agent')
+          .where('agenceId', isEqualTo: agenceId)
+          .where('isActive', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (agenceAgentsQuery.docs.isNotEmpty) {
+        final agentDoc = agenceAgentsQuery.docs.first;
+        return {
+          'id': agentDoc.id,
+          ...agentDoc.data(),
+        };
+      }
+
+      // Si pas d'agent dans l'agence, chercher dans la compagnie
+      final compagnieAgentsQuery = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'agent')
+          .where('compagnieId', isEqualTo: compagnieId)
+          .where('isActive', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (compagnieAgentsQuery.docs.isNotEmpty) {
+        final agentDoc = compagnieAgentsQuery.docs.first;
+        return {
+          'id': agentDoc.id,
+          ...agentDoc.data(),
+        };
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('[CONSTAT_PDF] ❌ Erreur recherche agent: $e');
+      return null;
+    }
+  }
+
+  /// ☁️ Uploader le PDF vers Firebase Storage
+  static Future<String> _uploadPdfToStorage({
+    required Uint8List pdfBytes,
+    required String fileName,
+    required String sinistreId,
+    required String conducteurId,
+  }) async {
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final path = 'constats_pdf/$conducteurId/$sinistreId/${timestamp}_$fileName';
+
+      final ref = FirebaseStorage.instance.ref().child(path);
+      final uploadTask = ref.putData(
+        pdfBytes,
+        SettableMetadata(
+          contentType: 'application/pdf',
+          customMetadata: {
+            'sinistreId': sinistreId,
+            'conducteurId': conducteurId,
+            'uploadedAt': timestamp.toString(),
+          },
+        ),
+      );
+
+      final snapshot = await uploadTask;
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+
+      debugPrint('[CONSTAT_PDF] ☁️ PDF uploadé: $path');
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('[CONSTAT_PDF] ❌ Erreur upload PDF: $e');
+      throw Exception('Erreur lors de l\'upload du PDF: $e');
+    }
+  }
+
+  /// 📋 Créer l'enregistrement d'envoi
+  static Future<Map<String, dynamic>> _createEnvoiRecord({
+    required String sinistreId,
+    required String agentId,
+    required String pdfUrl,
+    required String fileName,
+    String? message,
+    required Map<String, dynamic> sinistreData,
+    required Map<String, dynamic> agentInfo,
+  }) async {
+    final envoiId = _firestore.collection('envois_constats').doc().id;
+
+    final envoiData = {
+      'id': envoiId,
+      'sinistreId': sinistreId,
+      'conducteurId': FirebaseAuth.instance.currentUser!.uid,
+      'agentId': agentId,
+      'pdfUrl': pdfUrl,
+      'fileName': fileName,
+      'message': message,
+      'statut': 'envoye',
+      'dateEnvoi': FieldValue.serverTimestamp(),
+      'lu': false,
+      'sinistreInfo': {
+        'numeroSinistre': sinistreData['numeroSinistre'],
+        'typeAccident': sinistreData['typeAccident'],
+        'dateAccident': sinistreData['dateAccident'],
+        'lieuAccident': sinistreData['lieuAccident'],
+      },
+      'agentInfo': {
+        'nom': agentInfo['nom'],
+        'prenom': agentInfo['prenom'],
+        'email': agentInfo['email'],
+        'agenceNom': agentInfo['agenceNom'],
+      },
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    await _firestore.collection('envois_constats').doc(envoiId).set(envoiData);
+
+    return {
+      'id': envoiId,
+      ...envoiData,
+    };
+  }
+
+  /// 📊 Mettre à jour le statut du sinistre
+  static Future<void> _updateSinistreStatus(String sinistreId, String envoiId) async {
+    await _firestore.collection('sinistres').doc(sinistreId).update({
+      'statutConstat': 'pdf_envoye',
+      'envoiConstatId': envoiId,
+      'dateEnvoiPdf': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// 🔔 Notifier l'agent
+  static Future<void> _notifyAgent(
+    Map<String, dynamic> agentInfo,
+    Map<String, dynamic> sinistreData,
+    Map<String, dynamic> envoi,
+  ) async {
+    final notificationId = _firestore.collection('notifications').doc().id;
+
+    await _firestore.collection('notifications').doc(notificationId).set({
+      'id': notificationId,
+      'userId': agentInfo['id'],
+      'type': 'nouveau_constat_pdf',
+      'titre': 'Nouveau PDF de constat reçu',
+      'message': 'Constat PDF reçu pour le sinistre ${sinistreData['numeroSinistre']}',
+      'data': {
+        'sinistreId': envoi['sinistreId'],
+        'envoiId': envoi['id'],
+        'numeroSinistre': sinistreData['numeroSinistre'],
+        'typeAccident': sinistreData['typeAccident'],
+        'conducteurNom': '${sinistreData['conducteurPrenom'] ?? ''} ${sinistreData['conducteurNom'] ?? ''}',
+      },
+      'lu': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// 🔔 Notifier le conducteur (confirmation)
+  static Future<void> _notifyConducteur(
+    String conducteurId,
+    Map<String, dynamic> sinistreData,
+    Map<String, dynamic> agentInfo,
+  ) async {
+    final notificationId = _firestore.collection('notifications').doc().id;
+
+    await _firestore.collection('notifications').doc(notificationId).set({
+      'id': notificationId,
+      'userId': conducteurId,
+      'type': 'constat_pdf_envoye',
+      'titre': 'Constat PDF envoyé',
+      'message': 'Votre constat PDF a été envoyé à l\'agent ${agentInfo['prenom']} ${agentInfo['nom']}',
+      'data': {
+        'sinistreId': sinistreData['id'],
+        'numeroSinistre': sinistreData['numeroSinistre'],
+        'agentNom': '${agentInfo['prenom']} ${agentInfo['nom']}',
+        'agenceNom': agentInfo['agenceNom'],
+      },
+      'lu': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// 📋 Récupérer les envois de constat pour un agent
+  static Future<List<Map<String, dynamic>>> getEnvoisForAgent(String agentId) async {
+    try {
+      final query = await _firestore
+          .collection('envois_constats')
+          .where('agentId', isEqualTo: agentId)
+          .orderBy('dateEnvoi', descending: true)
+          .get();
+
+      return query.docs.map((doc) => {
+        'id': doc.id,
+        ...doc.data(),
+      }).toList();
+    } catch (e) {
+      debugPrint('[CONSTAT_PDF] ❌ Erreur récupération envois: $e');
+      return [];
+    }
+  }
+
+  /// 📋 Récupérer les envois de constat pour un conducteur
+  static Future<List<Map<String, dynamic>>> getEnvoisForConducteur(String conducteurId) async {
+    try {
+      final query = await _firestore
+          .collection('envois_constats')
+          .where('conducteurId', isEqualTo: conducteurId)
+          .orderBy('dateEnvoi', descending: true)
+          .get();
+
+      return query.docs.map((doc) => {
+        'id': doc.id,
+        ...doc.data(),
+      }).toList();
+    } catch (e) {
+      debugPrint('[CONSTAT_PDF] ❌ Erreur récupération envois: $e');
+      return [];
+    }
+  }
+
+  /// ✅ Marquer un envoi comme lu par l'agent
+  static Future<void> markAsRead(String envoiId) async {
+    try {
+      await _firestore.collection('envois_constats').doc(envoiId).update({
+        'lu': true,
+        'dateLecture': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('[CONSTAT_PDF] ❌ Erreur marquage lu: $e');
     }
   }
 }

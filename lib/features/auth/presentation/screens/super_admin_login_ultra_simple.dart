@@ -14,6 +14,7 @@ class _SuperAdminLoginScreenState extends State<SuperAdminLoginScreen> {
   final _emailController = TextEditingController(text: 'constat.tunisie.app@gmail.com');
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -174,17 +175,29 @@ class _SuperAdminLoginScreenState extends State<SuperAdminLoginScreen> {
                     // Mot de passe
                     TextField(
                       controller: _passwordController,
-                      obscureText: true,
+                      obscureText: _obscurePassword,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: Colors.black,
                       ),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Mot de passe',
-                        labelStyle: TextStyle(color: Colors.grey),
-                        prefixIcon: Icon(Icons.lock, color: Colors.blue),
-                        border: OutlineInputBorder(),
+                        labelStyle: const TextStyle(color: Colors.grey),
+                        prefixIcon: const Icon(Icons.lock, color: Colors.blue),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                            color: Colors.grey[600],
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                          tooltip: _obscurePassword ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
+                        ),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
 

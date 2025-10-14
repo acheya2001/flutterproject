@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_routes.dart';
 import '../../../core/widgets/custom_app_bar.dart';
 import '../../../services/conducteur_auth_service.dart';
+import 'forgot_password_sms_screen.dart';
 
 class ConducteurLoginScreen extends ConsumerStatefulWidget {
   const ConducteurLoginScreen({super.key});
@@ -96,7 +97,14 @@ class _ConducteurLoginScreenState extends ConsumerState<ConducteurLoginScreen> {
               
               SizedBox(height: 10),
               TextButton(
-                onPressed: () => Navigator.pushNamed(context, AppRoutes.forgotPassword),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ForgotPasswordSMSScreen(
+                      userEmail: _emailController.text.trim(),
+                    ),
+                  ),
+                ),
                 child: Text('Mot de passe oublié ?'),
               ),
             ],

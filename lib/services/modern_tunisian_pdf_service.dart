@@ -182,6 +182,9 @@ class ModernTunisianPdfService {
     final signatures = <String, dynamic>{};
 
     try {
+      print('🔍 [PDF] Recherche signatures pour session: $sessionId');
+
+      // 1. Essayer dans la sous-collection signatures
       final signaturesSnapshot = await _firestore
           .collection('sessions_collaboratives')
           .doc(sessionId)
@@ -190,12 +193,46 @@ class ModernTunisianPdfService {
 
       for (var doc in signaturesSnapshot.docs) {
         final signatureData = doc.data();
+        print('✅ [PDF] Signature trouvée: ${doc.id}');
         signatures[doc.id] = {
           ...signatureData,
           'userId': doc.id,
           'hasImage': signatureData['signatureBase64'] != null,
         };
       }
+
+      // 2. Si pas de signatures dans la sous-collection, essayer dans les participants
+      if (signatures.isEmpty) {
+        final sessionDoc = await _firestore
+            .collection('sessions_collaboratives')
+            .doc(sessionId)
+            .get();
+
+        if (sessionDoc.exists) {
+          final sessionData = sessionDoc.data()!;
+          final participants = sessionData['participants'] as List? ?? [];
+
+          for (var participant in participants) {
+            final participantData = participant as Map<String, dynamic>;
+            final userId = participantData['userId'];
+
+            if (participantData['aSigne'] == true || participantData['signatureData'] != null) {
+              print('✅ [PDF] Signature trouvée dans participant: $userId');
+              signatures[userId] = {
+                'userId': userId,
+                'nom': participantData['nom'],
+                'prenom': participantData['prenom'],
+                'roleVehicule': participantData['roleVehicule'],
+                'signatureBase64': participantData['signatureData'],
+                'dateSignature': participantData['dateSignature'],
+                'hasImage': participantData['signatureData'] != null,
+              };
+            }
+          }
+        }
+      }
+
+      print('📊 [PDF] Total signatures trouvées: ${signatures.length}');
     } catch (e) {
       print('⚠️ [PDF] Erreur signatures: $e');
     }
@@ -206,9 +243,57 @@ class ModernTunisianPdfService {
   /// 🎨 Charger croquis complet avec image
   static Future<Map<String, dynamic>?> _chargerCroquisComplet(String sessionId) async {
     try {
-      // Essayer plusieurs emplacements possibles
-      final locations = ['principal', 'main', 'croquis_principal'];
+      print('🔍 [PDF] Recherche croquis pour session: $sessionId');
 
+      // 1. Essayer d'abord dans le document principal de la session
+      final sessionDoc = await _firestore
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .get();
+
+      if (sessionDoc.exists) {
+        final sessionData = sessionDoc.data()!;
+
+        // Vérifier les champs croquis_data ou croquis dans le document principal
+        if (sessionData['croquis_data'] != null) {
+          print('✅ [PDF] Croquis trouvé dans croquis_data');
+          return {
+            'elements': sessionData['croquis_data'],
+            'hasImage': true,
+            'source': 'session_croquis_data',
+            'dateCreation': sessionData['croquis_derniere_modification'],
+          };
+        }
+
+        if (sessionData['croquis'] != null) {
+          print('✅ [PDF] Croquis trouvé dans croquis');
+          final croquisData = sessionData['croquis'] as Map<String, dynamic>;
+          return {
+            ...croquisData,
+            'hasImage': croquisData['imageBase64'] != null || croquisData['elements'] != null,
+            'source': 'session_croquis',
+          };
+        }
+      }
+
+      // 2. Essayer dans la collection collaborative_sketches
+      final sketchDoc = await _firestore
+          .collection('collaborative_sketches')
+          .doc(sessionId)
+          .get();
+
+      if (sketchDoc.exists) {
+        print('✅ [PDF] Croquis trouvé dans collaborative_sketches');
+        final sketchData = sketchDoc.data()!;
+        return {
+          ...sketchData,
+          'hasImage': sketchData['elements'] != null && (sketchData['elements'] as List).isNotEmpty,
+          'source': 'collaborative_sketches',
+        };
+      }
+
+      // 3. Essayer dans la sous-collection croquis
+      final locations = ['principal', 'main', 'croquis_principal'];
       for (final location in locations) {
         final croquisDoc = await _firestore
             .collection('sessions_collaboratives')
@@ -218,14 +303,17 @@ class ModernTunisianPdfService {
             .get();
 
         if (croquisDoc.exists) {
+          print('✅ [PDF] Croquis trouvé dans sous-collection: $location');
           final croquisData = croquisDoc.data()!;
           return {
             ...croquisData,
             'hasImage': croquisData['imageBase64'] != null || croquisData['sketchData'] != null,
-            'source': location,
+            'source': 'subcollection_$location',
           };
         }
       }
+
+      print('❌ [PDF] Aucun croquis trouvé');
     } catch (e) {
       print('⚠️ [PDF] Erreur croquis: $e');
     }
@@ -759,6 +847,9 @@ class ModernTunisianPdfService {
     }
 
     final hasImage = croquis['imageBase64'] != null || croquis['sketchData'] != null;
+    final hasElements = croquis['elements'] != null || croquis['croquis_data'] != null;
+    final elements = croquis['elements'] ?? croquis['croquis_data'] ?? [];
+    final elementsCount = elements is List ? elements.length : 0;
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -766,7 +857,8 @@ class ModernTunisianPdfService {
         _buildModernInfoSection('🎨 CROQUIS DE L\'ACCIDENT', [
           'Source: ${croquis['source'] ?? 'Inconnu'}',
           'Image disponible: ${hasImage ? 'Oui' : 'Non'}',
-          'Créé le: ${_formatDate(croquis['dateCreation'])}',
+          'Éléments dessinés: $elementsCount',
+          'Créé le: ${_formatDate(croquis['dateCreation'] ?? croquis['createdAt'])}',
         ], PdfColors.blue100),
 
         if (hasImage) ...[
@@ -779,6 +871,49 @@ class ModernTunisianPdfService {
               borderRadius: pw.BorderRadius.circular(10),
             ),
             child: _buildImageFromBase64(croquis['imageBase64'] ?? croquis['sketchData']),
+          ),
+        ] else if (hasElements && elementsCount > 0) ...[
+          pw.SizedBox(height: 15),
+          pw.Container(
+            width: double.infinity,
+            height: 200,
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey400),
+              borderRadius: pw.BorderRadius.circular(10),
+              color: PdfColors.grey50,
+            ),
+            child: pw.Center(
+              child: pw.Column(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                children: [
+                  pw.Text(
+                    '🎨 CROQUIS CRÉÉ',
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue800,
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Text(
+                    '$elementsCount éléments dessinés par les conducteurs',
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      color: PdfColors.grey600,
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Text(
+                    'Croquis collaboratif validé électroniquement',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      color: PdfColors.green600,
+                      fontStyle: pw.FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ],

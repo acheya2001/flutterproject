@@ -1162,11 +1162,12 @@ class CollaborativeSessionService {
         print('   ❌ Formulaire non terminé');
       }
 
-      if (statut == 'croquis_valide' || statut == 'signe') {
+      // 🔥 CORRECTION: Si le participant a signé, cela implique qu'il a validé le croquis
+      if (statut == 'croquis_valide' || statut == 'signe' || (statut == 'formulaire_fini' && aSigne)) {
         croquisValides++;
-        print('   ✅ Croquis validé');
+        print('   ✅ Croquis validé (statut: $statut, aSigne: $aSigne)');
       } else {
-        print('   ❌ Croquis non validé');
+        print('   ❌ Croquis non validé (statut: $statut, aSigne: $aSigne)');
       }
 
       // Compter les signatures depuis le statut OU le champ aSigne

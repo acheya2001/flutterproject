@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules pour Constat Tunisie
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // 📁 Règles pour les constats PDF
+    match /constats_complets/{sessionId}/{fileName} {
+      // Permettre lecture à tous les utilisateurs authentifiés
+      allow read: if request.auth != null;
+      
+      // Permettre écriture aux utilisateurs authentifiés
+      allow write: if request.auth != null
+        && request.auth.uid != null
+        && fileName.matches('.*\\.pdf$');
+    }
+    
+    // 📁 Règles pour les PDFs de test
+    match /test_pdfs/{sessionId}/{fileName} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // 📁 Règles pour les demandes de contrats
+    match /demandes_contrats/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null 
+        && request.auth.uid == userId;
+    }
+    
+    // 📁 Règles pour les photos d'accidents
+    match /accident_photos/{sessionId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // 📁 Règles pour les signatures
+    match /signatures/{sessionId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // 📁 Règles pour les croquis
+    match /croquis/{sessionId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // 📁 Règles par défaut - refuser tout le reste
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

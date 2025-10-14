@@ -17,6 +17,7 @@ import 'vehicle_tracking_screen.dart';
 import 'complete_insurance_request_screen.dart';
 import '../../../services/vehicule_management_service.dart';
 import 'add_vehicle_screen.dart';
+import 'suivi_sinistres_screen.dart';
 
 
 /// 🚗 Dashboard moderne pour conducteur avec gestion multi-véhicules
@@ -807,6 +808,14 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>wi
         'enabled': true,
       },
       {
+        'title': 'Suivi Sinistres',
+        'subtitle': 'État des sinistres',
+        'icon': Icons.track_changes,
+        'gradient': [Colors.amber.shade600, Colors.amber.shade800],
+        'onTap': () => _showSuiviSinistres(),
+        'enabled': true,
+      },
+      {
         'title': 'Documents',
         'subtitle': 'Carte grise, permis',
         'icon': Icons.folder,
@@ -1419,6 +1428,16 @@ class _ModernConducteurDashboardState extends State<ModernConducteurDashboard>wi
   void _viewConstats() {
     // Naviguer vers l'écran des accidents/constats
     Navigator.pushNamed(context, '/conducteur/accidents');
+  }
+
+  /// 📊 Afficher le suivi des sinistres
+  void _showSuiviSinistres() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SuiviSinistresScreen(),
+      ),
+    );
   }
 
   Widget _buildConstatsSection() {

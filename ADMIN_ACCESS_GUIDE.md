@@ -13,7 +13,7 @@ J'ai ajouté **3 boutons admin** dans votre application pour que vous puissiez f
 ### **✅ 2. Icône Admin dans la Barre du Haut**
 - **📍 Localisation :** En haut à droite, dans la barre de navigation
 - **👀 Apparence :** Icône rouge d'administration (⚙️👑)
-- **🎯 Action :** Clic vers la connexion admin
+- **🎯 Action :** Clic vers la connexion admin 
 
 ### **✅ 3. Bouton dans l'Écran de Sélection**
 - **📍 Localisation :** Écran de sélection du type d'utilisateur
@@ -54,8 +54,8 @@ J'ai ajouté **3 boutons admin** dans votre application pour que vous puissiez f
 │    Votre Application    │
 │                         │
 │                         │
-│                    ┌────┐│
-│                    │🔴  ││
+│                   ┌────┐│
+│                   │🔴   │
 │                    │Admin││
 │                    └────┘│
 └─────────────────────────┘

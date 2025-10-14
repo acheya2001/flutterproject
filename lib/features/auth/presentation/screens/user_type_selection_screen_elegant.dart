@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../screens/login_screen.dart';
@@ -6,6 +7,7 @@ import 'professional_account_request_screen.dart';
 import 'guest_access_screen.dart';
 import 'super_admin_login_ultra_simple.dart';
 import '../../../conducteur/screens/guest_join_session_screen.dart';
+
 
 /// 👥 Écran de sélection du type d'utilisateur - Version Élégante et Simplifiée
 class UserTypeSelectionScreenElegant extends StatelessWidget {
@@ -173,6 +175,8 @@ class UserTypeSelectionScreenElegant extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 30),
+
+                const SizedBox(height: 15),
 
                 // Accès super admin
                 GestureDetector(
@@ -583,12 +587,109 @@ class UserTypeSelectionScreenElegant extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Aide'),
-        content: const Text('Besoin d\'aide ? Contactez notre support au +216 XX XXX XXX'),
+        title: Row(
+          children: [
+            Icon(Icons.help_outline, color: Colors.blue[600]),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Aide & Support',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '🚗 Constat Collaboratif Tunisie',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Comment utiliser l\'application :',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              const Text('• Créez un constat collaboratif en temps réel'),
+              const Text('• Invitez l\'autre conducteur via QR code'),
+              const Text('• Remplissez ensemble le formulaire officiel'),
+              const Text('• Prenez des photos et générez des croquis'),
+              const Text('• Obtenez votre constat signé instantanément'),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[300]!, width: 2),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.phone, color: Colors.green[700], size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Support 24h/24',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green[800],
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '📞 +216 25 976 815',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green[800],
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      '📧 support@constat-tunisie.app',
+                      style: TextStyle(
+                        color: Colors.green[700],
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      '🕒 Disponible 24h/24 - 7j/7',
+                      style: TextStyle(
+                        color: Colors.green[700],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Fermer'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              // Lancer l'appel téléphonique
+              _launchPhone('+21625976815');
+            },
+            icon: const Icon(Icons.phone),
+            label: const Text('Appeler'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
@@ -599,12 +700,103 @@ class UserTypeSelectionScreenElegant extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Conditions d\'utilisation'),
-        content: const Text('Consultez nos conditions d\'utilisation sur notre site web.'),
+        title: Row(
+          children: [
+            Icon(Icons.description_outlined, color: Colors.orange[600]),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Conditions d\'Utilisation',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Constat Collaboratif Tunisie',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '📋 Conditions Générales d\'Utilisation',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '1. Acceptation des conditions',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const Text('En utilisant cette application, vous acceptez nos conditions d\'utilisation et notre politique de confidentialité.'),
+              const SizedBox(height: 8),
+              const Text(
+                '2. Utilisation responsable',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const Text('• Fournir des informations exactes et véridiques'),
+              const Text('• Respecter les autres utilisateurs'),
+              const Text('• Ne pas utiliser l\'app à des fins frauduleuses'),
+              const SizedBox(height: 8),
+              const Text(
+                '3. Protection des données',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const Text('• Vos données sont protégées et chiffrées'),
+              const Text('• Conformité RGPD et lois tunisiennes'),
+              const Text('• Pas de partage avec des tiers non autorisés'),
+              const SizedBox(height: 8),
+              const Text(
+                '4. Responsabilité',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const Text('• L\'application facilite la déclaration'),
+              const Text('• La responsabilité légale reste celle des conducteurs'),
+              const Text('• Les constats ont valeur légale en Tunisie'),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '📞 Questions juridiques ?',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text('Contactez notre service juridique :'),
+                    const Text('📞 +216 25 976 815'),
+                    const Text('📧 juridique@constat-tunisie.app'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Fermer'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _launchEmail('juridique@constat-tunisie.app');
+            },
+            icon: const Icon(Icons.email),
+            label: const Text('Contact Juridique'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
@@ -615,12 +807,258 @@ class UserTypeSelectionScreenElegant extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Contact'),
-        content: const Text('Email: support@constat-tunisie.app\nTél: +216 XX XXX XXX'),
+        title: Row(
+          children: [
+            Icon(Icons.contact_support_outlined, color: Colors.green[600]),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Nous Contacter',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '📞 Support Client 24h/24',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+
+              // Support téléphonique
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[400]!, width: 2),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.phone, color: Colors.green[800], size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Assistance Téléphonique',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green[900],
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '📞 +216 25 976 815',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green[900],
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      '🕒 Disponible 24h/24 - 7j/7',
+                      style: TextStyle(
+                        color: Colors.green[800],
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      '💬 Support en arabe et français',
+                      style: TextStyle(
+                        color: Colors.green[800],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Support email
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[400]!, width: 2),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.email, color: Colors.blue[800], size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Support par Email',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[900],
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '📧 support@constat-tunisie.app',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[900],
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      '⏱️ Réponse sous 2h en moyenne',
+                      style: TextStyle(
+                        color: Colors.blue[800],
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      '📋 Joignez captures d\'écran si besoin',
+                      style: TextStyle(
+                        color: Colors.blue[800],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Urgences
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red[400]!, width: 2),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.emergency, color: Colors.red[800], size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Urgences Accident',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red[900],
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '🚨 Police: 197',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red[900],
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      '🏥 SAMU: 190',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red[900],
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      '🚒 Pompiers: 198',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red[900],
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      '🛡️ Protection Civile: 71',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red[900],
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber[50],
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.amber[300]!),
+                ),
+                child: Text(
+                  '💡 Conseil: Appelez-nous directement pour une assistance immédiate lors d\'un accident.',
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: Colors.amber[800],
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Fermer'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _launchPhone('+21625976815');
+            },
+            icon: const Icon(Icons.phone),
+            label: const Text('Appeler'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _launchEmail('support@constat-tunisie.app');
+            },
+            icon: const Icon(Icons.email),
+            label: const Text('Email'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
@@ -818,5 +1256,37 @@ class UserTypeSelectionScreenElegant extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 📞 Lancer un appel téléphonique
+  Future<void> _launchPhone(String phoneNumber) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        debugPrint('Impossible de lancer l\'appel vers $phoneNumber');
+      }
+    } catch (e) {
+      debugPrint('Erreur lors du lancement de l\'appel: $e');
+    }
+  }
+
+  /// 📧 Lancer l'application email
+  Future<void> _launchEmail(String email) async {
+    final Uri emailUri = Uri(
+      scheme: 'mailto',
+      path: email,
+      query: 'subject=Support Constat Collaboratif Tunisie',
+    );
+    try {
+      if (await canLaunchUrl(emailUri)) {
+        await launchUrl(emailUri);
+      } else {
+        debugPrint('Impossible de lancer l\'email vers $email');
+      }
+    } catch (e) {
+      debugPrint('Erreur lors du lancement de l\'email: $e');
+    }
   }
 }

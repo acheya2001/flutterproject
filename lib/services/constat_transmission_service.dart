@@ -1,14 +1,14 @@
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import '../models/accident_session.dart';
 import '../models/vehicule_model.dart';
 import 'email_notification_service.dart';
 import 'pdf_generation_service.dart';
+import 'cloudinary_pdf_service.dart';
 
 /// 📤 Service de transmission automatique des constats aux compagnies d'assurance
 class ConstatTransmissionService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static final FirebaseStorage _storage = FirebaseStorage.instance;
 
   /// 🚀 Transmission automatique après finalisation du constat
   static Future<void> transmettreConstatFinalise(AccidentSession session) async {
@@ -44,11 +44,15 @@ class ConstatTransmissionService {
     }
   }
 
-  /// 💾 Sauvegarder le PDF dans Firebase Storage
+  /// 💾 Sauvegarder le PDF dans Cloudinary
   static Future<String> _sauvegarderPDF(String sessionId, List<int> pdfBytes) async {
-    final ref = _storage.ref().child('constats/$sessionId/constat_final.pdf');
-    await ref.putData(Uint8List.fromList(pdfBytes));
-    return await ref.getDownloadURL();
+    final fileName = 'constat_final_${sessionId}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    return await CloudinaryPdfService.uploadPdf(
+      pdfBytes: Uint8List.fromList(pdfBytes),
+      fileName: fileName,
+      sessionId: sessionId,
+      folder: 'constats_finaux',
+    );
   }
 
   /// 🏢 Identifier toutes les compagnies d'assurance impliquées

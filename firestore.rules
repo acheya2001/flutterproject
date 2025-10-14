@@ -1,13 +1,205 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // ========== RÈGLES TEMPORAIRES ULTRA-PERMISSIVES ==========
-    // ⚠️ POUR DÉVELOPPEMENT SEULEMENT - À SÉCURISER EN PRODUCTION ⚠️
-    
-    // Permettre l'accès complet à toutes les collections
-    match /{document=**} {
+
+    // ========== FONCTIONS UTILITAIRES ==========
+
+    // Vérifier si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Obtenir les données utilisateur
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Vérifier le rôle de l'utilisateur
+    function hasRole(role) {
+      return isAuthenticated() && getUserData().role == role;
+    }
+
+    // Vérifier si l'utilisateur appartient à une agence
+    function belongsToAgency(agenceId) {
+      return isAuthenticated() && getUserData().agenceId == agenceId;
+    }
+
+    // Vérifier si l'utilisateur appartient à une compagnie
+    function belongsToCompany(compagnieId) {
+      return isAuthenticated() && getUserData().compagnieId == compagnieId;
+    }
+
+    // ========== RÈGLES POUR LES UTILISATEURS ==========
+
+    match /users/{userId} {
+      // Lecture: utilisateur peut lire ses propres données
+      // Super admin peut lire tous les utilisateurs
+      allow read: if isAuthenticated() &&
+        (request.auth.uid == userId || hasRole('super_admin'));
+
+      // Écriture: seul super admin peut créer/modifier les utilisateurs
+      allow write: if hasRole('super_admin');
+    }
+
+    // ========== RÈGLES POUR LES EXPERTS ==========
+
+    match /experts/{expertId} {
+      // Lecture:
+      // - Expert peut lire ses propres données
+      // - Admin agence peut lire les experts de son agence
+      // - Agent peut lire les experts de sa compagnie pour assignation
+      allow read: if isAuthenticated() && (
+        request.auth.uid == expertId ||
+        (hasRole('admin_agence') && belongsToAgency(resource.data.agenceId)) ||
+        (hasRole('agent') && belongsToCompany(resource.data.compagnieId))
+      );
+
+      // Écriture:
+      // - Admin agence peut créer/modifier les experts de son agence
+      allow create: if hasRole('admin_agence') &&
+        belongsToAgency(request.resource.data.agenceId);
+
+      allow update: if hasRole('admin_agence') &&
+        belongsToAgency(resource.data.agenceId);
+
+      // Suppression: seul admin agence peut supprimer (soft delete)
+      allow delete: if hasRole('admin_agence') &&
+        belongsToAgency(resource.data.agenceId);
+    }
+
+    // ========== RÈGLES POUR LES MISSIONS D'EXPERTISE ==========
+
+    match /missions_expertise/{missionId} {
+      // Lecture:
+      // - Expert assigné peut lire sa mission
+      // - Agent qui a créé la mission peut la lire
+      // - Conducteur du sinistre peut lire la mission
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.expertId ||
+        request.auth.uid == resource.data.agentId ||
+        request.auth.uid == resource.data.conducteurId
+      );
+
+      // Création: seuls les agents peuvent créer des missions
+      allow create: if hasRole('agent') &&
+        request.auth.uid == request.resource.data.agentId;
+
+      // Mise à jour:
+      // - Agent peut modifier sa mission (réassignation, etc.)
+      // - Expert peut modifier le statut et les rapports de sa mission
+      allow update: if isAuthenticated() && (
+        (hasRole('agent') && request.auth.uid == resource.data.agentId) ||
+        (hasRole('expert') && request.auth.uid == resource.data.expertId)
+      );
+
+      // Suppression: seul l'agent créateur peut supprimer
+      allow delete: if hasRole('agent') &&
+        request.auth.uid == resource.data.agentId;
+    }
+
+    // ========== RÈGLES POUR LES ENVOIS DE CONSTATS ==========
+
+    match /envois_constats/{envoiId} {
+      // Création: seuls les conducteurs peuvent créer des envois
+      allow create: if isAuthenticated() && hasRole('conducteur') &&
+        request.resource.data.conducteurId == request.auth.uid;
+
+      // Lecture:
+      // - Conducteur peut lire ses envois
+      // - Agent peut lire les envois qui lui sont destinés
+      // - Super admin peut tout lire
+      allow read: if isAuthenticated() && (
+        (hasRole('conducteur') && resource.data.conducteurId == request.auth.uid) ||
+        (hasRole('agent') && resource.data.agentId == request.auth.uid) ||
+        hasRole('super_admin')
+      );
+
+      // Mise à jour:
+      // - Agent peut marquer comme lu
+      // - Super admin peut tout modifier
+      allow update: if isAuthenticated() && (
+        (hasRole('agent') && resource.data.agentId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lu', 'dateLecture'])) ||
+        hasRole('super_admin')
+      );
+
+      // Suppression: seul super admin
+      allow delete: if isAuthenticated() && hasRole('super_admin');
+    }
+
+    // ========== RÈGLES POUR LES SINISTRES ==========
+
+    match /sinistres/{sinistreId} {
+      // Lecture:
+      // - Conducteur peut lire ses sinistres
+      // - Agent peut lire les sinistres de sa compagnie
+      // - Expert assigné peut lire le sinistre
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.conducteurId ||
+        (hasRole('agent') && belongsToCompany(resource.data.compagnieId)) ||
+        request.auth.uid == resource.data.expertId
+      );
+
+      // Création: conducteur peut créer ses sinistres
+      allow create: if hasRole('conducteur') &&
+        request.auth.uid == request.resource.data.conducteurId;
+
+      // Mise à jour:
+      // - Conducteur peut modifier ses sinistres (avant assignation expert)
+      // - Agent peut modifier les sinistres (assignation expert, statut)
+      allow update: if isAuthenticated() && (
+        (hasRole('conducteur') && request.auth.uid == resource.data.conducteurId) ||
+        (hasRole('agent') && belongsToCompany(resource.data.compagnieId))
+      );
+    }
+
+    // ========== RÈGLES POUR LES COMPAGNIES ==========
+
+    match /compagnies_assurance/{compagnieId} {
+      // Lecture: tous les utilisateurs authentifiés peuvent lire
+      allow read: if isAuthenticated();
+
+      // Écriture: seul super admin
+      allow write: if hasRole('super_admin');
+    }
+
+    // ========== RÈGLES POUR LES AGENCES ==========
+
+    match /agences/{agenceId} {
+      // Lecture: tous les utilisateurs authentifiés peuvent lire
+      allow read: if isAuthenticated();
+
+      // Écriture: seul super admin
+      allow write: if hasRole('super_admin');
+    }
+
+    // ========== RÈGLES POUR LES NOTIFICATIONS ==========
+
+    match /notifications/{notificationId} {
+      // Lecture: utilisateur peut lire ses notifications
+      allow read: if isAuthenticated() &&
+        request.auth.uid == resource.data.userId;
+
+      // Création: système peut créer des notifications
+      allow create: if isAuthenticated();
+
+      // Mise à jour: utilisateur peut marquer ses notifications comme lues
+      allow update: if isAuthenticated() &&
+        request.auth.uid == resource.data.userId;
+    }
+
+    // ========== RÈGLES TEMPORAIRES POUR DÉVELOPPEMENT ==========
+    // ⚠️ À SUPPRIMER EN PRODUCTION ⚠️
+
+    // Collections de test et développement
+    match /test_data/{document=**} {
       allow read, write: if true;
+    }
+
+    // Logs et audit (lecture seule pour debug)
+    match /audit_logs/{document=**} {
+      allow read: if hasRole('super_admin');
+      allow create: if isAuthenticated();
     }
   }
 }

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/super_admin_hierarchy_service.dart';
 import '../widgets/cleanup_admin_widget.dart';
+import 'workflow_test_screen.dart';
 
 /// 👑 Dashboard Super Admin avec vue hiérarchique intégrée
 class SuperAdminDashboard extends StatefulWidget {
@@ -124,6 +125,16 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
             onPressed: () => Navigator.pushNamed(context, '/test-pdf'),
             icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
             tooltip: 'Test PDF',
+          ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const WorkflowTestScreen(),
+              ),
+            ),
+            icon: const Icon(Icons.bug_report, color: Colors.white),
+            tooltip: 'Test Workflow',
           ),
           IconButton(
             onPressed: _loadData,

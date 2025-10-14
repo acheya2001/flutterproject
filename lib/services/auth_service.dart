@@ -272,9 +272,36 @@ class AuthService {
   /// 👨‍🔧 Vérifier le statut d'un expert
   static Future<Map<String, dynamic>> _checkExpertStatus(Map<String, dynamic> userData) async {
     try {
+      // Vérifier les deux formats possibles de champs compagnies
       final compagniesAssociees = userData['compagniesAssociees'] as List?;
+      final compagniesPartenaires = userData['compagniesPartenaires'] as List?;
+      final compagnieId = userData['compagnieId'] as String?;
 
-      if (compagniesAssociees == null || compagniesAssociees.isEmpty) {
+      // Construire la liste des compagnies à vérifier
+      List<String> compagniesToCheck = [];
+
+      if (compagniesAssociees != null && compagniesAssociees.isNotEmpty) {
+        compagniesToCheck.addAll(compagniesAssociees.cast<String>());
+      }
+
+      if (compagniesPartenaires != null && compagniesPartenaires.isNotEmpty) {
+        compagniesToCheck.addAll(compagniesPartenaires.cast<String>());
+      }
+
+      if (compagnieId != null && compagnieId.isNotEmpty) {
+        compagniesToCheck.add(compagnieId);
+      }
+
+      // Supprimer les doublons
+      compagniesToCheck = compagniesToCheck.toSet().toList();
+
+      debugPrint('[AUTH_SERVICE] 🔍 Expert - Données utilisateur: ${userData.keys.toList()}');
+      debugPrint('[AUTH_SERVICE] 🔍 Expert - compagniesAssociees: $compagniesAssociees');
+      debugPrint('[AUTH_SERVICE] 🔍 Expert - compagniesPartenaires: $compagniesPartenaires');
+      debugPrint('[AUTH_SERVICE] 🔍 Expert - compagnieId: $compagnieId');
+      debugPrint('[AUTH_SERVICE] 🔍 Expert - Compagnies à vérifier: $compagniesToCheck');
+
+      if (compagniesToCheck.isEmpty) {
         return {
           'isActive': false,
           'reason': 'no_companies',
@@ -285,22 +312,38 @@ class AuthService {
 
       // Vérifier qu'au moins une compagnie est active
       bool hasActiveCompany = false;
-      for (String compagnieId in compagniesAssociees) {
+      for (String compagnieIdToCheck in compagniesToCheck) {
         try {
-          final compagnieDoc = await _firestore
-              .collection('compagnies')
-              .doc(compagnieId)
+          // Essayer d'abord dans compagnies_assurance, puis dans compagnies
+          DocumentSnapshot compagnieDoc = await _firestore
+              .collection('compagnies_assurance')
+              .doc(compagnieIdToCheck)
               .get();
 
+          if (!compagnieDoc.exists) {
+            compagnieDoc = await _firestore
+                .collection('compagnies')
+                .doc(compagnieIdToCheck)
+                .get();
+          }
+
           if (compagnieDoc.exists) {
-            final compagnieData = compagnieDoc.data()!;
-            if (compagnieData['statut'] == 'actif') {
-              hasActiveCompany = true;
-              break;
+            final compagnieData = compagnieDoc.data();
+            if (compagnieData != null) {
+              final dataMap = compagnieData as Map<String, dynamic>;
+              final statut = dataMap['statut'] ?? 'actif';
+              debugPrint('[AUTH_SERVICE] 🏢 Compagnie $compagnieIdToCheck - Statut: $statut');
+
+              if (statut == 'actif' || statut == 'active') {
+                hasActiveCompany = true;
+                break;
+              }
             }
+          } else {
+            debugPrint('[AUTH_SERVICE] ⚠️ Compagnie $compagnieIdToCheck non trouvée');
           }
         } catch (e) {
-          debugPrint('[AUTH_SERVICE] ⚠️ Erreur vérification compagnie $compagnieId: $e');
+          debugPrint('[AUTH_SERVICE] ⚠️ Erreur vérification compagnie $compagnieIdToCheck: $e');
         }
       }
 
@@ -313,6 +356,7 @@ class AuthService {
         };
       }
 
+      debugPrint('[AUTH_SERVICE] ✅ Expert - Au moins une compagnie active trouvée');
       return {'isActive': true};
     } catch (e) {
       debugPrint('[AUTH_SERVICE] ❌ Erreur vérification expert: $e');

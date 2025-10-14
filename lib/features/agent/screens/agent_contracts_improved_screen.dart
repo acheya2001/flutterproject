@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'sinistres_contrat_screen.dart';
 
 /// 📋 Écran amélioré des contrats de l'agent avec filtrage et renouvellement
 class AgentContractsImprovedScreen extends StatefulWidget {
@@ -411,6 +412,23 @@ class _AgentContractsImprovedScreenState extends State<AgentContractsImprovedScr
               label: const Text('Voir'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF3B82F6),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Bouton Sinistres
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => _voirSinistresContrat(contratId, data),
+              icon: const Icon(Icons.warning, size: 16),
+              label: const Text('Sinistres'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 shape: RoundedRectangleBorder(
@@ -940,5 +958,21 @@ class _AgentContractsImprovedScreenState extends State<AgentContractsImprovedScr
         ),
       );
     }
+  }
+
+  /// 🚨 Voir les sinistres d'un contrat
+  void _voirSinistresContrat(String contratId, Map<String, dynamic> data) {
+    // Naviguer vers l'écran des sinistres avec filtrage par contrat
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SinistresContratScreen(
+          contratId: contratId,
+          numeroContrat: data['numeroContrat'] ?? data['numero'] ?? contratId,
+          nomAssure: '${data['prenom'] ?? ''} ${data['nom'] ?? ''}'.trim(),
+          vehicule: '${data['marque'] ?? ''} ${data['modele'] ?? ''} (${data['immatriculation'] ?? ''})',
+        ),
+      ),
+    );
   }
 }

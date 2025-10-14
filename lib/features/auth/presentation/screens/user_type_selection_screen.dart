@@ -159,7 +159,7 @@ class UserTypeSelectionScreen extends StatelessWidget {
                         onTap: () => _showConducteurOptions(context),
                       ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
 
                       // Agent d'assurance
                       _buildModernUserTypeCard(
@@ -175,7 +175,7 @@ class UserTypeSelectionScreen extends StatelessWidget {
                         onTap: () => _navigateToLogin(context, 'agent'),
                       ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
 
                       // Expert automobile
                       _buildModernUserTypeCard(
@@ -191,7 +191,7 @@ class UserTypeSelectionScreen extends StatelessWidget {
                         onTap: () => _navigateToLogin(context, 'expert'),
                       ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
 
                       // Administrateur
                       _buildModernUserTypeCard(
@@ -208,12 +208,12 @@ class UserTypeSelectionScreen extends StatelessWidget {
                       ),
 
                       // Espace final pour éviter l'overflow
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 // Barre d'actions moderne
                 Container(
@@ -277,7 +277,7 @@ class UserTypeSelectionScreen extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
 
                 // Version de l'application
                 Text(

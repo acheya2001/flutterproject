@@ -23,6 +23,7 @@ import 'features/auth/presentation/screens/user_type_selection_screen_elegant.da
 import 'test_nouvelles_sections.dart';
 import 'demo_formulaire_moderne.dart';
 import 'widgets/demo_pdf_generator_widget.dart';
+import 'test_firebase_pdf.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/conducteur_login_screen.dart';
 
@@ -32,6 +33,8 @@ import 'features/conducteur/screens/conducteur_dashboard_complete.dart';
 import 'features/agent/screens/create_conducteur_account_screen.dart';
 import 'features/auth/screens/conducteur_register_simple_screen.dart';
 import 'features/expert/presentation/screens/expert_dashboard_screen.dart';
+import 'features/expert/screens/missions_expert_screen.dart';
+import 'features/expert/screens/mission_details_screen.dart';
 import 'features/admin_compagnie/presentation/screens/admin_compagnie_dashboard.dart';
 import 'features/admin_agence/screens/admin_agence_dashboard.dart';
 import 'features/admin/screens/super_admin_dashboard.dart';
@@ -197,6 +200,20 @@ class ConstatTunisieApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(userType: 'driver'),
         '/agent-dashboard': (context) => const AgentDashboardScreen(),
         '/expert-dashboard': (context) => const ExpertDashboardScreen(),
+        '/expert-missions': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          return MissionsExpertScreen(
+            expertId: args['expertId'],
+            expertData: args['expertData'],
+          );
+        },
+        '/expert-mission-details': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          return MissionDetailsScreen(
+            mission: args['mission'],
+            expertData: args['expertData'],
+          );
+        },
         '/admin-agence-dashboard': (context) => const AdminAgenceDashboard(),
         '/admin-compagnie-dashboard': (context) => const AdminCompagnieDashboard(),
         '/super-admin-dashboard': (context) => const SuperAdminDashboard(),
@@ -243,6 +260,7 @@ class ConstatTunisieApp extends StatelessWidget {
         '/demo-formulaire-moderne': (context) => const DemoFormulaireModerne(),
         '/test-pdf': (context) => const TestPdfScreen(),
         '/demo-pdf': (context) => DemoPdfGeneratorWidget(),
+        '/test-firebase-pdf': (context) => const TestFirebasePdfPage(),
       },
 
     );

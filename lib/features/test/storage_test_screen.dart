@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/cloudinary_storage_service.dart';
 import '../../services/imgur_storage_service.dart';
 import '../../services/supabase_storage_service.dart';
+import 'cloudinary_pdf_test_screen.dart';
+import '../../test_cloudinary_fix.dart';
 
 /// 🧪 Écran de test pour les services de stockage
 class StorageTestScreen extends StatefulWidget {
@@ -69,17 +71,51 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
             ),
             
             const SizedBox(height: 20),
-            
-            // Bouton de sélection
-            ElevatedButton.icon(
-              onPressed: _pickImage,
-              icon: const Icon(Icons.photo_library),
-              label: const Text('Sélectionner une image'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade600,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
+
+            // Boutons de sélection et test PDF
+            Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _pickImage,
+                        icon: const Icon(Icons.photo_library),
+                        label: const Text('Sélectionner une image'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _openPdfTestScreen,
+                        icon: const Icon(Icons.picture_as_pdf),
+                        label: const Text('Test PDF Cloudinary'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  onPressed: _openQuickTest,
+                  icon: const Icon(Icons.bug_report),
+                  label: const Text('🧪 Test Rapide Cloudinary Fix'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ],
             ),
             
             const SizedBox(height: 20),
@@ -342,6 +378,26 @@ class _StorageTestScreenState extends State<StorageTestScreen> {
     if (mounted) setState(() {
       _isLoading = false;
     });
+  }
+
+  /// 📄 Ouvrir l'écran de test PDF Cloudinary
+  void _openPdfTestScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const CloudinaryPdfTestScreen(),
+      ),
+    );
+  }
+
+  /// 🧪 Ouvrir le test rapide de correction Cloudinary
+  void _openQuickTest() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TestCloudinaryFix(),
+      ),
+    );
   }
 }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -13,11 +14,15 @@ import '../../../services/session_status_service.dart';
 import '../../sinistre/screens/sinistre_choix_rapide_screen.dart';
 import '../../../services/modern_pdf_service.dart';
 import '../../../services/sinistre_service.dart';
+import '../../../services/conducteur_notification_service.dart';
+import 'notifications_conducteur_screen.dart';
 import '../../../models/sinistre_model.dart';
 import 'mes_vehicules_screen.dart';
 import '../../../conducteur/screens/guest_join_session_screen.dart';
 import '../../../conducteur/screens/registered_join_session_screen.dart';
 import '../../../conducteur/screens/sinistre_details_screen.dart';
+import '../../../test_cloudinary_fix.dart';
+import '../../../services/constat_agent_notification_service.dart';
 import '../../../conducteur/screens/accident_choice_screen.dart';
 import '../../../conducteur/screens/session_details_screen.dart';
 import '../../../services/form_status_service.dart';
@@ -45,6 +50,13 @@ import '../../../conducteur/screens/accident_declaration_screen.dart';
 import '../../../services/sinistre_tracking_service.dart';
 import '../../../widgets/modern_sinistre_card.dart';
 import '../../../services/constat_tunisien_officiel_pdf.dart';
+import '../../../services/constat_pdf_service.dart';
+import '../../../services/constat_tracking_service.dart';
+import '../widgets/constat_status_timeline.dart';
+import '../../../services/constat_migration_service.dart';
+import 'dart:io';
+import 'package:open_file/open_file.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ConducteurDashboardComplete extends StatefulWidget {
   const ConducteurDashboardComplete({Key? key}) : super(key: key);
@@ -60,6 +72,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
   List<Map<String, dynamic>> _sinistres = [];
   bool _isLoading = true;
   String _nomConducteur = 'Conducteur';
+  Map<String, dynamic>? _userData;
 
   // Variables pour la gestion des sessions collaboratives
   bool _isSelectionMode = false;
@@ -231,6 +244,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               final prenom = userData['prenom'] ?? userData['firstName'] ?? '';
               final nom = userData['nom'] ?? userData['lastName'] ?? '';
               _nomConducteur = '$prenom $nom'.trim();
+              _userData = userData;
+              _userData!['uid'] = currentUser.uid;
             });
             }
             print('✅ Nom trouvé dans SharedPreferences pour utilisateur actuel: $_nomConducteur');
@@ -243,6 +258,12 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
       if (currentUser != null) {
         if (mounted) { setState(() {
           _nomConducteur = currentUser.displayName ?? currentUser.email?.split('@').first ?? 'Conducteur';
+          _userData = {
+            'uid': currentUser.uid,
+            'email': currentUser.email,
+            'displayName': currentUser.displayName,
+            'nom': _nomConducteur,
+          };
         });
         }
         print('✅ Nom depuis Firebase Auth: $_nomConducteur');
@@ -502,6 +523,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         return 'termine';
       case 'envoye':
         return 'envoye_agence';
+      case 'expert_assigne':
+        return 'expert_assigne';
       default:
         return 'en_attente';
     }
@@ -758,15 +781,14 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         elevation: 0,
         actions: [
           // Bouton notifications
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('notifications')
-                .where('conducteurId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
-                .where('lu', isEqualTo: false)
-                .limit(10)
-                .snapshots(),
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: ConducteurNotificationService.streamNotifications(
+              conducteurId: FirebaseAuth.instance.currentUser?.uid ?? '',
+              limit: 50,
+            ),
             builder: (context, snapshot) {
-              final unreadCount = snapshot.data?.docs.length ?? 0;
+              final notifications = snapshot.data ?? [];
+              final unreadCount = notifications.where((n) => !(n['lu'] ?? false)).length;
 
               return Stack(
                 children: [
@@ -776,7 +798,9 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const NotificationsScreen(),
+                          builder: (context) => NotificationsConducteurScreen(
+                            conducteurData: _userData ?? {},
+                          ),
                         ),
                       );
                     },
@@ -883,6 +907,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         ),
       );
     }
+
+
 
     return null;
   }
@@ -1918,72 +1944,332 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
   }
 
   Widget _buildVehiculesPage() {
-    return RefreshIndicator(
-      onRefresh: _loadUserData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text(
+          'Mes Véhicules',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1F2937),
+        elevation: 0,
+        centerTitle: true,
+        automaticallyImplyLeading: false, // Pas de bouton retour
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _vehicules.isEmpty
+              ? _buildEmptyVehiculesState()
+              : _buildVehiculesListContent(),
+    );
+  }
+
+  /// 📋 Contenu de la liste des véhicules (même style que MesVehiculesScreen)
+  Widget _buildVehiculesListContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_vehicules.length} véhicule(s) assuré(s)',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Alertes d'expiration
+          _buildAlerteExpirationVehicules(),
+
+          ..._vehicules.map((vehicule) => _buildVehiculeCardMesVehicules(vehicule)).toList(),
+        ],
+      ),
+    );
+  }
+
+  /// 🚫 État vide pour les véhicules
+  Widget _buildEmptyVehiculesState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  '🚗 Mes Véhicules Assurés',
+            Icon(
+              Icons.directions_car_outlined,
+              size: 80,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Aucun véhicule assuré',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Vos véhicules apparaîtront ici après validation des contrats',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () {
+                setState(() => _selectedIndex = 1); // Aller à l'onglet Demandes
+              },
+              icon: const Icon(Icons.add, size: 20),
+              label: const Text('Faire une demande'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ⚠️ Alertes d'expiration pour l'onglet véhicules
+  Widget _buildAlerteExpirationVehicules() {
+    // Vérifier s'il y a des véhicules qui expirent bientôt
+    final vehiculesExpirantBientot = _vehicules.where((vehicule) {
+      final dateFin = _convertirDateSafe(vehicule['dateFin']);
+      if (dateFin == null) return false;
+
+      final maintenant = DateTime.now();
+      final difference = dateFin.difference(maintenant).inDays;
+      return difference <= 30 && difference > 0;
+    }).toList();
+
+    if (vehiculesExpirantBientot.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_amber, color: Colors.orange[700], size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Contrats expirant bientôt',
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: Colors.orange[800],
                   ),
                 ),
-                IconButton(
-                  onPressed: () async {
-                    if (mounted) { setState(() {
-                      _isLoading = true;
-                    });
-                    }
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${vehiculesExpirantBientot.length} contrat(s) expire(nt) dans les 30 prochains jours',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.orange[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                    final user = FirebaseAuth.instance.currentUser;
-                    if (user != null) {
-                      await _loadVehicules(user.uid);
-                    }
+  /// 🚗 Carte de véhicule (même style que MesVehiculesScreen)
+  Widget _buildVehiculeCardMesVehicules(Map<String, dynamic> vehicule) {
+    final marque = vehicule['marque'] ?? 'N/A';
+    final modele = vehicule['modele'] ?? 'N/A';
+    final immatriculation = vehicule['numeroImmatriculation'] ?? vehicule['immatriculation'] ?? 'N/A';
+    final annee = vehicule['annee']?.toString() ?? 'N/A';
+    final couleur = vehicule['couleur'] ?? 'N/A';
+    final numeroContrat = vehicule['numeroContrat'] ?? 'N/A';
 
-                    if (mounted) { setState(() {
-                      _isLoading = false;
-                    });
-                    }
+    final dateFinContrat = vehicule['dateFin'] != null
+        ? _convertirDateSafe(vehicule['dateFin'])
+        : null;
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('🔄 Véhicules rechargés avec nouvelles données'),
-                        backgroundColor: Colors.blue,
+    // Couleurs aléatoires pour les cartes (même logique que MesVehiculesScreen)
+    final colors = [
+      Colors.blue,
+      Colors.green,
+      Colors.purple,
+      Colors.orange,
+      Colors.teal,
+      Colors.indigo,
+    ];
+    final cardColor = colors[vehicule.hashCode % colors.length];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [cardColor.withOpacity(0.1), cardColor.withOpacity(0.05)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // En-tête avec marque/modèle et statut
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$marque $modele',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: cardColor[700],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            immatriculation,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.refresh, color: Colors.blue),
-                  tooltip: 'Recharger les véhicules',
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.green[100],
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified, size: 16, color: Colors.green[700]),
+                          const SizedBox(width: 4),
+                          Text(
+                            'ASSURÉ',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Informations du véhicule avec couleurs améliorées
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoItemVehicules('Année', annee, Icons.calendar_today),
+                    ),
+                    Expanded(
+                      child: _buildInfoItemVehicules('Couleur', couleur, Icons.palette),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoItemVehicules('Contrat N°', numeroContrat, Icons.description),
+                    ),
+                    if (dateFinContrat != null)
+                      Expanded(
+                        child: _buildInfoItemVehicules(
+                          'Expire le',
+                          DateFormat('dd/MM/yyyy').format(dateFinContrat),
+                          Icons.event,
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Boutons d'action
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _voirDetailsVehiculeOnglet(vehicule),
+                        icon: Icon(Icons.visibility, color: cardColor[600]),
+                        label: const Text('Détails'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: cardColor[600],
+                          side: BorderSide(color: cardColor[300]!),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _declarerSinistreVehicule(vehicule),
+                        icon: const Icon(Icons.report_problem, size: 16),
+                        label: const Text('Sinistre'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[600],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-
-            if (_vehicules.isEmpty)
-              _buildEmptyState(
-                'Aucun véhicule assuré',
-                'Vos véhicules apparaîtront ici après validation des contrats',
-                Icons.directions_car,
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _vehicules.length,
-                itemBuilder: (context, index) {
-                  final vehicule = _vehicules[index];
-                  return _buildVehiculeCard(vehicule);
-                },
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -3075,7 +3361,7 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
         final sinistresTermines = sinistres.where((data) {
           final statut = data['statut'] ?? 'en_attente';
-          return ['termine', 'clos', 'rejete', 'envoye_agence', 'envoye'].contains(statut);
+          return ['termine', 'clos', 'rejete', 'envoye_agence', 'envoye', 'expert_assigne'].contains(statut);
         }).toList();
 
         return Column(
@@ -3861,6 +4147,11 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         actionColor = Colors.teal;
         onPressed = () => _voirStatutEnvoi(sinistreId);
         break;
+      case 'expert_assigne':
+        actionText = 'Expert assigné';
+        actionColor = Colors.blue;
+        onPressed = () => _voirExpertAssigne(sinistreId);
+        break;
       default:
         actionText = 'Action inconnue';
         actionColor = Colors.grey;
@@ -3899,6 +4190,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         return Icons.check_circle;
       case 'envoye':
         return Icons.send;
+      case 'expert_assigne':
+        return Icons.engineering;
       default:
         return Icons.help_outline;
     }
@@ -3946,6 +4239,137 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         backgroundColor: Colors.teal,
       ),
     );
+  }
+
+  /// 👨‍🔧 Voir les détails de l'expert assigné
+  void _voirExpertAssigne(String sinistreId) async {
+    try {
+      // Récupérer les détails du constat avec l'expert assigné
+      final constatDoc = await FirebaseFirestore.instance
+          .collection('constats_finalises')
+          .doc(sinistreId)
+          .get();
+
+      if (!constatDoc.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Constat non trouvé'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final constatData = constatDoc.data()!;
+      final expertAssigne = constatData['expertAssigne'];
+
+      if (expertAssigne == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Aucun expert assigné trouvé'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Afficher les détails de l'expert
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.engineering, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Expert Assigné'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildExpertDetailRow('Nom', expertAssigne['nom'] ?? 'N/A'),
+              _buildExpertDetailRow('Code Expert', expertAssigne['codeExpert'] ?? 'N/A'),
+              _buildExpertDetailRow('Téléphone', expertAssigne['telephone'] ?? 'N/A'),
+              _buildExpertDetailRow('Email', expertAssigne['email'] ?? 'N/A'),
+              if (constatData['dateAssignationExpert'] != null)
+                _buildExpertDetailRow('Date d\'assignation', _formatDate(constatData['dateAssignationExpert'])),
+              if (constatData['delaiInterventionHeures'] != null)
+                _buildExpertDetailRow('Délai d\'intervention', '${constatData['delaiInterventionHeures']} heures'),
+              if (constatData['commentaireAssignation'] != null && constatData['commentaireAssignation'].isNotEmpty)
+                _buildExpertDetailRow('Commentaire', constatData['commentaireAssignation']),
+            ],
+          ),
+          actions: [
+            if (expertAssigne['telephone'] != null && expertAssigne['telephone'].isNotEmpty)
+              TextButton.icon(
+                onPressed: () => _appellerExpert(expertAssigne['telephone']),
+                icon: const Icon(Icons.phone),
+                label: const Text('Appeler'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fermer'),
+            ),
+          ],
+        ),
+      );
+
+    } catch (e) {
+      debugPrint('[DASHBOARD] ❌ Erreur récupération expert: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 📋 Construire une ligne de détail expert
+  Widget _buildExpertDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(
+            child: Text(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📞 Appeler l'expert
+  void _appellerExpert(String telephone) async {
+    try {
+      final Uri phoneUri = Uri(scheme: 'tel', path: telephone);
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Impossible d\'ouvrir l\'application téléphone'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur lors de l\'appel: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   /// 🎨 Couleur selon le statut du sinistre
@@ -4015,6 +4439,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         return Colors.green;
       case 'envoye':
         return Colors.teal;
+      case 'expert_assigne':
+        return Colors.blue;
       default:
         return Colors.grey;
     }
@@ -4053,6 +4479,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         return 'Terminé';
       case 'envoye':
         return 'Envoyé';
+      case 'expert_assigne':
+        return 'Expert assigné';
       default:
         return 'Inconnu';
     }
@@ -4143,6 +4571,8 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               ],
             ),
           ),
+
+
 
           // Contenu
           StreamBuilder<List<CollaborativeSession>>(
@@ -5190,9 +5620,9 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
 
           _buildProfileInfoRow('Nom complet', _nomConducteur, Icons.badge),
           _buildProfileInfoRow('Email', FirebaseAuth.instance.currentUser?.email ?? 'Non renseigné', Icons.email),
-          _buildProfileInfoRow('Téléphone', '+216 XX XXX XXX', Icons.phone),
-          _buildProfileInfoRow('CIN', '12345678', Icons.credit_card),
-          _buildProfileInfoRow('Adresse', 'Tunis, Tunisie', Icons.location_on),
+          _buildProfileInfoRow('Téléphone', _getUserPhone(), Icons.phone),
+          _buildProfileInfoRow('CIN', _getUserCIN(), Icons.credit_card),
+          _buildProfileInfoRow('Adresse', _getUserAddress(), Icons.location_on),
           _buildProfileInfoRow('Date d\'inscription', _formatDate(FirebaseAuth.instance.currentUser?.metadata.creationTime), Icons.calendar_today),
         ],
       ),
@@ -5595,21 +6025,209 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     return years.toString();
   }
 
+  /// 📱 Récupérer le téléphone de l'utilisateur
+  String _getUserPhone() {
+    if (_userData != null) {
+      return _userData!['telephone'] ?? _userData!['phone'] ?? '+216 XX XXX XXX';
+    }
+
+    // Chercher dans les demandes
+    for (final demande in _demandes) {
+      final phone = demande['telephone'];
+      if (phone != null && phone.toString().isNotEmpty) {
+        return phone.toString();
+      }
+    }
+
+    return '+216 XX XXX XXX';
+  }
+
+  /// 🆔 Récupérer le CIN de l'utilisateur
+  String _getUserCIN() {
+    if (_userData != null) {
+      return _userData!['cin'] ?? _userData!['numeroIdentite'] ?? 'Non renseigné';
+    }
+
+    // Chercher dans les demandes
+    for (final demande in _demandes) {
+      final cin = demande['cin'] ?? demande['numeroIdentite'];
+      if (cin != null && cin.toString().isNotEmpty) {
+        return cin.toString();
+      }
+    }
+
+    return 'Non renseigné';
+  }
+
+  /// 🏠 Récupérer l'adresse de l'utilisateur
+  String _getUserAddress() {
+    if (_userData != null) {
+      return _userData!['adresse'] ?? _userData!['address'] ?? 'Non renseignée';
+    }
+
+    // Chercher dans les demandes
+    for (final demande in _demandes) {
+      final adresse = demande['adresse'] ?? demande['address'];
+      if (adresse != null && adresse.toString().isNotEmpty) {
+        return adresse.toString();
+      }
+    }
+
+    return 'Non renseignée';
+  }
+
   /// ✏️ Modifier le profil
   void _editProfile() {
+    final nomController = TextEditingController(text: _nomConducteur);
+    final phoneController = TextEditingController(text: _getUserPhone());
+    final cinController = TextEditingController(text: _getUserCIN());
+    final adresseController = TextEditingController(text: _getUserAddress());
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Modifier le profil'),
-        content: const Text('Cette fonctionnalité sera bientôt disponible.'),
+        title: Row(
+          children: [
+            Icon(Icons.edit, color: Colors.blue[700]),
+            const SizedBox(width: 8),
+            const Text('Modifier le profil'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nomController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nom complet',
+                    prefixIcon: Icon(Icons.person),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Téléphone',
+                    prefixIcon: Icon(Icons.phone),
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: cinController,
+                  decoration: const InputDecoration(
+                    labelText: 'CIN',
+                    prefixIcon: Icon(Icons.credit_card),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: adresseController,
+                  decoration: const InputDecoration(
+                    labelText: 'Adresse',
+                    prefixIcon: Icon(Icons.location_on),
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => _saveProfileChanges(
+              nomController.text,
+              phoneController.text,
+              cinController.text,
+              adresseController.text,
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[700],
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Sauvegarder'),
           ),
         ],
       ),
     );
+  }
+
+  /// 💾 Sauvegarder les modifications du profil
+  Future<void> _saveProfileChanges(String nom, String phone, String cin, String adresse) async {
+    try {
+      Navigator.pop(context); // Fermer le dialog
+
+      // Afficher un indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Sauvegarde en cours...'),
+            ],
+          ),
+        ),
+      );
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Mettre à jour dans Firestore
+        final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        await userDoc.set({
+          'nom': nom.split(' ').last,
+          'prenom': nom.split(' ').first,
+          'telephone': phone,
+          'cin': cin,
+          'adresse': adresse,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        // Mettre à jour les données locales
+        setState(() {
+          _nomConducteur = nom;
+          if (_userData != null) {
+            _userData!['nom'] = nom.split(' ').last;
+            _userData!['prenom'] = nom.split(' ').first;
+            _userData!['telephone'] = phone;
+            _userData!['cin'] = cin;
+            _userData!['adresse'] = adresse;
+          }
+        });
+
+        Navigator.pop(context); // Fermer le loading
+
+        // Afficher un message de succès
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Profil mis à jour avec succès'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context); // Fermer le loading
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur lors de la sauvegarde: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   /// 🔒 Changer le mot de passe
@@ -5660,13 +6278,131 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
   }
 
   /// 📥 Télécharger les données utilisateur
-  void _downloadUserData() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Fonctionnalité de téléchargement en cours de développement'),
-        backgroundColor: Colors.blue,
-      ),
-    );
+  Future<void> _downloadUserData() async {
+    try {
+      // Afficher un dialog de confirmation
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.download, color: Colors.green[700]),
+              const SizedBox(width: 8),
+              const Text('Télécharger mes données'),
+            ],
+          ),
+          content: const Text(
+            'Voulez-vous télécharger toutes vos données personnelles ?\n\n'
+            'Cela inclut :\n'
+            '• Informations personnelles\n'
+            '• Véhicules assurés\n'
+            '• Demandes d\'assurance\n'
+            '• Historique des sinistres',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green[700],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Télécharger'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        // Afficher un indicateur de chargement
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 16),
+                Text('Préparation des données...'),
+              ],
+            ),
+          ),
+        );
+
+        // Préparer les données
+        final userData = {
+          'informations_personnelles': {
+            'nom': _nomConducteur,
+            'email': FirebaseAuth.instance.currentUser?.email,
+            'telephone': _getUserPhone(),
+            'cin': _getUserCIN(),
+            'adresse': _getUserAddress(),
+            'date_inscription': FirebaseAuth.instance.currentUser?.metadata.creationTime?.toIso8601String(),
+          },
+          'vehicules': _vehicules.map((v) => {
+            'marque': v['marque'],
+            'modele': v['modele'],
+            'immatriculation': v['numeroImmatriculation'],
+            'numero_contrat': v['numeroContrat'],
+            'date_debut': v['dateDebut'],
+            'date_fin': v['dateFin'],
+          }).toList(),
+          'demandes': _demandes.map((d) => {
+            'numero': d['numero'],
+            'statut': d['statut'],
+            'marque': d['marque'],
+            'modele': d['modele'],
+            'date_creation': d['dateCreation'],
+          }).toList(),
+          'sinistres': _sinistres.map((s) => {
+            'id': s['id'],
+            'statut': s['statut'],
+            'type': s['typeAccident'],
+            'date_creation': s['dateCreation'],
+          }).toList(),
+          'statistiques': _calculateStats(),
+          'date_export': DateTime.now().toIso8601String(),
+        };
+
+        Navigator.pop(context); // Fermer le loading
+
+        // Simuler le téléchargement (en réalité, on afficherait les données)
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Données exportées'),
+            content: SingleChildScrollView(
+              child: Text(
+                'Vos données ont été préparées :\n\n'
+                '📊 ${_vehicules.length} véhicule(s)\n'
+                '📋 ${_demandes.length} demande(s)\n'
+                '⚠️ ${_sinistres.length} sinistre(s)\n\n'
+                'Dans une version complète, ces données seraient téléchargées en format JSON ou PDF.',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context); // Fermer le loading si ouvert
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur lors de l\'export: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   /// 🆘 Contacter le support
@@ -5674,16 +6410,66 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Support Client'),
-        content: const Column(
+        title: Row(
+          children: [
+            Icon(Icons.support_agent, color: Colors.purple[700]),
+            const SizedBox(width: 8),
+            const Text('Support Client'),
+          ],
+        ),
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Contactez-nous :'),
-            SizedBox(height: 12),
-            Text('📧 Email: support@constat-tunisie.com'),
-            Text('📞 Téléphone: +216 71 123 456'),
-            Text('🕒 Horaires: 8h-18h (Lun-Ven)'),
+            const Text(
+              'Contactez notre équipe de support :',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 16),
+
+            _buildContactOption(
+              Icons.phone,
+              'Téléphone',
+              '+216 71 123 456',
+              Colors.green,
+              () => _launchPhone('+21671123456'),
+            ),
+
+            const SizedBox(height: 12),
+
+            _buildContactOption(
+              Icons.email,
+              'Email',
+              'support@constat-tunisie.com',
+              Colors.blue,
+              () => _launchEmail('support@constat-tunisie.com'),
+            ),
+
+            const SizedBox(height: 16),
+
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.schedule, color: Colors.blue[700], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Horaires: 8h-18h (Lun-Ven)\n24h/24 pour les urgences',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
@@ -5694,6 +6480,86 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         ],
       ),
     );
+  }
+
+  /// 📞 Widget pour une option de contact
+  Widget _buildContactOption(IconData icon, String title, String subtitle, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 📞 Lancer un appel téléphonique
+  Future<void> _launchPhone(String phoneNumber) async {
+    final uri = Uri.parse('tel:$phoneNumber');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Impossible d\'ouvrir l\'application téléphone'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 📧 Lancer l'application email
+  Future<void> _launchEmail(String email) async {
+    final uri = Uri.parse('mailto:$email?subject=Support - Constat Tunisie');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Impossible d\'ouvrir l\'application email'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   /// 🔔 Activer/désactiver les notifications
@@ -5991,21 +6857,6 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
             final contrats = contratsNettoyes.where((contrat) {
               return _estContratValide(contrat);
             }).take(3).toList();
-
-            // Debug temporairement désactivé pour éviter la boucle infinie
-            // if (kDebugMode) {
-            //   print('🔍 [DEBUG ACCUEIL] Total documents: ${allContrats.length}');
-            //   print('🔍 [DEBUG ACCUEIL] Contrats nettoyés: ${contratsNettoyes.length}');
-            //   print('🔍 [DEBUG ACCUEIL] Contrats valides affichés: ${contrats.length}');
-
-            //   for (final contrat in contrats) {
-            //     final marque = _formatTexte(contrat['marque']);
-            //     final modele = _formatTexte(contrat['modele']);
-            //     final immat = _formatImmatriculation(contrat['immatriculation']);
-            //     final numero = _formatNumeroContrat(contrat['numeroContrat'], contrat['id']);
-            //     print('  ✅ Contrat ${contrat['id']}: $marque $modele ($immat) - ${contrat['statut']} - N°$numero');
-            //   }
-            // }
 
             if (contrats.isEmpty) {
               return _buildNoContractsHomeCard();
@@ -7243,6 +8094,300 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
     final int maxParticipants = session.nombreVehicules;
     final bool isSelected = _selectedSessions.contains(session.id);
 
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _getConstatStatusForSession(session.id!),
+      builder: (context, constatSnapshot) {
+        final constatData = constatSnapshot.data;
+        final constatStatut = constatData?['statut'];
+
+        return _buildSessionCardContent(
+          session,
+          statusColor,
+          statusText,
+          participantsCount,
+          maxParticipants,
+          isSelected,
+          constatStatut,
+          constatData,
+        );
+      },
+    );
+  }
+
+  /// 🔍 Debug - Vérifier toutes les collections pour une session
+  Future<void> _debugSessionData(String sessionId) async {
+    try {
+      debugPrint('[DEBUG] 🔍 === ANALYSE COMPLÈTE SESSION: $sessionId ===');
+
+      // 1. Sessions collaboratives
+      final sessionDoc = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .get();
+
+      if (sessionDoc.exists) {
+        final sessionData = sessionDoc.data()!;
+        debugPrint('[DEBUG] 📋 Session: statut=${sessionData['statut']}, dateFinalisation=${sessionData['dateFinalisation']}');
+      } else {
+        debugPrint('[DEBUG] ❌ Session non trouvée');
+      }
+
+      // 2. Constats finalisés
+      final constatDoc = await FirebaseFirestore.instance
+          .collection('constats_finalises')
+          .doc(sessionId)
+          .get();
+
+      if (constatDoc.exists) {
+        final data = constatDoc.data()!;
+        debugPrint('[DEBUG] 📄 Constat finalisé: statut=${data['statut']}, dateEnvoi=${data['dateEnvoi']}, expertAssigne=${data['expertAssigne'] != null}');
+      } else {
+        debugPrint('[DEBUG] ❌ Constat finalisé non trouvé');
+      }
+
+      // 3. Constats agents
+      final constatAgentQuery = await FirebaseFirestore.instance
+          .collection('constats_agents')
+          .where('sessionId', isEqualTo: sessionId)
+          .get();
+
+      debugPrint('[DEBUG] 👨‍💼 Constats agents: ${constatAgentQuery.docs.length} trouvés');
+      for (final doc in constatAgentQuery.docs) {
+        final data = doc.data();
+        debugPrint('[DEBUG]    - Agent: ${data['agentNom']}, dateEnvoi: ${data['dateEnvoiPdf']}');
+      }
+
+      // 4. Missions expertise
+      final missionQuery = await FirebaseFirestore.instance
+          .collection('missions_expertise')
+          .where('sessionId', isEqualTo: sessionId)
+          .get();
+
+      debugPrint('[DEBUG] 🔧 Missions expertise: ${missionQuery.docs.length} trouvées');
+      for (final doc in missionQuery.docs) {
+        final data = doc.data();
+        debugPrint('[DEBUG]    - Expert: ${data['expertId']}, statut: ${data['statut']}, sessionId: ${data['sessionId']}');
+      }
+
+      // 4b. Toutes les missions expertise (pour debug)
+      final allMissionsQuery = await FirebaseFirestore.instance
+          .collection('missions_expertise')
+          .get();
+
+      debugPrint('[DEBUG] 🔧 TOUTES missions expertise: ${allMissionsQuery.docs.length} trouvées');
+      for (final doc in allMissionsQuery.docs) {
+        final data = doc.data();
+        debugPrint('[DEBUG]    - Mission: ${doc.id}, sessionId: ${data['sessionId']}, expertId: ${data['expertId']}, statut: ${data['statut']}');
+      }
+
+      // 5. Notifications agents (utilisées par "Notifier les Agents")
+      final notificationsAgentsQuery = await FirebaseFirestore.instance
+          .collection('notifications_agents')
+          .where('sessionId', isEqualTo: sessionId)
+          .get();
+
+      debugPrint('[DEBUG] 📧 Notifications agents: ${notificationsAgentsQuery.docs.length} trouvées');
+      for (final doc in notificationsAgentsQuery.docs) {
+        final data = doc.data();
+        debugPrint('[DEBUG]    - Agent: ${data['destinataire']}, statut: ${data['statut']}');
+      }
+
+      // 6. Agent notifications (autre collection possible)
+      final agentNotificationsQuery = await FirebaseFirestore.instance
+          .collection('agent_notifications')
+          .where('sessionId', isEqualTo: sessionId)
+          .get();
+
+      debugPrint('[DEBUG] 🔔 Agent notifications: ${agentNotificationsQuery.docs.length} trouvées');
+      for (final doc in agentNotificationsQuery.docs) {
+        final data = doc.data();
+        debugPrint('[DEBUG]    - Agent: ${data['agentEmail']}, type: ${data['type']}');
+      }
+
+      // 7. Notifications générales
+      final notificationsQuery = await FirebaseFirestore.instance
+          .collection('notifications')
+          .where('donnees.sessionId', isEqualTo: sessionId)
+          .get();
+
+      debugPrint('[DEBUG] 🔔 Notifications générales: ${notificationsQuery.docs.length} trouvées');
+      for (final doc in notificationsQuery.docs) {
+        final data = doc.data();
+        debugPrint('[DEBUG]    - Type: ${data['type']}, Agent: ${data['agentId']}');
+      }
+
+      debugPrint('[DEBUG] 🔍 === FIN ANALYSE SESSION ===');
+
+    } catch (e) {
+      debugPrint('[DEBUG] ❌ Erreur analyse: $e');
+    }
+  }
+
+  /// 📋 Récupérer le statut du constat pour une session
+  Future<Map<String, dynamic>?> _getConstatStatusForSession(String sessionId) async {
+    try {
+      debugPrint('[DASHBOARD] 🔍 Recherche statut pour session: $sessionId');
+
+      // Debug complet pour comprendre le problème
+      await _debugSessionData(sessionId);
+
+      // 1. Vérifier d'abord dans constats_finalises (collection principale)
+      final constatDoc = await FirebaseFirestore.instance
+          .collection('constats_finalises')
+          .doc(sessionId)
+          .get();
+
+      if (constatDoc.exists) {
+        final data = constatDoc.data()!;
+        debugPrint('[DASHBOARD] ✅ Constat trouvé dans constats_finalises');
+        debugPrint('[DASHBOARD] 📊 Données: ${data.keys.toList()}');
+
+        // Le statut est directement dans le champ 'statut'
+        final expertAssigne = data['expertAssigne'];
+        String statutPrincipal = data['statut'] ?? 'finalise';
+
+        debugPrint('[DASHBOARD] 📊 Statut brut: $statutPrincipal');
+        debugPrint('[DASHBOARD] 🔧 Expert assigné: ${expertAssigne != null}');
+
+        // Le statut est déjà correct dans la base de données
+        // L'agent met directement 'expert_assigne', 'en_expertise', etc.
+        if (expertAssigne != null) {
+          debugPrint('[DASHBOARD] 🔧 Expert assigné détecté: ${expertAssigne['nom']}');
+        }
+
+        if (data['dateEnvoi'] != null) {
+          debugPrint('[DASHBOARD] 📤 Date envoi détectée: ${data['dateEnvoi']}');
+        }
+
+        debugPrint('[DASHBOARD] 🎯 Statut final déterminé: $statutPrincipal');
+
+        return {
+          'statut': statutPrincipal,
+          'dateEnvoi': data['dateEnvoi'],
+          'agentInfo': data['agentInfo'],
+          'source': 'constat_finalise',
+          'statutTraitement': data['statutTraitement'],
+          'dateTraitement': data['dateTraitement'],
+          'commentairesAgent': data['commentairesAgent'],
+          // Données de l'expert si disponibles
+          'expertAssigne': expertAssigne,
+          'dateAssignationExpert': data['dateAssignationExpert'],
+          'delaiInterventionHeures': data['delaiInterventionHeures'],
+          'progressionExpertise': data['progressionExpertise'],
+          'dateVisite': data['dateVisite'],
+          'rapportFinal': data['rapportFinal'],
+          'evaluation': data['evaluation'],
+        };
+      }
+
+      // 2. Vérifier dans notifications_agents (utilisé par "Notifier les Agents")
+      final notificationsAgentsQuery = await FirebaseFirestore.instance
+          .collection('notifications_agents')
+          .where('sessionId', isEqualTo: sessionId)
+          .get();
+
+      if (notificationsAgentsQuery.docs.isNotEmpty) {
+        final docs = notificationsAgentsQuery.docs;
+        docs.sort((a, b) {
+          final dateA = a.data()['dateCreation'] as Timestamp?;
+          final dateB = b.data()['dateCreation'] as Timestamp?;
+          if (dateA == null || dateB == null) return 0;
+          return dateB.compareTo(dateA);
+        });
+
+        final notifData = docs.first.data();
+        debugPrint('[DASHBOARD] ✅ Notification agent trouvée dans notifications_agents');
+
+        return {
+          'statut': 'envoye',
+          'dateEnvoi': notifData['dateCreation'],
+          'agentInfo': {
+            'email': notifData['destinataire'],
+            'nom': '',
+            'prenom': '',
+            'agenceNom': notifData['agencyName'] ?? '',
+            'compagnieNom': notifData['companyName'] ?? '',
+          },
+          'source': 'notification_agent',
+          'statutTraitement': notifData['statut'] ?? 'en_attente',
+        };
+      }
+
+      // 3. Vérifier dans agent_notifications
+      final agentNotificationsQuery = await FirebaseFirestore.instance
+          .collection('agent_notifications')
+          .where('sessionId', isEqualTo: sessionId)
+          .get();
+
+      if (agentNotificationsQuery.docs.isNotEmpty) {
+        final docs = agentNotificationsQuery.docs;
+        docs.sort((a, b) {
+          final dateA = a.data()['timestamp'] as Timestamp?;
+          final dateB = b.data()['timestamp'] as Timestamp?;
+          if (dateA == null || dateB == null) return 0;
+          return dateB.compareTo(dateA);
+        });
+
+        final notifData = docs.first.data();
+        debugPrint('[DASHBOARD] ✅ Notification agent trouvée dans agent_notifications');
+
+        return {
+          'statut': 'envoye',
+          'dateEnvoi': notifData['timestamp'],
+          'agentInfo': {
+            'email': notifData['agentEmail'],
+            'nom': '',
+            'prenom': '',
+            'agenceNom': '',
+            'compagnieNom': '',
+          },
+          'source': 'agent_notification',
+          'statutTraitement': 'nouveau',
+        };
+      }
+
+      // 4. Vérifier dans la session si elle est finalisée mais pas envoyée
+      final sessionDoc = await FirebaseFirestore.instance
+          .collection('sessions_collaboratives')
+          .doc(sessionId)
+          .get();
+
+      if (sessionDoc.exists) {
+        final sessionData = sessionDoc.data()!;
+        final statut = sessionData['statut'];
+
+        debugPrint('[DASHBOARD] 📋 Session trouvée avec statut: $statut');
+
+        if (statut == 'finalise' || statut == 'signe') {
+          return {
+            'statut': 'finalise_non_envoye',
+            'dateFinalisee': sessionData['dateFinalisation'],
+            'source': 'session',
+          };
+        }
+      }
+
+      debugPrint('[DASHBOARD] ❌ Aucun constat trouvé pour session: $sessionId');
+      return null;
+
+    } catch (e) {
+      debugPrint('[DASHBOARD] ❌ Erreur récupération constat: $e');
+      return null;
+    }
+  }
+
+  /// 🎴 Contenu de la carte de session
+  Widget _buildSessionCardContent(
+    CollaborativeSession session,
+    Color statusColor,
+    String statusText,
+    int participantsCount,
+    int maxParticipants,
+    bool isSelected,
+    String? constatStatut,
+    Map<String, dynamic>? constatData,
+  ) {
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.only(bottom: 12),
@@ -7364,6 +8509,12 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
               // Barre de progression
               _buildProgressionSession(session),
 
+              // Statut du constat (si disponible)
+              if (constatStatut != null) ...[
+                const SizedBox(height: 12),
+                _buildConstatStatusBadge(constatStatut, constatData),
+              ],
+
               const SizedBox(height: 12),
 
               // Actions
@@ -7471,6 +8622,575 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
           valueColor: AlwaysStoppedAnimation<Color>(Colors.purple[600]!),
         ),
       ],
+    );
+  }
+
+  /// 🏷️ Badge de statut du constat
+  Widget _buildConstatStatusBadge(String constatStatut, Map<String, dynamic>? constatData) {
+    String statusText;
+    Color statusColor;
+    IconData statusIcon;
+    String? subtitle;
+
+    switch (constatStatut) {
+      case 'finalise_non_envoye':
+        statusText = 'Prêt à envoyer';
+        statusColor = Colors.blue;
+        statusIcon = Icons.upload_file;
+        subtitle = 'Constat finalisé, en attente d\'envoi';
+        break;
+      case 'envoye':
+      case 'envoye_agent':
+        statusText = 'Envoyé à l\'agent';
+        statusColor = Colors.orange;
+        statusIcon = Icons.send;
+        final agentInfo = constatData?['agentInfo'];
+        if (agentInfo != null) {
+          subtitle = 'Agent: ${agentInfo['prenom']} ${agentInfo['nom']}';
+        }
+        break;
+      case 'nouveau':
+        statusText = 'Reçu par l\'agent';
+        statusColor = Colors.indigo;
+        statusIcon = Icons.mark_email_read;
+        subtitle = 'En attente de traitement';
+        break;
+      case 'en_cours':
+        statusText = 'En cours de traitement';
+        statusColor = Colors.blue;
+        statusIcon = Icons.pending_actions;
+        subtitle = 'L\'agent traite votre dossier';
+        break;
+      case 'traite':
+        statusText = 'Traité par l\'agent';
+        statusColor = Colors.green;
+        statusIcon = Icons.task_alt;
+        subtitle = 'Dossier traité avec succès';
+        break;
+      case 'expert_assigne':
+        statusText = 'Expert assigné';
+        statusColor = Colors.purple;
+        statusIcon = Icons.engineering;
+        subtitle = 'Un expert va examiner votre véhicule';
+        break;
+      case 'en_expertise':
+        statusText = 'Expertise en cours';
+        statusColor = Colors.deepPurple;
+        statusIcon = Icons.assessment;
+        subtitle = 'L\'expert examine les dégâts';
+        break;
+      case 'expertise_terminee':
+        statusText = 'Expertise terminée';
+        statusColor = Colors.green;
+        statusIcon = Icons.check_circle;
+        subtitle = 'Rapport d\'expertise disponible';
+        break;
+      case 'archive':
+        statusText = 'Dossier archivé';
+        statusColor = Colors.grey;
+        statusIcon = Icons.archive;
+        subtitle = 'Traitement terminé';
+        break;
+      case 'cloture':
+        statusText = 'Dossier clôturé';
+        statusColor = Colors.grey;
+        statusIcon = Icons.folder_off;
+        subtitle = 'Procédure terminée';
+        break;
+      default:
+        statusText = 'Statut inconnu';
+        statusColor = Colors.grey;
+        statusIcon = Icons.help_outline;
+        subtitle = 'Vérifiez avec votre agent';
+    }
+
+    return GestureDetector(
+      onTap: () => _showConstatStatusDetails(constatStatut, constatData),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: statusColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: statusColor.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(statusIcon, size: 16, color: statusColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Statut du constat PDF',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.info_outline,
+                  size: 14,
+                  color: Colors.grey[500],
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              statusText,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: statusColor,
+              ),
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+
+            // Informations supplémentaires selon le statut
+            if (constatData != null) ...[
+              const SizedBox(height: 8),
+              _buildStatusSpecificInfo(constatStatut, constatData),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 📋 Informations spécifiques selon le statut
+  Widget _buildStatusSpecificInfo(String statut, Map<String, dynamic> data) {
+    switch (statut) {
+      case 'envoye':
+      case 'envoye_agent':
+        final dateEnvoi = data['dateEnvoi'];
+        final agentInfo = data['agentInfo'];
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.orange[50],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (dateEnvoi != null)
+                Text(
+                  'Envoyé le: ${_formatDate(dateEnvoi)}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              if (agentInfo != null && agentInfo['agenceNom'] != null)
+                Text(
+                  'Agence: ${agentInfo['agenceNom']}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+            ],
+          ),
+        );
+
+      case 'expert_assigne':
+        final expertInfo = data['expertAssigne'] ?? data['agentInfo'];
+        final dateAssignation = data['dateAssignationExpert'];
+        final delaiIntervention = data['delaiInterventionHeures'];
+
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.purple[50],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (expertInfo != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.purple[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.purple[200]!, width: 1),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.engineering, size: 14, color: Colors.purple[700]),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Expert: ${expertInfo['prenom'] ?? ''} ${expertInfo['nom'] ?? ''}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.purple[800],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (expertInfo['codeExpert'] != null)
+                  Text(
+                    'Code: ${expertInfo['codeExpert']}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                if (expertInfo['telephone'] != null)
+                  Row(
+                    children: [
+                      Icon(Icons.phone, size: 12, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () => _callExpert(expertInfo['telephone']),
+                        child: Text(
+                          expertInfo['telephone'],
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.blue[600],
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                if (dateAssignation != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Assigné le: ${_formatDate(dateAssignation)}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+                if (delaiIntervention != null) ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(Icons.schedule, size: 12, color: Colors.orange[600]),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Délai: ${delaiIntervention}h',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.orange[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ],
+          ),
+        );
+
+      case 'en_expertise':
+        final expertInfo = data['expertAssigne'];
+        final progression = data['progressionExpertise'] ?? 0;
+        final dateVisite = data['dateVisite'];
+
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.deepPurple[50],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.assessment, size: 14, color: Colors.deepPurple[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Expertise en cours',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.deepPurple[600],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              // Barre de progression
+              LinearProgressIndicator(
+                value: progression / 100,
+                backgroundColor: Colors.grey[300],
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple[600]!),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Progression: ${progression.toInt()}%',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey[600],
+                ),
+              ),
+              if (dateVisite != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Visite prévue: ${_formatDate(dateVisite)}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+              if (expertInfo != null && expertInfo['telephone'] != null) ...[
+                const SizedBox(height: 4),
+                GestureDetector(
+                  onTap: () => _callExpert(expertInfo['telephone']),
+                  child: Row(
+                    children: [
+                      Icon(Icons.phone, size: 12, color: Colors.blue[600]),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Contacter l\'expert',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.blue[600],
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+
+      case 'expertise_terminee':
+        final rapportFinal = data['rapportFinal'];
+        final evaluation = data['evaluation'];
+
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.green[50],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.check_circle, size: 14, color: Colors.green[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Expertise terminée',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.green[600],
+                    ),
+                  ),
+                ],
+              ),
+              if (rapportFinal != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Rapport disponible',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+              if (evaluation != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Évaluation: ${evaluation['montantDegats'] ?? 'N/A'}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+
+      case 'traite':
+        final dateTraitement = data['dateTraitement'];
+        final commentaires = data['commentairesAgent'];
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.green[50],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (dateTraitement != null)
+                Text(
+                  'Traité le: ${_formatDate(dateTraitement)}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              if (commentaires != null && commentaires.isNotEmpty)
+                Text(
+                  'Note: $commentaires',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+            ],
+          ),
+        );
+
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+
+
+  /// 📞 Appeler l'expert
+  void _callExpert(String telephone) async {
+    try {
+      final Uri launchUri = Uri(
+        scheme: 'tel',
+        path: telephone,
+      );
+      await launchUrl(launchUri);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Impossible d\'appeler: $telephone'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 📋 Afficher les détails du statut du constat
+  void _showConstatStatusDetails(String statut, Map<String, dynamic>? data) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // En-tête
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue[600]!, Colors.blue[800]!],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.timeline, color: Colors.white, size: 24),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Suivi de votre constat',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Contenu avec timeline
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: data != null
+                      ? ConstatStatusTimeline(statusData: data)
+                      : Container(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 48,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Aucune information de suivi disponible',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey[600],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ),
+
+              // Actions
+              if (data?['expertAssigne']?['telephone'] != null)
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _callExpert(data!['expertAssigne']['telephone']),
+                      icon: const Icon(Icons.phone),
+                      label: const Text('Appeler l\'expert'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -8244,6 +9964,17 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.red[800],
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _ouvrirTestCloudinary,
+                    icon: Icon(Icons.cloud_upload, size: 16),
+                    label: Text('🔐 Test Cloudinary'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange[600],
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                   ),
@@ -9343,6 +11074,79 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
             child: Text('Fermer'),
           ),
           ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              try {
+                // Vérifier si c'est une URL ou un fichier local
+                if (pdfPath.startsWith('http://') || pdfPath.startsWith('https://')) {
+                  // C'est une URL en ligne (Cloudinary)
+                  final uri = Uri.parse(pdfPath);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('🌐 PDF ouvert dans le navigateur'),
+                        duration: const Duration(seconds: 3),
+                        backgroundColor: Colors.green[600],
+                      ),
+                    );
+                  } else {
+                    throw Exception('Impossible d\'ouvrir l\'URL');
+                  }
+                } else {
+                  // C'est un fichier local
+                  final file = File(pdfPath);
+                  if (await file.exists()) {
+                    final result = await OpenFile.open(pdfPath);
+                    if (result.type != ResultType.done) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('PDF sauvegardé dans: $pdfPath'),
+                          duration: const Duration(seconds: 5),
+                          backgroundColor: Colors.blue[600],
+                        ),
+                      );
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Fichier PDF non trouvé: $pdfPath'),
+                        duration: const Duration(seconds: 3),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erreur ouverture PDF: $e'),
+                    duration: const Duration(seconds: 3),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            icon: Icon(Icons.open_in_new),
+            label: Text('Ouvrir'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange[600],
+              foregroundColor: Colors.white,
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _envoyerPdfAAgent(sessionId, pdfPath);
+            },
+            icon: Icon(Icons.send),
+            label: Text('Envoyer à l\'agent'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green[600],
+              foregroundColor: Colors.white,
+            ),
+          ),
+          ElevatedButton.icon(
             onPressed: () {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
@@ -9362,6 +11166,178 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
         ],
       ),
     );
+  }
+
+  /// 📤 Envoyer le PDF du constat à l'agent responsable
+  Future<void> _envoyerPdfAAgent(String sessionId, String pdfPath) async {
+    try {
+      // Afficher dialog de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Envoi du PDF à l\'agent...'),
+            ],
+          ),
+        ),
+      );
+
+      // Lire le fichier PDF
+      final pdfFile = File(pdfPath);
+      if (!await pdfFile.exists()) {
+        throw Exception('Fichier PDF non trouvé');
+      }
+
+      final pdfBytes = await pdfFile.readAsBytes();
+      final fileName = 'constat_${sessionId}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+
+      // Trouver le sinistre associé à cette session
+      final sinistreId = await _findSinistreForSession(sessionId);
+      if (sinistreId == null) {
+        throw Exception('Aucun sinistre trouvé pour cette session');
+      }
+
+      // Envoyer le PDF via le service
+      final result = await ConstatPdfService.sendConstatPdfToAgent(
+        sinistreId: sinistreId,
+        pdfBytes: pdfBytes,
+        fileName: fileName,
+        message: 'Constat PDF généré automatiquement depuis l\'application mobile.',
+      );
+
+      // Fermer le dialog de chargement
+      Navigator.of(context).pop();
+
+      if (result['success']) {
+        // Afficher le succès
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green[600], size: 28),
+                SizedBox(width: 10),
+                Text(
+                  'PDF Envoyé !',
+                  style: TextStyle(
+                    color: Colors.green[800],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Votre constat PDF a été envoyé avec succès à l\'agent responsable.',
+                  style: TextStyle(fontSize: 16),
+                ),
+                SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Agent: ${result['agentInfo']['prenom']} ${result['agentInfo']['nom']}',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      Text('Email: ${result['agentInfo']['email']}'),
+                      Text('Agence: ${result['agentInfo']['agenceNom'] ?? 'N/A'}'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('OK'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green[600],
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        throw Exception(result['error'] ?? 'Erreur inconnue');
+      }
+
+    } catch (e) {
+      // Fermer le dialog de chargement si ouvert
+      Navigator.of(context).pop();
+
+      // Afficher l'erreur
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.error, color: Colors.red[600], size: 28),
+              SizedBox(width: 10),
+              Text('Erreur d\'envoi'),
+            ],
+          ),
+          content: Text('Impossible d\'envoyer le PDF: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  /// 🔍 Trouver le sinistre associé à une session
+  Future<String?> _findSinistreForSession(String sessionId) async {
+    try {
+      // Chercher dans la collection sinistres
+      final query = await FirebaseFirestore.instance
+          .collection('sinistres')
+          .where('sessionId', isEqualTo: sessionId)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        return query.docs.first.id;
+      }
+
+      // Si pas trouvé, chercher par conducteur et date récente
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final recentQuery = await FirebaseFirestore.instance
+            .collection('sinistres')
+            .where('conducteurId', isEqualTo: user.uid)
+            .orderBy('dateDeclaration', descending: true)
+            .limit(1)
+            .get();
+
+        if (recentQuery.docs.isNotEmpty) {
+          return recentQuery.docs.first.id;
+        }
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('[CONDUCTEUR_DASHBOARD] ❌ Erreur recherche sinistre: $e');
+      return null;
+    }
   }
 
   // ============================================================================
@@ -9515,6 +11491,380 @@ class _ConducteurDashboardCompleteState extends State<ConducteurDashboardComplet
       default:
         return statut;
     }
+  }
+
+  /// 🔐 Ouvrir le test Cloudinary
+  void _ouvrirTestCloudinary() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TestCloudinaryFix(),
+      ),
+    );
+  }
+
+  /// 🧹 Nettoyer les notifications en double
+  Future<void> _nettoyerNotifications() async {
+    try {
+      // Afficher indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Nettoyage des notifications...'),
+            ],
+          ),
+        ),
+      );
+
+      // Nettoyer pour la session active (si disponible)
+      String? sessionId;
+      if (_allSessions.isNotEmpty) {
+        sessionId = _allSessions.first.id;
+      } else {
+        sessionId = 'VOReABmLhZlIHKMtGdod'; // Session de test par défaut
+      }
+
+      final result = await ConstatAgentNotificationService.nettoyerNotificationsSession(sessionId);
+
+      Navigator.of(context).pop(); // Fermer le loading
+
+      // Afficher le résultat
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(result['success'] == true ? '✅ Nettoyage Réussi' : '❌ Erreur'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (result['success'] == true) ...[
+                Text('Notifications supprimées: ${result['notificationsSupprimes']}'),
+                Text('Constats supprimés: ${result['constatsSupprimes']}'),
+                Text('Envois supprimés: ${result['envoisSupprimes']}'),
+                const SizedBox(height: 10),
+                const Text('Vous pouvez maintenant retenter "Notifier les agents".'),
+              ] else ...[
+                Text('Erreur: ${result['error']}'),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      Navigator.of(context).pop(); // Fermer le loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $e')),
+      );
+    }
+  }
+
+  /// 🔄 Migrer les constats existants (DEBUG)
+  Future<void> _migrerConstatsExistants() async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🔄 Migration en cours...'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+
+      await ConstatMigrationService.migrationComplete();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Migration terminée avec succès'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Recharger les données
+      _loadUserData();
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur migration: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 🔍 Analyser les données (DEBUG)
+  Future<void> _analyserDonnees() async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🔍 Analyse en cours...'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+
+      await ConstatMigrationService.analyserDonneesExistantes();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Analyse terminée (voir logs)'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur analyse: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 🔄 Synchroniser les missions d'expertise avec constats_finalises
+  Future<void> _synchroniserMissionsExpertise() async {
+    try {
+      debugPrint('[SYNC] 🔄 Début synchronisation missions expertise...');
+
+      // Récupérer toutes les missions d'expertise
+      final missionsQuery = await FirebaseFirestore.instance
+          .collection('missions_expertise')
+          .get();
+
+      debugPrint('[SYNC] 📊 ${missionsQuery.docs.length} missions trouvées');
+
+      int synchronisationsReussies = 0;
+      int synchronisationsEchouees = 0;
+
+      for (final missionDoc in missionsQuery.docs) {
+        try {
+          final missionData = missionDoc.data();
+          final sessionId = missionData['sessionId'] as String?;
+          final expertId = missionData['expertId'] as String?;
+          final statut = missionData['statut'] as String?;
+
+          if (sessionId == null || sessionId.isEmpty) {
+            debugPrint('[SYNC] ⚠️ SessionId manquant pour mission ${missionDoc.id}');
+            synchronisationsEchouees++;
+            continue;
+          }
+
+          if (expertId == null || expertId.isEmpty) {
+            debugPrint('[SYNC] ⚠️ ExpertId manquant pour mission ${missionDoc.id}');
+            synchronisationsEchouees++;
+            continue;
+          }
+
+          // Récupérer les données de l'expert
+          final expertDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(expertId)
+              .get();
+
+          if (!expertDoc.exists) {
+            debugPrint('[SYNC] ⚠️ Expert $expertId non trouvé');
+            synchronisationsEchouees++;
+            continue;
+          }
+
+          final expertData = expertDoc.data()!;
+          final expertNom = '${expertData['prenom'] ?? ''} ${expertData['nom'] ?? ''}';
+
+          // Mettre à jour le constat dans constats_finalises
+          await FirebaseFirestore.instance
+              .collection('constats_finalises')
+              .doc(sessionId)
+              .set({
+            'statut': 'expert_assigne',
+            'expertAssigne': {
+              'id': expertId,
+              'nom': expertNom,
+              'prenom': expertData['prenom'] ?? '',
+              'codeExpert': expertData['codeExpert'] ?? '',
+              'telephone': expertData['telephone'] ?? '',
+              'email': expertData['email'] ?? '',
+            },
+            'dateAssignationExpert': missionData['dateCreation'] ?? FieldValue.serverTimestamp(),
+            'missionId': missionDoc.id,
+            'statutMission': statut ?? 'assignee',
+            'updatedAt': FieldValue.serverTimestamp(),
+            'source': 'sync_missions_expertise',
+          }, SetOptions(merge: true));
+
+          debugPrint('[SYNC] ✅ Mission $sessionId synchronisée avec expert $expertNom');
+          synchronisationsReussies++;
+
+        } catch (e) {
+          debugPrint('[SYNC] ❌ Erreur synchronisation mission ${missionDoc.id}: $e');
+          synchronisationsEchouees++;
+        }
+      }
+
+      debugPrint('[SYNC] 📊 Résultats synchronisation:');
+      debugPrint('[SYNC]    ✅ Réussies: $synchronisationsReussies');
+      debugPrint('[SYNC]    ❌ Échouées: $synchronisationsEchouees');
+
+    } catch (e) {
+      debugPrint('[SYNC] ❌ Erreur synchronisation: $e');
+    }
+  }
+
+  /// 🔧 Widget d'information pour l'onglet véhicules (même style que MesVehiculesScreen)
+  Widget _buildInfoItemVehicules(String label, String value, IconData icon) {
+    // Couleurs spécifiques selon le type d'information
+    Color iconColor;
+    Color valueColor;
+
+    switch (label) {
+      case 'Année':
+        iconColor = Colors.blue[600]!;
+        valueColor = Colors.blue[700]!;
+        break;
+      case 'Couleur':
+        iconColor = Colors.purple[600]!;
+        valueColor = Colors.purple[700]!;
+        break;
+      case 'Contrat N°':
+        iconColor = Colors.green[600]!;
+        valueColor = Colors.green[700]!;
+        break;
+      case 'Expire le':
+        iconColor = Colors.orange[600]!;
+        valueColor = Colors.orange[700]!;
+        break;
+      default:
+        iconColor = Colors.grey[600]!;
+        valueColor = const Color(0xFF1F2937);
+    }
+
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: iconColor),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: valueColor,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 👁️ Voir les détails du véhicule depuis l'onglet véhicules
+  void _voirDetailsVehiculeOnglet(Map<String, dynamic> vehicule) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.5,
+        builder: (context, scrollController) => Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Titre
+              Text(
+                'Détails du Véhicule',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Contenu scrollable
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  child: Column(
+                    children: [
+                      _buildDetailRow('Marque', vehicule['marque'] ?? 'N/A', Icons.directions_car),
+                      _buildDetailRow('Modèle', vehicule['modele'] ?? 'N/A', Icons.car_rental),
+                      _buildDetailRow('Immatriculation', vehicule['numeroImmatriculation'] ?? vehicule['immatriculation'] ?? 'N/A', Icons.confirmation_number),
+                      _buildDetailRow('Année', vehicule['annee']?.toString() ?? 'N/A', Icons.calendar_today),
+                      _buildDetailRow('Couleur', vehicule['couleur'] ?? 'N/A', Icons.palette),
+                      _buildDetailRow('Numéro de contrat', vehicule['numeroContrat'] ?? 'N/A', Icons.description),
+                      _buildDetailRow('Compagnie', vehicule['compagnieNom'] ?? 'N/A', Icons.business),
+                      _buildDetailRow('Agence', vehicule['agenceNom'] ?? 'N/A', Icons.location_city),
+                      if (vehicule['dateDebut'] != null)
+                        _buildDetailRow(
+                          'Date de début',
+                          DateFormat('dd/MM/yyyy').format(_convertirDateSafe(vehicule['dateDebut']) ?? DateTime.now()),
+                          Icons.play_arrow,
+                        ),
+                      if (vehicule['dateFin'] != null)
+                        _buildDetailRow(
+                          'Date de fin',
+                          DateFormat('dd/MM/yyyy').format(_convertirDateSafe(vehicule['dateFin']) ?? DateTime.now()),
+                          Icons.stop,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 🚨 Déclarer un sinistre pour un véhicule
+  void _declarerSinistreVehicule(Map<String, dynamic> vehicule) {
+    // Navigation vers l'écran de déclaration de sinistre avec les données du véhicule
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DeclarationSinistreScreen(
+          vehicule: vehicule,
+        ),
+      ),
+    );
   }
 }
 
