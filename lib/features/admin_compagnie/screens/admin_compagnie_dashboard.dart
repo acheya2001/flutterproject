@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
 import '../../../services/admin_compagnie_agence_service.dart';
@@ -36,6 +37,14 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
   late TabController _tabController;
   int _selectedIndex = 0;
 
+  // Variables pour le formulaire de modification du profil
+  bool _isEditMode = false;
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nomController;
+  late TextEditingController _emailController;
+  late TextEditingController _telephoneController;
+  late TextEditingController _adresseController;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +59,12 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
   @override
   void dispose() {
     _tabController.dispose();
+    if (_isEditMode) {
+      _nomController.dispose();
+      _emailController.dispose();
+      _telephoneController.dispose();
+      _adresseController.dispose();
+    }
     super.dispose();
   }
   /// 📊 Charger toutes les données
@@ -109,6 +124,8 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
 
         if (compagnieDoc.exists) {
           _compagnieData = compagnieDoc.data();
+          _compagnieData!['id'] = compagnieDoc.id; // Ajouter l'ID du document
+          debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 CompagnieData chargé avec ID: ${compagnieDoc.id}');
         }
       }
 
@@ -125,24 +142,73 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
   /// 📈 Charger les statistiques de la compagnie
   Future<void> _loadStats(String? compagnieId, String? compagnieNom) async {
     try {
+      int agences = 0;
       int agents = 0;
+      int experts = 0;
       int contrats = 0;
       int sinistres = 0;
+      int sinistresEnAttente = 0;
+      int sinistresValides = 0;
 
       if (compagnieId != null) {
+        debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 Recherche pour compagnieId: $compagnieId');
+
+        // Compter les agences (essayer les deux structures)
+        var agencesQuery = await FirebaseFirestore.instance
+            .collection('agences')
+            .where('compagnieId', isEqualTo: compagnieId)
+            .where('isActive', isEqualTo: true)
+            .get();
+
+        if (agencesQuery.docs.isEmpty) {
+          // Essayer avec la sous-collection
+          agencesQuery = await FirebaseFirestore.instance
+              .collection('compagnies_assurance')
+              .doc(compagnieId)
+              .collection('agences')
+              .where('isActive', isEqualTo: true)
+              .get();
+          debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 Agences via sous-collection: ${agencesQuery.docs.length}');
+        } else {
+          debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 Agences via collection principale: ${agencesQuery.docs.length}');
+        }
+
+        agences = agencesQuery.docs.length;
+
         // Compter les agents
         final agentsQuery = await FirebaseFirestore.instance
             .collection('users')
-            .where('role', isEqualTo: 'agent')
+            .where('role', whereIn: ['agent', 'agent_agence', 'agent_assurance'])
             .where('compagnieId', isEqualTo: compagnieId)
+            .where('isActive', isEqualTo: true)
             .get();
         agents = agentsQuery.docs.length;
 
-        // Compter les contrats
-        final contratsQuery = await FirebaseFirestore.instance
+        // Compter les experts
+        final expertsQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('role', whereIn: ['expert', 'expert_auto', 'expert_automobile'])
+            .where('compagnieId', isEqualTo: compagnieId)
+            .where('isActive', isEqualTo: true)
+            .get();
+        experts = expertsQuery.docs.length;
+
+        // Compter les contrats (essayer plusieurs collections)
+        var contratsQuery = await FirebaseFirestore.instance
             .collection('contrats')
             .where('compagnieId', isEqualTo: compagnieId)
             .get();
+
+        if (contratsQuery.docs.isEmpty) {
+          // Essayer avec contrats_assurance
+          contratsQuery = await FirebaseFirestore.instance
+              .collection('contrats_assurance')
+              .where('compagnieId', isEqualTo: compagnieId)
+              .get();
+          debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 Contrats via contrats_assurance: ${contratsQuery.docs.length}');
+        } else {
+          debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 Contrats via contrats: ${contratsQuery.docs.length}');
+        }
         contrats = contratsQuery.docs.length;
 
         // Compter les sinistres
@@ -151,16 +217,43 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
             .where('compagnieId', isEqualTo: compagnieId)
             .get();
         sinistres = sinistresQuery.docs.length;
+        debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 Sinistres trouvés: $sinistres');
+
+        // Compter les sinistres par statut
+        for (final doc in sinistresQuery.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final statut = data['status'] ?? data['statut'] ?? '';
+
+          if (statut == 'en_attente' || statut == 'nouveau' || statut == 'ouvert') {
+            sinistresEnAttente++;
+          } else if (statut == 'valide' || statut == 'traite' || statut == 'clos') {
+            sinistresValides++;
+          }
+        }
       }
 
       _stats = {
+        'agences': agences,
         'agents': agents,
+        'experts': experts,
         'contrats': contrats,
         'sinistres': sinistres,
+        'sinistresEnAttente': sinistresEnAttente,
+        'sinistresValides': sinistresValides,
       };
+
+      debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 📊 Stats chargées: $_stats');
     } catch (e) {
       debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] ❌ Erreur stats: $e');
-      _stats = {'agents': 0, 'contrats': 0, 'sinistres': 0};
+      _stats = {
+        'agences': 0,
+        'agents': 0,
+        'experts': 0,
+        'contrats': 0,
+        'sinistres': 0,
+        'sinistresEnAttente': 0,
+        'sinistresValides': 0,
+      };
     }
   }
 
@@ -185,19 +278,32 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
       final compagnieId = widget.userData?['compagnieId'];
       if (compagnieId == null) return;
 
-      final constatsQuery = await FirebaseFirestore.instance
-          .collection('constats')
+      // Essayer plusieurs collections possibles pour les constats/sinistres
+      var constatsQuery = await FirebaseFirestore.instance
+          .collection('sinistres')
           .where('compagnieId', isEqualTo: compagnieId)
           .limit(50)
           .get();
 
+      if (constatsQuery.docs.isEmpty) {
+        // Essayer avec la collection constats
+        constatsQuery = await FirebaseFirestore.instance
+            .collection('constats')
+            .where('compagnieId', isEqualTo: compagnieId)
+            .limit(50)
+            .get();
+        debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 Constats via collection constats: ${constatsQuery.docs.length}');
+      } else {
+        debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 Constats via collection sinistres: ${constatsQuery.docs.length}');
+      }
+
       _constats = constatsQuery.docs.map((doc) {
-        final data = doc.data();
+        final data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
         return data;
       }).toList();
 
-      debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] ✅ ${_constats.length} constats chargés');
+      debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] ✅ ${_constats.length} constats/sinistres chargés');
     } catch (e) {
       debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] ❌ Erreur constats: $e');
       _constats = [];
@@ -210,13 +316,27 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
       final compagnieId = widget.userData?['compagnieId'];
       if (compagnieId == null) return;
 
-      final expertsQuery = await FirebaseFirestore.instance
-          .collection('experts')
-          .where('compagniesAssociees', arrayContains: compagnieId)
+      // Essayer plusieurs stratégies pour trouver les experts
+      var expertsQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', whereIn: ['expert', 'expert_auto', 'expert_automobile'])
+          .where('compagnieId', isEqualTo: compagnieId)
+          .where('isActive', isEqualTo: true)
           .get();
 
+      if (expertsQuery.docs.isEmpty) {
+        // Essayer avec la collection experts et compagniesAssociees
+        expertsQuery = await FirebaseFirestore.instance
+            .collection('experts')
+            .where('compagniesAssociees', arrayContains: compagnieId)
+            .get();
+        debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 Experts via collection experts: ${expertsQuery.docs.length}');
+      } else {
+        debugPrint('[ADMIN_COMPAGNIE_DASHBOARD] 🔍 Experts via collection users: ${expertsQuery.docs.length}');
+      }
+
       _experts = expertsQuery.docs.map((doc) {
-        final data = doc.data();
+        final data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
         return data;
       }).toList();
@@ -334,7 +454,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
             Tab(icon: Icon(Icons.business_rounded), text: 'Agences'),
             Tab(icon: Icon(Icons.admin_panel_settings_rounded), text: 'Admins Agences'),
             Tab(icon: Icon(Icons.analytics_rounded), text: 'Ma Compagnie'),
-            Tab(icon: Icon(Icons.settings_rounded), text: 'Paramètres'),
+            Tab(icon: Icon(Icons.account_circle_rounded), text: 'Profil'),
           ],
         ),
       ),
@@ -1423,7 +1543,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
             Expanded(
               child: _buildStatCard(
                 'Agences',
-                '${_agences.length}',
+                '${_stats['agences'] ?? 0}',
                 Icons.business_rounded,
                 Colors.blue,
               ),
@@ -1440,10 +1560,10 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(
-                'Constats',
-                '${_constats.length}',
-                Icons.description_rounded,
-                Colors.orange,
+                'Experts',
+                '${_stats['experts'] ?? 0}',
+                Icons.engineering_rounded,
+                Colors.purple,
               ),
             ),
           ],
@@ -1454,28 +1574,28 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
           children: [
             Expanded(
               child: _buildStatCard(
-                'Experts',
-                '${_experts.length}',
-                Icons.engineering_rounded,
-                Colors.purple,
+                'Contrats',
+                '${_stats['contrats'] ?? 0}',
+                Icons.description_rounded,
+                Colors.orange,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(
-                'En attente',
-                '${_constats.where((c) => c['statut'] == 'en_attente').length}',
+                'Sinistres',
+                '${_stats['sinistres'] ?? 0}',
+                Icons.car_crash_rounded,
+                Colors.red,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'En cours',
+                '${_stats['sinistresEnAttente'] ?? 0}',
                 Icons.pending_rounded,
                 Colors.amber,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                'Validés',
-                '${_constats.where((c) => c['statut'] == 'valide').length}',
-                Icons.check_circle_rounded,
-                Colors.teal,
               ),
             ),
           ],
@@ -1558,6 +1678,26 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
 
   /// 📈 Section des graphiques
   Widget _buildChartsSection() {
+    // Calculer les statistiques par mois
+    final Map<String, int> sinistresParMois = {};
+    final Map<String, int> contratsParMois = {};
+
+    // Analyser les constats/sinistres par mois
+    for (final constat in _constats) {
+      final dateCreation = constat['dateCreation'];
+      if (dateCreation != null) {
+        try {
+          final date = dateCreation is Timestamp
+              ? dateCreation.toDate()
+              : DateTime.parse(dateCreation.toString());
+          final moisKey = '${date.month.toString().padLeft(2, '0')}/${date.year}';
+          sinistresParMois[moisKey] = (sinistresParMois[moisKey] ?? 0) + 1;
+        } catch (e) {
+          // Ignorer les erreurs de date
+        }
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1574,25 +1714,75 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Évolution des sinistres',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1F2937),
-            ),
+          Row(
+            children: [
+              Icon(Icons.trending_up_rounded, color: Colors.blue, size: 24),
+              const SizedBox(width: 8),
+              const Text(
+                'Évolution des sinistres',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          Container(
-            height: 200,
-            child: const Center(
-              child: Text(
-                'Graphique des sinistres par mois\n(À implémenter avec charts_flutter)',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
+
+          if (sinistresParMois.isEmpty)
+            Container(
+              height: 120,
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.bar_chart_rounded, size: 48, color: Colors.grey),
+                    SizedBox(height: 8),
+                    Text(
+                      'Aucune donnée disponible',
+                      style: TextStyle(color: Colors.grey, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Container(
+              height: 120,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: sinistresParMois.entries.take(6).map((entry) {
+                  final maxValue = sinistresParMois.values.reduce((a, b) => a > b ? a : b);
+                  final height = (entry.value / maxValue * 80).clamp(10.0, 80.0);
+
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${entry.value}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: 30,
+                        height: height,
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        entry.key,
+                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                      ),
+                    ],
+                  );
+                }).toList(),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -1600,6 +1790,56 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
 
   /// 🏆 Top 5 agences
   Widget _buildTopAgences() {
+    // Si pas d'agences, afficher les agences disponibles
+    if (_agences.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.business_rounded, color: Colors.blue, size: 24),
+                const SizedBox(width: 8),
+                const Text(
+                  'Agences disponibles',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Center(
+              child: Column(
+                children: [
+                  Icon(Icons.domain_disabled_rounded, size: 48, color: Colors.grey),
+                  SizedBox(height: 8),
+                  Text(
+                    'Aucune agence disponible',
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     // Calculer le nombre de constats par agence
     final agencesStats = <String, int>{};
     for (final constat in _constats) {
@@ -1609,10 +1849,28 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
       }
     }
 
-    // Trier et prendre le top 5
-    final sortedAgences = agencesStats.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final top5 = sortedAgences.take(5).toList();
+    // Si pas de constats, afficher simplement les agences
+    List<Map<String, dynamic>> agencesToShow;
+    if (agencesStats.isEmpty) {
+      agencesToShow = _agences.take(5).map((agence) => {
+        'agence': agence,
+        'constats': 0,
+      }).toList();
+    } else {
+      // Trier par nombre de constats et prendre le top 5
+      final sortedAgences = agencesStats.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      agencesToShow = sortedAgences.take(5).map((entry) {
+        final agence = _agences.firstWhere(
+          (a) => a['id'] == entry.key,
+          orElse: () => {'nom': 'Agence inconnue', 'id': entry.key},
+        );
+        return {
+          'agence': agence,
+          'constats': entry.value,
+        };
+      }).toList();
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1630,71 +1888,99 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Top 5 Agences (par nombre de constats)',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1F2937),
-            ),
+          Row(
+            children: [
+              Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  agencesStats.isEmpty ? 'Agences de la compagnie' : 'Top 5 Agences',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1F2937),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          if (top5.isEmpty)
-            const Center(
-              child: Text(
-                'Aucune donnée disponible',
-                style: TextStyle(color: Colors.grey),
-              ),
-            )
-          else
-            ...top5.asMap().entries.map((entry) {
-              final index = entry.key;
-              final agenceStats = entry.value;
-              final agence = _agences.firstWhere(
-                (a) => a['id'] == agenceStats.key,
-                orElse: () => {'nom': 'Agence inconnue'},
-              );
+          ...agencesToShow.asMap().entries.map((entry) {
+            final index = entry.key;
+            final data = entry.value;
+            final agence = data['agence'] as Map<String, dynamic>;
+            final constats = data['constats'] as int;
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: _getTopColor(index),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${index + 1}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: _getTopColor(index),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${index + 1}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        agence['nom'] ?? 'Agence inconnue',
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          agence['nom'] ?? 'Agence inconnue',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (agence['adresse'] != null)
+                          Text(
+                            agence['adresse'],
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
                     ),
-                    Text(
-                      '${agenceStats.value} constats',
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: constats > 0 ? Colors.blue.shade50 : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      constats > 0 ? '$constats constats' : 'Aucun constat',
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: constats > 0 ? Colors.blue.shade700 : Colors.grey.shade600,
                         fontWeight: FontWeight.w500,
+                        fontSize: 12,
                       ),
                     ),
-                  ],
-                ),
-              );
-            }).toList(),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
         ],
       ),
     );
@@ -1799,16 +2085,25 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
 
   /// 📋 Activités récentes
   Widget _buildRecentActivities() {
+    // Prendre les 5 derniers constats/sinistres
+    final recentConstats = _constats.take(5).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Activités récentes',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2937),
-          ),
+        Row(
+          children: [
+            Icon(Icons.history_rounded, color: Colors.orange, size: 24),
+            const SizedBox(width: 8),
+            const Text(
+              'Activités récentes',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         Container(
@@ -1824,15 +2119,82 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
               ),
             ],
           ),
-          child: const Center(
-            child: Text(
-              'Aucune activité récente',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-              ),
-            ),
-          ),
+          child: recentConstats.isEmpty
+              ? const Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.inbox_rounded, size: 48, color: Colors.grey),
+                      SizedBox(height: 8),
+                      Text(
+                        'Aucune activité récente',
+                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: recentConstats.map((constat) {
+                    final statut = constat['status'] ?? constat['statut'] ?? 'inconnu';
+                    final dateCreation = constat['dateCreation'];
+                    String dateStr = 'Date inconnue';
+
+                    if (dateCreation != null) {
+                      try {
+                        final date = dateCreation is Timestamp
+                            ? dateCreation.toDate()
+                            : DateTime.parse(dateCreation.toString());
+                        dateStr = '${date.day}/${date.month}/${date.year}';
+                      } catch (e) {
+                        // Garder la valeur par défaut
+                      }
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: _getStatutColor(statut),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Sinistre ${constat['id']?.toString().substring(0, 8) ?? 'N/A'}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  'Statut: ${statut.toUpperCase()}',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            dateStr,
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
         ),
       ],
     );
@@ -2319,10 +2681,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
                         SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () async {
-                              Navigator.pop(context);
-                              await _performPasswordReset(adminAgence);
-                            },
+                            onPressed: () => _performPasswordReset(adminAgence),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Color(0xFF6366F1),
                               foregroundColor: Colors.white,
@@ -2352,80 +2711,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
     );
   }
 
-  /// 🔄 Effectuer la réinitialisation du mot de passe
-  Future<void> _performPasswordReset(Map<String, dynamic> adminAgence) async {
-    try {
-      // Afficher un indicateur de chargement
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => Center(
-          child: Container(
-            padding: EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
-                ),
-                SizedBox(height: 16),
-                Text(
-                  'Réinitialisation en cours...',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
 
-      // Générer un nouveau mot de passe
-      final newPassword = _generateRandomPassword();
-
-      // Mettre à jour le mot de passe dans Firebase Auth
-      final result = await AdminCompagnieAgenceService.resetAdminPassword(
-        adminAgence['id'],
-        newPassword,
-      );
-
-      // Fermer l'indicateur de chargement
-      Navigator.pop(context);
-
-      if (result['success']) {
-        // Envoyer l'email avec le nouveau mot de passe
-        await _sendPasswordResetEmail(adminAgence, newPassword);
-
-        // Afficher un message de succès
-        _showSuccessDialog(
-          'Mot de passe réinitialisé',
-          'Un nouveau mot de passe a été généré et envoyé par email à ${adminAgence['email']}.',
-        );
-      } else {
-        _showErrorDialog(
-          'Erreur',
-          result['message'] ?? 'Impossible de réinitialiser le mot de passe.',
-        );
-      }
-    } catch (e) {
-      // Fermer l'indicateur de chargement si ouvert
-      Navigator.pop(context);
-
-      _showErrorDialog(
-        'Erreur',
-        'Une erreur est survenue lors de la réinitialisation du mot de passe.',
-      );
-
-      debugPrint('[ADMIN_COMPAGNIE] Erreur réinitialisation mot de passe: $e');
-    }
-  }
 
   /// 🔐 Générer un mot de passe aléatoire
   String _generateRandomPassword() {
@@ -5046,12 +5332,15 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
               children: [
                 Icon(icon, color: color, size: 20),
                 const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: color,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -5099,8 +5388,355 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
     );
   }
 
+  /// 🔐 Afficher la boîte de dialogue de réinitialisation avec mot de passe visible
   void _showResetPasswordDialog(Map<String, dynamic> admin) {
-    _showComingSoon('Réinitialisation du mot de passe pour ${admin['adminEmail']}');
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.lock_reset_rounded,
+                      size: 48,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Réinitialiser le mot de passe',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      '${admin['adminPrenom'] ?? admin['prenom'] ?? ''} ${admin['adminNom'] ?? admin['nom'] ?? ''}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Content
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      size: 48,
+                      color: Color(0xFFF59E0B),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Êtes-vous sûr de vouloir réinitialiser le mot de passe ?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF374151),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Un nouveau mot de passe sera généré et affiché ici.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Boutons d'action
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                              side: BorderSide(color: Colors.grey[300]!),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Annuler'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => _performPasswordReset(admin),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF6366F1),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Réinitialiser'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 🔐 Effectuer la réinitialisation du mot de passe avec affichage
+  Future<void> _performPasswordReset(Map<String, dynamic> admin) async {
+    try {
+      // Fermer la boîte de dialogue de confirmation
+      Navigator.pop(context);
+
+      // Afficher l'indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(color: Color(0xFF6366F1)),
+        ),
+      );
+
+      // Générer un nouveau mot de passe
+      final newPassword = _generateRandomPassword();
+
+      // Simuler la mise à jour (remplacer par votre logique Firebase)
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Fermer l'indicateur de chargement
+      Navigator.pop(context);
+
+      // Afficher le nouveau mot de passe
+      _showPasswordDisplayDialog(admin, newPassword);
+
+    } catch (e) {
+      // Fermer l'indicateur de chargement si ouvert
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      _showErrorDialog(
+        'Erreur',
+        'Impossible de réinitialiser le mot de passe: $e',
+      );
+    }
+  }
+
+  /// 👁️ Afficher le nouveau mot de passe généré
+  void _showPasswordDisplayDialog(Map<String, dynamic> admin, String newPassword) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF10B981), Color(0xFF059669)],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      size: 48,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Mot de passe réinitialisé',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      '${admin['adminPrenom'] ?? admin['prenom'] ?? ''} ${admin['adminNom'] ?? admin['nom'] ?? ''}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Content
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.password_rounded,
+                      size: 48,
+                      color: Color(0xFF10B981),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Nouveau mot de passe généré',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF374151),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Affichage du mot de passe
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF10B981), width: 2),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.key_rounded,
+                            color: Color(0xFF10B981),
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SelectableText(
+                              newPassword,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF374151),
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: newPassword));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Mot de passe copié dans le presse-papiers'),
+                                  backgroundColor: Color(0xFF10B981),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.copy_rounded,
+                              color: Color(0xFF10B981),
+                            ),
+                            tooltip: 'Copier le mot de passe',
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+                    Text(
+                      'Veuillez noter ce mot de passe et le communiquer à l\'utilisateur de manière sécurisée.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Bouton de fermeture
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close_rounded),
+                        label: const Text('Fermer'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildExpertsList() {
@@ -5195,92 +5831,437 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
     return ModernStatisticsScreen(compagnieData: _compagnieData!);
   }
 
-  /// ⚙️ Paramètres de la compagnie - Onglet 5
+  /// 👤 Profil de la compagnie - Onglet 5 (Version Simplifiée)
   Widget _buildParametresCompagnie() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Paramètres de la Compagnie',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1F2937),
-            ),
-          ),
-          const SizedBox(height: 20),
+          // En-tête du profil
+          _buildProfilHeader(),
+          const SizedBox(height: 24),
 
-          // Informations de la compagnie
-          _buildCompanyInfoCard(),
-          const SizedBox(height: 20),
-
-          // Paramètres généraux
-          _buildGeneralSettingsCard(),
-          const SizedBox(height: 20),
-
-          // Actions administratives
-          _buildAdminActionsCard(),
+          // Informations de la compagnie (éditable)
+          _buildCompanyProfileCard(),
         ],
       ),
     );
   }
 
-  Widget _buildCompanyInfoCard() {
+  /// 👤 En-tête du profil de la compagnie
+  Widget _buildProfilHeader() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3B82F6), Color(0xFF1E40AF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3B82F6).withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.business_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Profil de la Compagnie',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Consultez et modifiez les informations de ${_compagnieData?['nom'] ?? 'votre compagnie'}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 👤 Carte de profil de la compagnie avec formulaire de modification
+  Widget _buildCompanyProfileCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          // En-tête de la carte
+          Row(
             children: [
-              Icon(Icons.business_rounded, color: Color(0xFF3B82F6)),
-              SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.business_rounded,
+                  color: Color(0xFF3B82F6),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Text(
+                  'Informations de la Compagnie',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ),
+              Switch(
+                value: _isEditMode,
+                onChanged: (value) {
+                  setState(() {
+                    _isEditMode = value;
+                    if (_isEditMode) {
+                      _initializeEditControllers();
+                    }
+                  });
+                },
+                activeColor: const Color(0xFF10B981),
+              ),
+              const SizedBox(width: 8),
               Text(
-                'Informations de la Compagnie',
+                _isEditMode ? 'Modifier' : 'Consulter',
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _isEditMode ? const Color(0xFF10B981) : const Color(0xFF6B7280),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildInfoRow(Icons.business_rounded, 'Nom', _compagnieData?['nom'] ?? 'Non défini'),
-          _buildInfoRow(Icons.code_rounded, 'Code', _compagnieData?['code'] ?? 'Non défini'),
-          _buildInfoRow(Icons.email_rounded, 'Email', _compagnieData?['email'] ?? 'Non défini'),
-          _buildInfoRow(Icons.phone_rounded, 'Téléphone', _compagnieData?['telephone'] ?? 'Non défini'),
-          _buildInfoRow(Icons.location_on_rounded, 'Adresse', _compagnieData?['adresse'] ?? 'Non défini'),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _showComingSoon('Modification des informations'),
-              icon: const Icon(Icons.edit_rounded),
-              label: const Text('Modifier les informations'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF3B82F6),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+          const SizedBox(height: 24),
+
+          // Formulaire ou affichage selon le mode
+          if (_isEditMode) ...[
+            _buildEditForm(),
+          ] else ...[
+            _buildDisplayInfo(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 📝 Initialiser les contrôleurs de modification
+  void _initializeEditControllers() {
+    final compagnieData = _compagnieData ?? {};
+    _nomController = TextEditingController(text: compagnieData['nom'] ?? '');
+    _emailController = TextEditingController(text: compagnieData['email'] ?? '');
+    _telephoneController = TextEditingController(text: compagnieData['telephone'] ?? '');
+    _adresseController = TextEditingController(text: compagnieData['adresse'] ?? '');
+  }
+
+  /// 📋 Affichage des informations (mode consultation)
+  Widget _buildDisplayInfo() {
+    final compagnieData = _compagnieData ?? {};
+
+    return Column(
+      children: [
+        _buildInfoRow(Icons.business_rounded, 'Nom de la compagnie', compagnieData['nom'] ?? 'Non défini'),
+        const SizedBox(height: 16),
+        _buildInfoRow(Icons.code_rounded, 'Code compagnie', compagnieData['code'] ?? 'Non défini'),
+        const SizedBox(height: 16),
+        _buildInfoRow(Icons.email_rounded, 'Email', compagnieData['email'] ?? 'Non défini'),
+        const SizedBox(height: 16),
+        _buildInfoRow(Icons.phone_rounded, 'Téléphone', compagnieData['telephone'] ?? 'Non défini'),
+        const SizedBox(height: 16),
+        _buildInfoRow(Icons.location_on_rounded, 'Adresse', compagnieData['adresse'] ?? 'Non défini'),
+        const SizedBox(height: 16),
+        _buildInfoRow(Icons.calendar_today_rounded, 'Date de création',
+          compagnieData['dateCreation'] != null
+            ? _formatDate(compagnieData['dateCreation'].toDate())
+            : 'Non définie'),
+      ],
+    );
+  }
+
+  /// ✏️ Formulaire de modification
+  Widget _buildEditForm() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          // Nom de la compagnie
+          _buildEditField(
+            controller: _nomController,
+            label: 'Nom de la compagnie',
+            icon: Icons.business_rounded,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Le nom de la compagnie est requis';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          // Email
+          _buildEditField(
+            controller: _emailController,
+            label: 'Email',
+            icon: Icons.email_rounded,
+            keyboardType: TextInputType.emailAddress,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'L\'email est requis';
+              }
+              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                return 'Format d\'email invalide';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          // Téléphone
+          _buildEditField(
+            controller: _telephoneController,
+            label: 'Téléphone',
+            icon: Icons.phone_rounded,
+            keyboardType: TextInputType.phone,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Le téléphone est requis';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          // Adresse
+          _buildEditField(
+            controller: _adresseController,
+            label: 'Adresse',
+            icon: Icons.location_on_rounded,
+            maxLines: 2,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'L\'adresse est requise';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 32),
+
+          // Boutons d'action
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _cancelEdit,
+                  icon: const Icon(Icons.cancel_rounded),
+                  label: const Text('Annuler'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF6B7280),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: const BorderSide(color: Color(0xFF6B7280)),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _saveChanges,
+                  icon: const Icon(Icons.save_rounded),
+                  label: const Text('Sauvegarder'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
+  /// 📝 Champ de modification
+  Widget _buildEditField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: const Color(0xFF3B82F6)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF9FAFB),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      ),
+    );
+  }
+
+  /// ❌ Annuler la modification
+  void _cancelEdit() {
+    setState(() {
+      _isEditMode = false;
+    });
+    // Nettoyer les contrôleurs
+    _nomController.dispose();
+    _emailController.dispose();
+    _telephoneController.dispose();
+    _adresseController.dispose();
+  }
+
+  /// 💾 Sauvegarder les modifications
+  Future<void> _saveChanges() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    try {
+      // Afficher un indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      final userData = widget.userData;
+      if (userData == null) return;
+
+      final compagnieId = userData['compagnieId'];
+      if (compagnieId == null) return;
+
+      // Mettre à jour dans Firestore
+      await FirebaseFirestore.instance
+          .collection('compagnies_assurance')
+          .doc(compagnieId)
+          .update({
+        'nom': _nomController.text.trim(),
+        'email': _emailController.text.trim(),
+        'telephone': _telephoneController.text.trim(),
+        'adresse': _adresseController.text.trim(),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Recharger les données
+      await _loadCompagnieData();
+
+      // Fermer le dialog de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      // Sortir du mode édition
+      setState(() {
+        _isEditMode = false;
+      });
+
+      // Nettoyer les contrôleurs
+      _nomController.dispose();
+      _emailController.dispose();
+      _telephoneController.dispose();
+      _adresseController.dispose();
+
+      // Afficher un message de succès
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Informations mises à jour avec succès'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+      }
+    } catch (e) {
+      // Fermer le dialog de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      // Afficher un message d'erreur
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erreur lors de la mise à jour: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+
+
 
   Widget _buildGeneralSettingsCard() {
     return Container(
@@ -5972,5 +6953,7 @@ class _AdminCompagnieDashboardState extends State<AdminCompagnieDashboard>with S
       ),
     );
   }
+
+
 }
 

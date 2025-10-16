@@ -212,23 +212,45 @@ class SuperAdminHierarchyService {
     try {
       debugPrint('[SUPER_ADMIN_HIERARCHY] 📈 Calcul statistiques globales...');
 
+      // Récupérer toutes les collections nécessaires
       final compagniesSnapshot = await _firestore.collection('compagnies').get();
       final agencesSnapshot = await _firestore.collection('agences').get();
       final usersSnapshot = await _firestore.collection('users').get();
+      final sinistresSnapshot = await _firestore.collection('sinistres').get();
 
       int totalCompagnies = compagniesSnapshot.docs.length;
       int totalAgences = agencesSnapshot.docs.length;
-      
+
       int agencesAvecAdmin = agencesSnapshot.docs
           .where((doc) => doc.data()['hasAdminAgence'] == true).length;
       int agencesSansAdmin = totalAgences - agencesAvecAdmin;
 
+      // Compter les utilisateurs par rôle
       int adminCompagnies = usersSnapshot.docs
           .where((doc) => doc.data()['role'] == 'admin_compagnie' && doc.data()['isActive'] == true).length;
       int adminAgences = usersSnapshot.docs
           .where((doc) => doc.data()['role'] == 'admin_agence' && doc.data()['isActive'] == true).length;
       int agents = usersSnapshot.docs
           .where((doc) => doc.data()['role'] == 'agent' && doc.data()['isActive'] == true).length;
+
+      // Compter les experts (différents rôles possibles)
+      int experts = usersSnapshot.docs
+          .where((doc) => (doc.data()['role'] == 'expert' || doc.data()['role'] == 'expert_auto') && doc.data()['isActive'] == true).length;
+
+      // Compter les conducteurs
+      int conducteurs = usersSnapshot.docs
+          .where((doc) => doc.data()['role'] == 'conducteur' && doc.data()['isActive'] == true).length;
+
+      // Compter les sinistres par statut
+      int totalSinistres = sinistresSnapshot.docs.length;
+      int sinistresEnCours = sinistresSnapshot.docs
+          .where((doc) => doc.data()['status'] == 'en_cours' || doc.data()['status'] == 'ouvert').length;
+      int sinistresTraites = sinistresSnapshot.docs
+          .where((doc) => doc.data()['status'] == 'traite' || doc.data()['status'] == 'clos').length;
+      int sinistresEnAttente = sinistresSnapshot.docs
+          .where((doc) => doc.data()['status'] == 'en_attente' || doc.data()['status'] == 'nouveau').length;
+
+      debugPrint('[SUPER_ADMIN_HIERARCHY] 📊 Stats calculées: Experts=$experts, Sinistres=$totalSinistres, En cours=$sinistresEnCours');
 
       return {
         'totalCompagnies': totalCompagnies,
@@ -238,7 +260,14 @@ class SuperAdminHierarchyService {
         'adminCompagnies': adminCompagnies,
         'adminAgences': adminAgences,
         'agents': agents,
+        'experts': experts,
+        'conducteurs': conducteurs,
+        'totalSinistres': totalSinistres,
+        'sinistresEnCours': sinistresEnCours,
+        'sinistresTraites': sinistresTraites,
+        'sinistresEnAttente': sinistresEnAttente,
         'pourcentageAgencesAvecAdmin': totalAgences > 0 ? (agencesAvecAdmin / totalAgences * 100).round() : 0,
+        'tauxTraitementSinistres': totalSinistres > 0 ? (sinistresTraites / totalSinistres * 100).round() : 0,
       };
 
     } catch (e) {

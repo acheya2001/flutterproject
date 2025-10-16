@@ -56,8 +56,16 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
     try {
       setState(() => _isLoading = true);
 
-      final compagnieId = widget.compagnieData['id'] ?? '';
-      final stats = await AdminCompagnieStatsService.getMyCompagnieStatistics(compagnieId);
+      // Essayer plusieurs clés pour trouver l'ID de la compagnie
+      final compagnieId = widget.compagnieData['id'] ??
+                         widget.compagnieData['compagnieId'] ??
+                         widget.compagnieData['adminCompagnieId'] ??
+                         '';
+      debugPrint('[MODERN_STATS] 🔍 CompagnieData reçu: ${widget.compagnieData}');
+      debugPrint('[MODERN_STATS] 🔍 CompagnieId extrait: "$compagnieId"');
+      debugPrint('[MODERN_STATS] 🔍 Clés disponibles: ${widget.compagnieData.keys.toList()}');
+
+      final stats = await AdminCompagnieStatsService.getMyCompagnieStatistics(compagnieId, widget.compagnieData);
 
       if (mounted) setState(() {
         _statistics = stats;
@@ -137,9 +145,8 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
         ),
       ),
       actions: [
-        _buildActionButton(Icons.picture_as_pdf_rounded, 'PDF', _exportToPDF),
-        _buildActionButton(Icons.table_chart_rounded, 'Excel', _exportToExcel),
-        _buildActionButton(Icons.refresh_rounded, 'Refresh', _loadStatistics),
+        _buildActionButton(Icons.download_rounded, 'Télécharger', _exportToPDF),
+        _buildActionButton(Icons.refresh_rounded, 'Actualiser', _loadStatistics),
         const SizedBox(width: 16),
       ],
     );
@@ -321,15 +328,15 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
         Row(
           children: [
             Expanded(child: _buildModernKPICard(kpis[0])),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(child: _buildModernKPICard(kpis[1])),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(child: _buildModernKPICard(kpis[2])),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(child: _buildModernKPICard(kpis[3])),
           ],
         ),
@@ -357,10 +364,10 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12), // Réduit encore le padding
+        padding: const EdgeInsets.all(10), // Réduit encore plus le padding
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween, // Distribue l'espace
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -368,13 +375,13 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
                 Icon(
                   kpi['icon'] as IconData,
                   color: Colors.white,
-                  size: 28,
+                  size: 24, // Réduit de 28 à 24
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -382,14 +389,14 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
                       Icon(
                         kpi['isPositive'] ? Icons.trending_up : Icons.trending_down,
                         color: Colors.white,
-                        size: 12, // Réduit de 14 à 12
+                        size: 10, // Réduit de 12 à 10
                       ),
-                      const SizedBox(width: 2), // Réduit l'espacement
+                      const SizedBox(width: 2),
                       Text(
                         kpi['change'],
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 10, // Réduit de 12 à 10
+                          fontSize: 9, // Réduit de 10 à 9
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -403,17 +410,21 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
               kpi['value'],
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 24, // Réduit encore de 28 à 24
+                fontSize: 22, // Réduit de 24 à 22
                 fontWeight: FontWeight.w900,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             Text(
               kpi['title'],
               style: TextStyle(
                 color: Colors.white.withOpacity(0.9),
-                fontSize: 12, // Réduit de 13 à 12
+                fontSize: 11, // Réduit de 12 à 11
                 fontWeight: FontWeight.w500,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -1054,18 +1065,42 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
   /// 📄 Export PDF
   Future<void> _exportToPDF() async {
     try {
-      final compagnieName = widget.compagnieData['nom'] ?? 'Compagnie';
-      await ExportService.exportStatisticsPDF(_statistics ?? {}, compagnieName);
-      if (mounted) {
+      if (_statistics == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ PDF exporté avec succès'),
+            content: Text('❌ Aucune donnée à exporter'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+        return;
+      }
+
+      // Afficher un indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final compagnieName = widget.compagnieData['nom'] ?? 'Compagnie';
+
+      debugPrint('[MODERN_STATS] 📄 Export PDF avec données: ${_statistics!.keys.toList()}');
+      debugPrint('[MODERN_STATS] 📄 Contracts data: ${_statistics!['contracts']}');
+
+      await ExportService.exportStatisticsPDF(_statistics!, compagnieName);
+
+      if (mounted) {
+        Navigator.pop(context); // Fermer le dialog de chargement
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Rapport PDF téléchargé avec succès'),
             backgroundColor: Color(0xFF10B981),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
+        Navigator.pop(context); // Fermer le dialog de chargement
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ Erreur export PDF: $e'),
@@ -1076,25 +1111,15 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
     }
   }
 
-  /// 📊 Export Excel (Fonctionnalité à venir)
-  Future<void> _exportToExcel() async {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('📊 Export Excel - Fonctionnalité à venir'),
-          backgroundColor: Color(0xFF6366F1),
-        ),
-      );
-    }
-  }
+
 
   /// 🏢 Sélecteur d'agence pour filtrer les agents
   Widget _buildAgenceSelector(List<dynamic> agencesList) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), // Réduit le padding
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10), // Réduit le radius
         border: Border.all(color: const Color(0xFF334155)),
       ),
       child: DropdownButtonHideUnderline(
@@ -1104,15 +1129,19 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
             _selectedAgenceName,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 14,
+              fontSize: 13, // Réduit de 14 à 13
               fontWeight: FontWeight.w500,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           dropdownColor: const Color(0xFF1E293B),
           icon: const Icon(
             Icons.keyboard_arrow_down,
             color: Colors.white70,
+            size: 20, // Réduit la taille de l'icône
           ),
+          isExpanded: true, // Permet au dropdown de prendre toute la largeur disponible
           items: [
             // Option "Toutes les agences"
             const DropdownMenuItem<String>(
@@ -1121,8 +1150,10 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
                 'Toutes les agences',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 14,
+                  fontSize: 13, // Réduit de 14 à 13
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             // Options pour chaque agence
@@ -1133,8 +1164,10 @@ class _ModernStatisticsScreenState extends State<ModernStatisticsScreen>with Tic
                   agence['nom'] ?? 'Agence sans nom',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 14,
+                    fontSize: 13, // Réduit de 14 à 13
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               );
             }).toList(),

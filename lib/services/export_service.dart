@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 /// 📄 Service d'export pour PDF et Excel
 class ExportService {
@@ -76,7 +78,7 @@ class ExportService {
       final pdfBytes = await _generateStatisticsPDF(statistics, agenceName);
 
       // Sauvegarder le fichier
-      final fileName = 'statistiques_${agenceName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.html';
+      final fileName = 'statistiques_${agenceName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final file = await _saveFile(pdfBytes, fileName);
 
       debugPrint('[EXPORT_SERVICE] ✅ Statistiques PDF générées: ${file.path}');
@@ -317,173 +319,477 @@ class ExportService {
     }
   }
 
-  /// 📊 Générer un PDF de statistiques (version HTML)
+  /// 📊 Générer un PDF de statistiques (version PDF native)
   static Future<Uint8List> _generateStatisticsPDF(Map<String, dynamic> statistics, String agenceName) async {
     try {
-      debugPrint('[EXPORT_SERVICE] 🔍 Statistics data: $statistics');
+      debugPrint('[EXPORT_SERVICE] 🔍 Statistics data keys: ${statistics.keys.toList()}');
 
       final contracts = statistics['contracts'] as Map<String, dynamic>? ?? {};
       final financial = statistics['financial'] as Map<String, dynamic>? ?? {};
       final agents = statistics['agents'] as Map<String, dynamic>? ?? {};
-      final global = statistics['global'] as Map<String, dynamic>? ?? {};
+      final overview = statistics['overview'] as Map<String, dynamic>? ?? {};
       final agences = statistics['agences'] as List<dynamic>? ?? [];
 
-      debugPrint('[EXPORT_SERVICE] 🔍 Contracts: $contracts');
-      debugPrint('[EXPORT_SERVICE] 🔍 Financial: $financial');
-      debugPrint('[EXPORT_SERVICE] 🔍 Agents: $agents');
-      debugPrint('[EXPORT_SERVICE] 🔍 Global: $global');
+      debugPrint('[EXPORT_SERVICE] 🔍 Contracts keys: ${contracts.keys.toList()}');
+      debugPrint('[EXPORT_SERVICE] 🔍 Contracts values: $contracts');
+      debugPrint('[EXPORT_SERVICE] 🔍 Contracts actifs: ${contracts['actifs']} (type: ${contracts['actifs'].runtimeType})');
+      debugPrint('[EXPORT_SERVICE] 🔍 Contracts active: ${contracts['active']} (type: ${contracts['active'].runtimeType})');
+      debugPrint('[EXPORT_SERVICE] 🔍 Contracts total: ${contracts['total']} (type: ${contracts['total'].runtimeType})');
 
-      // Générer du contenu HTML pour un meilleur rendu
-      final htmlContent = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Rapport Statistiques</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { text-align: center; color: #2563eb; margin-bottom: 30px; }
-        .section { margin-bottom: 25px; }
-        .section-title { font-weight: bold; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px; }
-        .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .metric-item { background: #f9fafb; padding: 15px; border-radius: 8px; }
-        .metric-label { font-weight: bold; color: #374151; }
-        .metric-value { font-size: 24px; font-weight: bold; color: #2563eb; }
-        .agence-item { background: #f3f4f6; padding: 10px; margin: 5px 0; border-radius: 6px; }
-        .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #9ca3af; }
-        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-        th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
-        th { background-color: #f3f4f6; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>RAPPORT STATISTIQUES</h1>
-        <h2>${agenceName}</h2>
-        <p>Généré le ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}</p>
-    </div>
+      // Test des valeurs utilisées dans le template
+      final actifsValue = contracts['actifs'] ?? contracts['active'] ?? 0;
+      final totalValue = contracts['total'] ?? 1;
+      debugPrint('[EXPORT_SERVICE] 🔍 Template actifs value: $actifsValue (type: ${actifsValue.runtimeType})');
+      debugPrint('[EXPORT_SERVICE] 🔍 Template total value: $totalValue (type: ${totalValue.runtimeType})');
+      debugPrint('[EXPORT_SERVICE] 🔍 Percentage calculation: ${_calculatePercentage(actifsValue, totalValue)}%');
 
-    <div class="section">
-        <div class="section-title">RÉSUMÉ GLOBAL</div>
-        <div class="metric-grid">
-            <div class="metric-item">
-                <div class="metric-label">Total Contrats</div>
-                <div class="metric-value">${contracts['total'] ?? 0}</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-label">Contrats Actifs</div>
-                <div class="metric-value">${contracts['active'] ?? 0}</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-label">Total Agents</div>
-                <div class="metric-value">${agents['totalAgents'] ?? 0}</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-label">CA Total</div>
-                <div class="metric-value">${(financial['totalPrimes'] ?? 0).toStringAsFixed(0)} DT</div>
-            </div>
-        </div>
-    </div>
+      // Créer le document PDF
+      final pdf = pw.Document();
 
-    <div class="section">
-        <div class="section-title">PERFORMANCE FINANCIÈRE</div>
-        <table>
-            <tr>
-                <th>Période</th>
-                <th>Montant (DT)</th>
-                <th>Évolution</th>
-            </tr>
-            <tr>
-                <td>Ce mois</td>
-                <td>${(financial['primesThisMonth'] ?? 0).toStringAsFixed(2)}</td>
-                <td>${(financial['financialGrowthRate'] ?? 0) >= 0 ? '+' : ''}${(financial['financialGrowthRate'] ?? 0).toStringAsFixed(1)}%</td>
-            </tr>
-            <tr>
-                <td>Mois dernier</td>
-                <td>${(financial['primesLastMonth'] ?? 0).toStringAsFixed(2)}</td>
-                <td>-</td>
-            </tr>
-            <tr>
-                <td>Cette année</td>
-                <td>${(financial['primesThisYear'] ?? financial['totalPrimes'] ?? 0).toStringAsFixed(2)}</td>
-                <td>-</td>
-            </tr>
-        </table>
-    </div>
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (context) => [
+            // En-tête avec design original
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.all(20),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.blue50,
+                border: pw.Border.all(color: PdfColors.blue800, width: 2),
+              ),
+              child: pw.Column(
+                children: [
+                  pw.Text(
+                    'RAPPORT STATISTIQUES',
+                    style: pw.TextStyle(
+                      fontSize: 24,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue800,
+                    ),
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.Text(
+                    agenceName,
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue600,
+                    ),
+                  ),
+                  pw.SizedBox(height: 5),
+                  pw.Text(
+                    'Généré le ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                    style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 25),
 
-    <div class="section">
-        <div class="section-title">RÉPARTITION DES CONTRATS</div>
-        <table>
-            <tr>
-                <th>Statut</th>
-                <th>Nombre</th>
-                <th>Pourcentage</th>
-            </tr>
-            <tr>
-                <td>Actifs</td>
-                <td>${contracts['active'] ?? 0}</td>
-                <td>${_calculatePercentage(contracts['active'] ?? 0, contracts['total'] ?? 1)}%</td>
-            </tr>
-            <tr>
-                <td>Expirés</td>
-                <td>${contracts['expired'] ?? 0}</td>
-                <td>${_calculatePercentage(contracts['expired'] ?? 0, contracts['total'] ?? 1)}%</td>
-            </tr>
-            <tr>
-                <td>Suspendus</td>
-                <td>${contracts['suspended'] ?? 0}</td>
-                <td>${_calculatePercentage(contracts['suspended'] ?? 0, contracts['total'] ?? 1)}%</td>
-            </tr>
-        </table>
-    </div>
+            // Résumé global avec métriques
+            _buildMetricsGrid(contracts, financial, agents, overview),
+            pw.SizedBox(height: 25),
 
-    ${agences.isNotEmpty ? '''
-    <div class="section">
-        <div class="section-title">PERFORMANCE DES AGENCES</div>
-        <table>
-            <tr>
-                <th>Agence</th>
-                <th>Ville</th>
-                <th>Contrats</th>
-                <th>Agents</th>
-                <th>CA (DT)</th>
-                <th>Score</th>
-            </tr>
-            ${agences.take(10).map((agence) => '''
-            <tr>
-                <td>${agence['nom'] ?? 'N/A'}</td>
-                <td>${agence['ville'] ?? 'N/A'}</td>
-                <td>${agence['totalContrats'] ?? 0}</td>
-                <td>${agence['totalAgents'] ?? 0}</td>
-                <td>${(agence['totalPrimes'] ?? 0).toStringAsFixed(0)}</td>
-                <td>${(agence['performanceScore'] ?? 0).toStringAsFixed(1)}</td>
-            </tr>
-            ''').join('')}
-        </table>
-    </div>
-    ''' : ''}
+            // Performance financière
+            _buildFinancialTable(financial),
+            pw.SizedBox(height: 25),
 
-    <div class="footer">
-        <p>Rapport généré automatiquement par le système de gestion d'assurance</p>
-        <p>Date et heure: ${DateTime.now()}</p>
-    </div>
-</body>
-</html>
-''';
+            // Répartition des contrats
+            _buildContractsTable(contracts),
+            pw.SizedBox(height: 25),
 
-      // Convertir HTML en bytes UTF-8
-      return Uint8List.fromList(utf8.encode(htmlContent));
+            // Performance des agences (version complète)
+            if (agences.isNotEmpty) _buildAgencesPerformanceTable(agences),
 
+            pw.Spacer(),
+
+            // Pied de page
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.all(15),
+              decoration: const pw.BoxDecoration(
+                color: PdfColors.grey100,
+              ),
+              child: pw.Column(
+                children: [
+                  pw.Text(
+                    'Rapport généré automatiquement par le système de gestion d\'assurance',
+                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+                  ),
+                  pw.Text(
+                    'Date et heure: ${DateTime.now()}',
+                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+
+      debugPrint('[EXPORT_SERVICE] ✅ PDF généré avec succès');
+      return pdf.save();
     } catch (e) {
       debugPrint('[EXPORT_SERVICE] ❌ Erreur génération PDF statistiques: $e');
       rethrow;
     }
   }
 
+  /// 📊 Construire la grille de métriques (design original)
+  static pw.Widget _buildMetricsGrid(Map<String, dynamic> contracts, Map<String, dynamic> financial, Map<String, dynamic> agents, Map<String, dynamic> overview) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'RÉSUMÉ GLOBAL',
+          style: pw.TextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.blue800,
+          ),
+        ),
+        pw.SizedBox(height: 15),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: _buildMetricCard('Total Contrats', '${contracts['total'] ?? 0}', PdfColors.blue),
+            ),
+            pw.SizedBox(width: 15),
+            pw.Expanded(
+              child: _buildMetricCard('Contrats Actifs', '${contracts['actifs'] ?? 0}', PdfColors.green),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 15),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: _buildMetricCard('Total Agents', '${agents['totalAgents'] ?? 0}', PdfColors.orange),
+            ),
+            pw.SizedBox(width: 15),
+            pw.Expanded(
+              child: _buildMetricCard('CA Total', '${(financial['totalPrimes'] ?? 0).toStringAsFixed(0)} DT', PdfColors.purple),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 📊 Construire une carte de métrique
+  static pw.Widget _buildMetricCard(String label, String value, PdfColor color) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(15),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey50,
+        border: pw.Border.all(color: color, width: 2),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.grey700,
+            ),
+          ),
+          pw.SizedBox(height: 5),
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: 20,
+              fontWeight: pw.FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📊 Construire le tableau de performance financière
+  static pw.Widget _buildFinancialTable(Map<String, dynamic> financial) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'PERFORMANCE FINANCIÈRE',
+          style: pw.TextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.blue800,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400),
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Période', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Montant (DT)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Évolution', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ),
+              ],
+            ),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Ce mois'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${(financial['primesThisMonth'] ?? 0).toStringAsFixed(2)}'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${(financial['financialGrowthRate'] ?? 0) >= 0 ? '+' : ''}${(financial['financialGrowthRate'] ?? 0).toStringAsFixed(1)}%'),
+                ),
+              ],
+            ),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Mois dernier'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${(financial['primesLastMonth'] ?? 0).toStringAsFixed(2)}'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('-'),
+                ),
+              ],
+            ),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Cette année'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${(financial['primesThisYear'] ?? financial['totalPrimes'] ?? 0).toStringAsFixed(2)}'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('-'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 📊 Construire le tableau des contrats
+  static pw.Widget _buildContractsTable(Map<String, dynamic> contracts) {
+    final actifsValue = contracts['actifs'] ?? contracts['active'] ?? 0;
+    final expiresValue = contracts['expires'] ?? contracts['expired'] ?? 0;
+    final suspendusValue = contracts['suspendus'] ?? contracts['suspended'] ?? 0;
+    final totalValue = contracts['total'] ?? 1;
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'RÉPARTITION DES CONTRATS',
+          style: pw.TextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.blue800,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400),
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Statut', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Nombre', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Pourcentage', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ),
+              ],
+            ),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Actifs'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('$actifsValue'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${_calculatePercentage(actifsValue, totalValue)}%'),
+                ),
+              ],
+            ),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Expirés'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('$expiresValue'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${_calculatePercentage(expiresValue, totalValue)}%'),
+                ),
+              ],
+            ),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Suspendus'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('$suspendusValue'),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${_calculatePercentage(suspendusValue, totalValue)}%'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 📊 Construire le tableau de performance des agences (version complète)
+  static pw.Widget _buildAgencesPerformanceTable(List<dynamic> agences) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'PERFORMANCE DES AGENCES',
+          style: pw.TextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.blue800,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(2),
+            1: const pw.FlexColumnWidth(1.5),
+            2: const pw.FlexColumnWidth(1),
+            3: const pw.FlexColumnWidth(1),
+            4: const pw.FlexColumnWidth(1.5),
+            5: const pw.FlexColumnWidth(1),
+          },
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Agence', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Ville', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Contrats', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Agents', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('CA (DT)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Score', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                ),
+              ],
+            ),
+            ...agences.take(10).map((agence) => pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text(agence['nom'] ?? 'N/A', style: const pw.TextStyle(fontSize: 9)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text(agence['ville'] ?? 'N/A', style: const pw.TextStyle(fontSize: 9)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${agence['totalContrats'] ?? 0}', style: const pw.TextStyle(fontSize: 9)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${agence['totalAgents'] ?? 0}', style: const pw.TextStyle(fontSize: 9)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${(agence['totalPrimes'] ?? 0).toStringAsFixed(0)}', style: const pw.TextStyle(fontSize: 9)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${(agence['performanceScore'] ?? 0).toStringAsFixed(1)}', style: const pw.TextStyle(fontSize: 9)),
+                ),
+              ],
+            )),
+          ],
+        ),
+      ],
+    );
+
+  }
+
+
+
   /// 📊 Calculer un pourcentage
-  static String _calculatePercentage(int value, int total) {
-    if (total == 0) return '0';
-    return ((value / total) * 100).toStringAsFixed(1);
+  static String _calculatePercentage(dynamic value, dynamic total) {
+    final numValue = (value is num) ? value.toDouble() : 0.0;
+    final numTotal = (total is num) ? total.toDouble() : 1.0;
+
+    if (numTotal == 0) return '0';
+    return ((numValue / numTotal) * 100).toStringAsFixed(1);
   }
 
   /// 🔧 Échapper les valeurs CSV

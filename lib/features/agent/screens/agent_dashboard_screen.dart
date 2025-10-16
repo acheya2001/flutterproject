@@ -562,10 +562,22 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
               break;
             case 'contrat_actif':
               vehiculesAssures++;
+              contratsCrees++; // Un contrat actif est aussi un contrat créé
               if (conducteurId != null) clientsActifs.add(conducteurId);
               break;
             case 'contrat_valide':
             case 'paiement_propose':
+            case 'documents_completes':
+            case 'frequence_choisie':
+            case 'en_attente_paiement':
+            case 'paiement_effectue':
+            case 'contrat_cree':
+            case 'contrat_signe':
+            case 'contrat_finalise':
+            case 'actif':
+            case 'valide':
+            case 'signe':
+            case 'finalise':
               contratsCrees++;
               if (conducteurId != null) clientsActifs.add(conducteurId);
               break;
@@ -835,25 +847,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildActionCard(
-                  'Constats PDF',
-                  'PDF reçus des conducteurs',
-                  Icons.picture_as_pdf_rounded,
-                  const Color(0xFF8B5CF6),
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ConstatsRecusScreen(),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+
         ],
       ),
     );

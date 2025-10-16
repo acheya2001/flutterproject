@@ -17,7 +17,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen>with Singl
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       if (mounted) setState(() {
         _selectedIndex = _tabController.index;
@@ -48,9 +48,6 @@ class _UsersManagementScreenState extends State<UsersManagementScreen>with Singl
               children: [
                 _buildSuperAdminTab(),
                 _buildAdminCompagnieTab(),
-                _buildAdminAgenceTab(),
-                _buildAgentsTab(),
-                _buildExpertsTab(),
               ],
             ),
           ),
@@ -145,9 +142,6 @@ class _UsersManagementScreenState extends State<UsersManagementScreen>with Singl
     final tabs = [
       {'icon': Icons.admin_panel_settings_rounded, 'label': 'Super Admin', 'color': const Color(0xFFDC2626)},
       {'icon': Icons.business_center_rounded, 'label': 'Admin Compagnie', 'color': const Color(0xFF059669)},
-      {'icon': Icons.store_rounded, 'label': 'Admin Agence', 'color': const Color(0xFF2563EB)},
-      {'icon': Icons.person_pin_rounded, 'label': 'Agents', 'color': const Color(0xFFF59E0B)},
-      {'icon': Icons.engineering_rounded, 'label': 'Experts', 'color': const Color(0xFF7C3AED)},
     ];
 
     return Container(
@@ -996,56 +990,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen>with Singl
     );
   }
 
-  /// 🏪 Onglet Admin Agence avec design moderne
-  Widget _buildAdminAgenceTab() {
-    return _buildComingSoonTab(
-      title: 'Admin Agence',
-      subtitle: 'Gestion des administrateurs d\'agence',
-      description: 'Créez et gérez les comptes administrateurs pour chaque agence d\'assurance',
-      icon: Icons.store_rounded,
-      color: const Color(0xFF2563EB),
-      features: [
-        'Création de comptes par agence',
-        'Gestion des permissions locales',
-        'Supervision des agents',
-        'Rapports d\'agence',
-      ],
-    );
-  }
 
-  /// 👥 Onglet Agents avec design moderne
-  Widget _buildAgentsTab() {
-    return _buildComingSoonTab(
-      title: 'Agents d\'Assurance',
-      subtitle: 'Gestion des agents terrain',
-      description: 'Gérez les agents d\'assurance, leurs territoires et leurs performances',
-      icon: Icons.person_pin_rounded,
-      color: const Color(0xFFF59E0B),
-      features: [
-        'Inscription et validation',
-        'Attribution de territoires',
-        'Suivi des performances',
-        'Formation et certification',
-      ],
-    );
-  }
-
-  /// 🔧 Onglet Experts avec design moderne
-  Widget _buildExpertsTab() {
-    return _buildComingSoonTab(
-      title: 'Experts Automobiles',
-      subtitle: 'Gestion du réseau d\'experts',
-      description: 'Gérez les experts automobiles, leurs spécialisations et leurs missions',
-      icon: Icons.engineering_rounded,
-      color: const Color(0xFF7C3AED),
-      features: [
-        'Certification d\'experts',
-        'Attribution de missions',
-        'Suivi des expertises',
-        'Évaluation qualité',
-      ],
-    );
-  }
 
   /// 🚧 Widget générique pour les fonctionnalités en développement
   Widget _buildComingSoonTab({

@@ -4,7 +4,7 @@ import '../../../../models/insurance_company.dart';
 import '../../../../services/insurance_company_service.dart';
 import 'companies_management_screen.dart';
 import 'users_management_screen.dart';
-import 'super_admin_creation_screen.dart';
+import '../../screens/super_admin_statistics_screen.dart';
 
 /// 🏢 Dashboard Super Admin Complet
 class SuperAdminDashboardComplete extends StatefulWidget {
@@ -381,31 +381,11 @@ class _SuperAdminDashboardCompleteState extends State<SuperAdminDashboardComplet
             const SizedBox(height: 16),
 
             _buildActionCard(
-              'Créer Super Admin',
-              'Créer un nouveau compte Super Admin',
-              Icons.admin_panel_settings,
-              const Color(0xFFDC2626),
-              () => _navigateToCreateSuperAdmin(),
-            ),
-
-            const SizedBox(height: 16),
-            
-            _buildActionCard(
               'Statistiques & Rapports',
               'Voir les analyses et rapports détaillés',
               Icons.analytics,
               const Color(0xFF7C3AED),
               () => _navigateToStatistics(),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            _buildActionCard(
-              'Paramètres Système',
-              'Configuration générale du système',
-              Icons.settings,
-              const Color(0xFFDC2626),
-              () => _navigateToSettings(),
             ),
           ],
         ),
@@ -500,31 +480,11 @@ class _SuperAdminDashboardCompleteState extends State<SuperAdminDashboardComplet
     );
   }
 
-  void _navigateToCreateSuperAdmin() {
+  void _navigateToStatistics() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const SuperAdminCreationScreen(),
-      ),
-    );
-  }
-
-  void _navigateToStatistics() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('📊 Statistiques & Rapports - Fonctionnalité prête !'),
-        backgroundColor: Color(0xFF7C3AED),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _navigateToSettings() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('⚙️ Paramètres Système - Fonctionnalité prête !'),
-        backgroundColor: Color(0xFFDC2626),
-        duration: Duration(seconds: 2),
+        builder: (context) => const SuperAdminStatisticsScreen(),
       ),
     );
   }

@@ -250,18 +250,42 @@ class InsuranceCompanyService {
       final sinistresSnapshot = await _firestore.collection('sinistres').get();
       final sinistres = sinistresSnapshot.docs.map((doc) => doc.data()).toList();
 
+      // Compter les utilisateurs actifs par rôle
+      final activeUsers = users.where((u) => u['isActive'] == true || u['status'] == 'actif').toList();
+
+      debugPrint('[COMPANY_SERVICE] 📊 Utilisateurs actifs trouvés: ${activeUsers.length}');
+      debugPrint('[COMPANY_SERVICE] 🔍 Rôles disponibles: ${users.map((u) => u['role']).toSet().toList()}');
+
+      // Compter les experts (différents rôles possibles)
+      final expertsCount = activeUsers.where((u) =>
+        u['role'] == 'expert' ||
+        u['role'] == 'expert_auto' ||
+        u['role'] == 'expert_automobile'
+      ).length;
+
+      // Compter les agents
+      final agentsCount = activeUsers.where((u) =>
+        u['role'] == 'agent' ||
+        u['role'] == 'agent_agence' ||
+        u['role'] == 'agent_assurance'
+      ).length;
+
+      debugPrint('[COMPANY_SERVICE] 👥 Experts trouvés: $expertsCount');
+      debugPrint('[COMPANY_SERVICE] 🏢 Agents trouvés: $agentsCount');
+      debugPrint('[COMPANY_SERVICE] 📋 Sinistres trouvés: ${sinistres.length}');
+
       return SystemStats(
         totalCompagnies: companiesSnapshot.docs.length,
         compagniesActives: activeCompanies,
         totalUtilisateurs: users.length,
-        adminCompagnies: users.where((u) => u['role'] == 'admin_compagnie').length,
-        adminAgences: users.where((u) => u['role'] == 'admin_agence').length,
-        agents: users.where((u) => u['role'] == 'agent_agence').length,
-        experts: users.where((u) => u['role'] == 'expert_auto').length,
-        conducteurs: users.where((u) => u['role'] == 'conducteur').length,
+        adminCompagnies: activeUsers.where((u) => u['role'] == 'admin_compagnie').length,
+        adminAgences: activeUsers.where((u) => u['role'] == 'admin_agence').length,
+        agents: agentsCount,
+        experts: expertsCount,
+        conducteurs: activeUsers.where((u) => u['role'] == 'conducteur').length,
         totalSinistres: sinistres.length,
-        sinistresEnCours: sinistres.where((s) => s['status'] == 'en_cours').length,
-        sinistresTraites: sinistres.where((s) => s['status'] == 'traite').length,
+        sinistresEnCours: sinistres.where((s) => s['status'] == 'en_cours' || s['status'] == 'ouvert').length,
+        sinistresTraites: sinistres.where((s) => s['status'] == 'traite' || s['status'] == 'clos').length,
       );
     } catch (e) {
       debugPrint('[COMPANY_SERVICE] ❌ Erreur lors du calcul des stats: $e');

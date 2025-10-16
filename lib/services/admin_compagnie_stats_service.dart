@@ -7,15 +7,22 @@ class AdminCompagnieStatsService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// 📊 Récupérer les statistiques complètes de la compagnie de l'admin
-  static Future<Map<String, dynamic>> getMyCompagnieStatistics(String compagnieId) async {
+  static Future<Map<String, dynamic>> getMyCompagnieStatistics(String compagnieId, [Map<String, dynamic>? userData]) async {
     try {
       debugPrint('[ADMIN_COMPAGNIE_STATS] 📊 Récupération stats pour compagnie: $compagnieId');
 
-      // Si compagnieId est vide, essayer de le détecter automatiquement
+      // Si compagnieId est vide, essayer de le détecter depuis userData ou automatiquement
       String actualCompagnieId = compagnieId;
       if (compagnieId.isEmpty) {
-        actualCompagnieId = await _detectCompagnieId();
-        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 CompagnieId détecté automatiquement: $actualCompagnieId');
+        if (userData != null) {
+          actualCompagnieId = userData['compagnieId'] ?? userData['adminCompagnieId'] ?? '';
+          debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 CompagnieId depuis userData: $actualCompagnieId');
+        }
+
+        if (actualCompagnieId.isEmpty) {
+          actualCompagnieId = await _detectCompagnieId();
+          debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 CompagnieId détecté automatiquement: $actualCompagnieId');
+        }
       }
 
       final results = await Future.wait([
@@ -99,6 +106,8 @@ class AdminCompagnieStatsService {
   static Future<Map<String, dynamic>> _getCompagnieOverview(String compagnieId) async {
     try {
       debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Overview pour compagnie: $compagnieId');
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 CompagnieId type: ${compagnieId.runtimeType}');
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 CompagnieId isEmpty: ${compagnieId.isEmpty}');
 
       // Récupérer les données de la compagnie (essayer les deux collections)
       Map<String, dynamic> compagnieData = {};
@@ -154,13 +163,31 @@ class AdminCompagnieStatsService {
 
       debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Contrats trouvés: ${contratsSnapshot.docs.length}');
 
-      // Compter les sinistres
-      final sinistresSnapshot = await _firestore
+      // Compter les sinistres (essayer plusieurs collections)
+      var sinistresSnapshot = await _firestore
           .collection('sinistres')
           .where('compagnieId', isEqualTo: compagnieId)
           .get();
 
-      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Sinistres trouvés: ${sinistresSnapshot.docs.length}');
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Sinistres dans collection "sinistres": ${sinistresSnapshot.docs.length}');
+
+      // Si aucun sinistre trouvé, essayer avec constats
+      if (sinistresSnapshot.docs.isEmpty) {
+        sinistresSnapshot = await _firestore
+            .collection('constats')
+            .where('compagnieId', isEqualTo: compagnieId)
+            .get();
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Sinistres dans collection "constats": ${sinistresSnapshot.docs.length}');
+      }
+
+      // Debug: Afficher quelques documents pour vérifier la structure
+      if (sinistresSnapshot.docs.isNotEmpty) {
+        final firstDoc = sinistresSnapshot.docs.first.data() as Map<String, dynamic>;
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Premier sinistre structure: ${firstDoc.keys.toList()}');
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Premier sinistre compagnieId: ${firstDoc['compagnieId']}');
+      }
+
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Total sinistres trouvés: ${sinistresSnapshot.docs.length}');
 
       final result = {
         'compagnieData': compagnieData,
@@ -199,6 +226,8 @@ class AdminCompagnieStatsService {
         final agenceData = agenceDoc.data();
         final agenceId = agenceDoc.id;
 
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Agence $agenceId données: ${agenceData.keys.toList()}');
+
         // Compter les agents de cette agence
         final agentsSnapshot = await _firestore
             .collection('users')
@@ -232,10 +261,18 @@ class AdminCompagnieStatsService {
             .where('isActive', isEqualTo: true)
             .get();
 
+        // Essayer plusieurs champs pour la ville
+        final ville = agenceData['ville'] ??
+                     agenceData['city'] ??
+                     agenceData['gouvernorat'] ??
+                     agenceData['region'] ??
+                     agenceData['localisation'] ??
+                     'Ville non définie';
+
         agencesStats.add({
           'id': agenceId,
           'nom': agenceData['nom'] ?? 'Agence inconnue',
-          'ville': agenceData['ville'] ?? 'Ville inconnue',
+          'ville': ville,
           'adresse': agenceData['adresse'] ?? '',
           'telephone': agenceData['telephone'] ?? '',
           'email': agenceData['email'] ?? '',
@@ -244,7 +281,7 @@ class AdminCompagnieStatsService {
           'contratsActifs': contratsActifs,
           'totalPrimes': totalPrimes,
           'hasAdminAgence': adminAgenceSnapshot.docs.isNotEmpty,
-          'adminAgenceNom': adminAgenceSnapshot.docs.isNotEmpty 
+          'adminAgenceNom': adminAgenceSnapshot.docs.isNotEmpty
               ? '${adminAgenceSnapshot.docs.first.data()['prenom']} ${adminAgenceSnapshot.docs.first.data()['nom']}'
               : null,
           'performanceScore': _calculateAgencePerformanceScore(
@@ -253,6 +290,8 @@ class AdminCompagnieStatsService {
             agentsSnapshot.docs.length,
           ),
         });
+
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Agence ${agenceData['nom']}: ville="$ville", contrats=${contratsSnapshot.docs.length}, agents=${agentsSnapshot.docs.length}');
       }
 
       // Trier par performance
@@ -454,6 +493,38 @@ class AdminCompagnieStatsService {
           final data = doc.data();
           debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Contrat ${doc.id}: compagnieId=${data['compagnieId']}');
         }
+
+        // Essayer de trouver des contrats avec d'autres critères
+        final contratsWithoutCompagnieId = await _firestore
+            .collection('contrats')
+            .where('agentId', isNotEqualTo: '')
+            .get();
+
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Contrats avec agentId: ${contratsWithoutCompagnieId.docs.length}');
+
+        // Vérifier si les agents de cette compagnie ont des contrats
+        final agentsSnapshot = await _firestore
+            .collection('users')
+            .where('role', whereIn: ['agent', 'agent_agence', 'agent_assurance'])
+            .where('compagnieId', isEqualTo: compagnieId)
+            .get();
+
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Agents de la compagnie: ${agentsSnapshot.docs.length}');
+
+        // Chercher les contrats par agentId
+        for (final agentDoc in agentsSnapshot.docs) {
+          final agentContracts = await _firestore
+              .collection('contrats')
+              .where('agentId', isEqualTo: agentDoc.id)
+              .get();
+
+          if (agentContracts.docs.isNotEmpty) {
+            debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Agent ${agentDoc.id} a ${agentContracts.docs.length} contrats');
+            // Ajouter ces contrats à notre snapshot
+            contratsSnapshot = agentContracts;
+            break;
+          }
+        }
       }
 
       int total = contratsSnapshot.docs.length;
@@ -465,31 +536,75 @@ class AdminCompagnieStatsService {
       final now = DateTime.now();
       final endOfMonth = DateTime(now.year, now.month + 1, 0);
 
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Analyse de ${contratsSnapshot.docs.length} contrats...');
+
       for (var doc in contratsSnapshot.docs) {
         final data = doc.data();
         final statut = data['statut']?.toString().toLowerCase() ?? '';
+        final status = data['status']?.toString().toLowerCase() ?? '';
         final dateFin = (data['dateFin'] as Timestamp?)?.toDate();
+        final dateExpiration = (data['dateExpiration'] as Timestamp?)?.toDate();
+        final dateFinEffective = dateFin ?? dateExpiration;
 
-        switch (statut) {
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Contrat ${doc.id}: statut="$statut", status="$status", dateFin=$dateFin, dateExpiration=$dateExpiration');
+
+        // Logique améliorée pour déterminer le statut
+        String statutEffectif = statut.isNotEmpty ? statut : status;
+
+        // Si aucun statut défini, considérer comme actif si pas expiré
+        if (statutEffectif.isEmpty) {
+          if (dateFinEffective != null && dateFinEffective.isBefore(now)) {
+            statutEffectif = 'expiré';
+          } else {
+            statutEffectif = 'actif'; // Par défaut, considérer comme actif
+          }
+        }
+
+        debugPrint('[ADMIN_COMPAGNIE_STATS] 🔍 Contrat ${doc.id}: statutEffectif="$statutEffectif", dateFinEffective=$dateFinEffective');
+
+        switch (statutEffectif) {
           case 'actif':
+          case 'active':
+          case 'en_cours':
+          case 'valide':
             actifs++;
-            if (dateFin != null && dateFin.isBefore(endOfMonth) && dateFin.isAfter(now)) {
+            debugPrint('[ADMIN_COMPAGNIE_STATS] ✅ Contrat ${doc.id}: ACTIF (statut: "$statutEffectif")');
+            if (dateFinEffective != null && dateFinEffective.isBefore(endOfMonth) && dateFinEffective.isAfter(now)) {
               expiringThisMonth++;
             }
             break;
           case 'expiré':
           case 'expire':
+          case 'expired':
+          case 'terminé':
             expires++;
+            debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Contrat ${doc.id}: EXPIRÉ (statut: "$statutEffectif")');
             break;
           case 'suspendu':
+          case 'inactif':
+          case 'suspended':
+          case 'annulé':
             suspendus++;
+            debugPrint('[ADMIN_COMPAGNIE_STATS] ⏸️ Contrat ${doc.id}: SUSPENDU (statut: "$statutEffectif")');
+            break;
+          default:
+            // Si statut inconnu mais pas expiré, considérer comme actif
+            if (dateFinEffective == null || dateFinEffective.isAfter(now)) {
+              actifs++;
+              debugPrint('[ADMIN_COMPAGNIE_STATS] ✅ Contrat ${doc.id}: statut inconnu "$statutEffectif" -> considéré ACTIF');
+            } else {
+              expires++;
+              debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Contrat ${doc.id}: statut inconnu "$statutEffectif" mais expiré -> considéré EXPIRÉ');
+            }
             break;
         }
       }
 
       double growthRate = total > 0 ? (actifs / total * 100) - 85 : 0;
 
-      return {
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 📊 Contrats stats: total=$total, actifs=$actifs, expires=$expires, suspendus=$suspendus');
+
+      final contractsResult = {
         'total': total,
         'actifs': actifs,
         'expires': expires,
@@ -498,6 +613,10 @@ class AdminCompagnieStatsService {
         'growthRate': growthRate,
         'activePercentage': total > 0 ? (actifs / total * 100) : 0,
       };
+
+      debugPrint('[ADMIN_COMPAGNIE_STATS] 📊 Contrats result: $contractsResult');
+
+      return contractsResult;
 
     } catch (e) {
       debugPrint('[ADMIN_COMPAGNIE_STATS] ❌ Erreur contracts stats: $e');

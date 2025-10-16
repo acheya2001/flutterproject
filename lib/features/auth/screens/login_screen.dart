@@ -9,6 +9,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/conducteur_workaround_service.dart';
 import '../../admin_compagnie/screens/admin_compagnie_dashboard.dart';
 import 'conducteur_register_simple_screen.dart';
+import 'forgot_password_sms_screen.dart';
 import '../../admin_agence/screens/modern_admin_agence_dashboard.dart';
 import '../../agent/screens/agent_dashboard_screen.dart';
 import '../../../conducteur/screens/guest_join_session_screen.dart';
@@ -202,8 +203,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           suffixIcon: IconButton(
                             icon: Icon(
                               _isPasswordVisible
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
                             ),
                             onPressed: () {
                               if (mounted) setState(() {
@@ -312,34 +313,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
 
-                        // Bouton Invité pour rejoindre une session
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.symmetric(horizontal: 20),
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const GuestJoinSessionScreen(
-                                    sessionCode: '', // Code vide, sera saisi par l'utilisateur
-                                  ),
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.group_add),
-                            label: const Text('Rejoindre en tant qu\'invité'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _userTypeColor,
-                              side: BorderSide(color: _userTypeColor),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
+
                       ],
                     ),
                   ),
@@ -583,21 +557,111 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleForgotPassword() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Mot de passe oublié'),
-        content: const Text(
-          'Contactez votre administrateur pour réinitialiser votre mot de passe.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+    // OTP uniquement pour les conducteurs
+    if (widget.userType == 'driver') {
+      // Rediriger vers l'écran de récupération par SMS/OTP pour les conducteurs
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ForgotPasswordSMSScreen(
+            userEmail: _emailController.text.trim().isNotEmpty
+                ? _emailController.text.trim()
+                : null,
           ),
-        ],
-      ),
-    );
+        ),
+      );
+    } else {
+      // Pour les autres rôles, afficher un message pour contacter l'administration
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _userTypeColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.admin_panel_settings,
+                  color: _userTypeColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Mot de passe oublié',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Pour réinitialiser votre mot de passe ${_userTypeTitle.toLowerCase()}, veuillez contacter votre administrateur.',
+                style: const TextStyle(
+                  fontSize: 16,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_rounded, color: Colors.blue, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'L\'administrateur pourra générer un nouveau mot de passe temporaire pour votre compte.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fermer'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                // Optionnel : ouvrir l'app email ou téléphone pour contacter l'admin
+              },
+              icon: const Icon(Icons.contact_support_rounded),
+              label: const Text('Contacter Admin'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _userTypeColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _handleSuperAdminAccess() {

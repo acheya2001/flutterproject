@@ -238,13 +238,25 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
           ),
           const SizedBox(height: 16),
           
-          // Statistiques en grille
+          // Statistiques en grille - Première ligne
           Row(
             children: [
               Expanded(child: _buildStatItem('Compagnies', _globalStats['totalCompagnies']?.toString() ?? '0', Icons.business_rounded)),
               Expanded(child: _buildStatItem('Agences', _globalStats['totalAgences']?.toString() ?? '0', Icons.store_rounded)),
               Expanded(child: _buildStatItem('Admins Agence', _globalStats['adminAgences']?.toString() ?? '0', Icons.admin_panel_settings_rounded)),
               Expanded(child: _buildStatItem('Agents', _globalStats['agents']?.toString() ?? '0', Icons.people_rounded)),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Statistiques en grille - Deuxième ligne
+          Row(
+            children: [
+              Expanded(child: _buildStatItem('Experts', _globalStats['experts']?.toString() ?? '0', Icons.engineering_rounded)),
+              Expanded(child: _buildStatItem('Conducteurs', _globalStats['conducteurs']?.toString() ?? '0', Icons.drive_eta_rounded)),
+              Expanded(child: _buildStatItem('Sinistres', _globalStats['totalSinistres']?.toString() ?? '0', Icons.car_crash_rounded)),
+              Expanded(child: _buildStatItem('En Cours', _globalStats['sinistresEnCours']?.toString() ?? '0', Icons.pending_actions_rounded)),
             ],
           ),
 

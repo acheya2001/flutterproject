@@ -43,9 +43,6 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
           _currentAgentId = userDoc.docs.first.id;
         });
         print('✅ Agent trouvé dans users: $_currentAgentId');
-
-        // Debug: Afficher toutes les demandes pour voir s'il y en a
-        await _debugAllDemandes();
         return;
       }
 
@@ -138,29 +135,6 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
                 ],
               );
             },
-          ),
-          IconButton(
-            icon: const Icon(Icons.bug_report),
-            onPressed: () async {
-              await _debugAllDemandes();
-            },
-            tooltip: 'Debug Demandes',
-          ),
-          IconButton(
-            icon: const Icon(Icons.build),
-            onPressed: () async {
-              await _corrigerAffectationAgent();
-            },
-            tooltip: 'Corriger Affectation',
-          ),
-          IconButton(
-            icon: const Icon(Icons.science),
-            onPressed: () => _simulerDocumentsCompletes(),
-            tooltip: 'Simuler Documents Complétés',
-          ),
-          IconButton(
-            icon: const Icon(Icons.analytics),
-            onPressed: () => _showMyStats(),
           ),
         ],
       ),
@@ -1433,12 +1407,7 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
     }
   }
 
-  void _showMyStats() {
-    // TODO: Implémenter les statistiques de l'agent
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Statistiques de l\'agent - À implémenter')),
-    );
-  }
+
 
   /// 📋 Marquer les documents comme manquants
   Future<void> _markDocumentsIncomplete(String requestId, Map<String, dynamic> data) async {
@@ -2535,62 +2504,7 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
     }
   }
 
-  /// 🧪 Simuler des documents complétés (pour test)
-  Future<void> _simulerDocumentsCompletes() async {
-    try {
-      // Récupérer une demande "affectee" pour la transformer
-      final demandesQuery = await FirebaseFirestore.instance
-          .collection('demandes_contrats')
-          .where('agentId', isEqualTo: _currentAgentId)
-          .where('statut', isEqualTo: 'affectee')
-          .limit(1)
-          .get();
 
-      if (demandesQuery.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Aucune demande "affectee" trouvée pour simulation'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
-      }
-
-      final demandeDoc = demandesQuery.docs.first;
-
-      // Mettre à jour le statut
-      await FirebaseFirestore.instance
-          .collection('demandes_contrats')
-          .doc(demandeDoc.id)
-          .update({
-        'statut': 'documents_completes',
-        'dateDocumentsCompletes': FieldValue.serverTimestamp(),
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('🧪 Demande ${demandeDoc.id} simulée avec documents complétés !'),
-          backgroundColor: Colors.green,
-          action: SnackBarAction(
-            label: 'Voir',
-            textColor: Colors.white,
-            onPressed: () {
-              setState(() => _selectedFilter = 'documents_completes');
-            },
-          ),
-        ),
-      );
-
-    } catch (e) {
-      print('❌ Erreur simulation: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Erreur: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
 
   /// ✅ Marquer les documents comme complétés ET envoyer notification paiement
   Future<void> _marquerDocumentsCompletes(String requestId, Map<String, dynamic> data) async {
@@ -2972,147 +2886,9 @@ class _AgentRequestsScreenState extends State<AgentRequestsScreen> {
     }
   }
 
-  /// 🔍 Debug: Afficher toutes les demandes pour diagnostic
-  Future<void> _debugAllDemandes() async {
-    try {
-      print('🔍 [DEBUG] === DIAGNOSTIC COMPLET ===');
-      print('🔍 [DEBUG] Agent ID actuel: $_currentAgentId');
 
-      final allDemandes = await FirebaseFirestore.instance
-          .collection('demandes_contrats')
-          .get();
 
-      print('📊 [DEBUG] Total demandes dans la collection: ${allDemandes.docs.length}');
 
-      for (final doc in allDemandes.docs) {
-        final data = doc.data();
-        print('  📄 [DEBUG] Demande ${doc.id}:');
-        print('    - agentId: ${data['agentId']}');
-        print('    - agentNom: ${data['agentNom']}');
-        print('    - agentEmail: ${data['agentEmail']}');
-        print('    - statut: ${data['statut']}');
-        print('    - numero: ${data['numero']}');
-        print('    - conducteurId: ${data['conducteurId']}');
-        print('    - agenceId: ${data['agenceId']}');
-        print('    - affectationMode: ${data['affectationMode']}');
-        print('    - dateAffectation: ${data['dateAffectation']}');
-      }
-
-      // Chercher spécifiquement les demandes pour cet agent
-      final mesDemandesQuery = await FirebaseFirestore.instance
-          .collection('demandes_contrats')
-          .where('agentId', isEqualTo: _currentAgentId)
-          .get();
-
-      print('🎯 [DEBUG] Demandes pour agent $_currentAgentId: ${mesDemandesQuery.docs.length}');
-
-      for (final doc in mesDemandesQuery.docs) {
-        final data = doc.data();
-        print('  ✅ [DEBUG] Ma demande ${doc.id}: statut=${data['statut']}, numero=${data['numero']}');
-      }
-
-      // Debug: vérifier l'agent actuel
-      if (_currentAgentId != null) {
-        final agentDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(_currentAgentId!)
-            .get();
-
-        if (agentDoc.exists) {
-          final agentData = agentDoc.data()!;
-          print('👤 [DEBUG] Agent actuel: ${agentData['prenom']} ${agentData['nom']} (${agentData['email']})');
-          print('👤 [DEBUG] AgenceId: ${agentData['agenceId']}');
-        } else {
-          print('❌ [DEBUG] Agent $_currentAgentId non trouvé dans users');
-        }
-      }
-
-    } catch (e) {
-      print('❌ [DEBUG] Erreur debug demandes: $e');
-    }
-  }
-
-  /// 🔧 Corriger l'affectation de l'agent pour les demandes mal assignées
-  Future<void> _corrigerAffectationAgent() async {
-    try {
-      print('🔧 [CORRECTION] Début correction affectation agent');
-
-      if (_currentAgentId == null) {
-        print('❌ [CORRECTION] Aucun agent connecté');
-        return;
-      }
-
-      // Récupérer les informations de l'agent actuel
-      final agentDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentAgentId!)
-          .get();
-
-      if (!agentDoc.exists) {
-        print('❌ [CORRECTION] Agent non trouvé');
-        return;
-      }
-
-      final agentData = agentDoc.data()!;
-      final agentEmail = agentData['email'];
-
-      print('🔧 [CORRECTION] Agent: ${agentData['prenom']} ${agentData['nom']} ($agentEmail)');
-
-      // Chercher les demandes affectées à cet agent par email mais avec un mauvais ID
-      final demandesQuery = await FirebaseFirestore.instance
-          .collection('demandes_contrats')
-          .where('agentEmail', isEqualTo: agentEmail)
-          .get();
-
-      print('🔍 [CORRECTION] ${demandesQuery.docs.length} demandes trouvées avec cet email');
-
-      int corrected = 0;
-      for (final doc in demandesQuery.docs) {
-        final data = doc.data();
-        final currentAgentId = data['agentId'];
-
-        if (currentAgentId != _currentAgentId) {
-          print('🔧 [CORRECTION] Correction demande ${doc.id}: $currentAgentId → $_currentAgentId');
-
-          await FirebaseFirestore.instance
-              .collection('demandes_contrats')
-              .doc(doc.id)
-              .update({
-            'agentId': _currentAgentId,
-            'affectationMode': 'correction_automatique',
-            'dateCorrectionAffectation': FieldValue.serverTimestamp(),
-          });
-
-          corrected++;
-        }
-      }
-
-      print('✅ [CORRECTION] $corrected demandes corrigées');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ $corrected demandes corrigées'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Rafraîchir l'interface
-        setState(() {});
-      }
-
-    } catch (e) {
-      print('❌ [CORRECTION] Erreur: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 
   /// 💰 Afficher le dialogue pour saisir les informations financières
   Future<Map<String, dynamic>?> _afficherDialogueInformationsFinancieres(
