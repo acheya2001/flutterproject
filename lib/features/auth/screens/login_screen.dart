@@ -743,8 +743,78 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
+      // 🏢 CONNEXION SPÉCIALE POUR LES ADMIN COMPAGNIE (Service avec création différée)
+      try {
+        final adminCompagnieQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .where('role', isEqualTo: 'admin_compagnie')
+            .limit(1)
+            .get();
+
+        if (adminCompagnieQuery.docs.isNotEmpty) {
+          print('[LOGIN] 🏢 Admin Compagnie détecté, utilisation service spécialisé...');
+          final result = await AdminCompagnieAuthService.loginAdminCompagnie(
+            email: email,
+            password: password,
+          );
+
+          if (result['success'] == true) {
+            print('[LOGIN] ✅ Connexion admin compagnie réussie');
+            return {
+              'success': true,
+              'user': result['user'],
+              'userData': result['userData'],
+              'role': 'admin_compagnie',
+              'message': result['message'],
+              'directMode': false,
+            };
+          } else {
+            print('[LOGIN] ❌ Échec connexion admin compagnie: ${result['error']}');
+            return result;
+          }
+        }
+      } catch (e) {
+        print('[LOGIN] ⚠️ Erreur vérification admin compagnie: $e');
+      }
+
+      // 🏢 CONNEXION SPÉCIALE POUR LES ADMIN AGENCE (Service avec création différée)
+      try {
+        final adminAgenceQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .where('role', isEqualTo: 'admin_agence')
+            .limit(1)
+            .get();
+
+        if (adminAgenceQuery.docs.isNotEmpty) {
+          print('[LOGIN] 🏢 Admin Agence détecté, utilisation service générique...');
+          final result = await _loginWithGenericService(
+            email: email,
+            password: password,
+            role: 'admin_agence',
+          );
+
+          if (result['success'] == true) {
+            print('[LOGIN] ✅ Connexion admin agence réussie');
+            return {
+              'success': true,
+              'user': result['user'],
+              'userData': result['userData'],
+              'role': 'admin_agence',
+              'message': result['message'],
+              'directMode': false,
+            };
+          } else {
+            print('[LOGIN] ❌ Échec connexion admin agence: ${result['error']}');
+            return result;
+          }
+        }
+      } catch (e) {
+        print('[LOGIN] ⚠️ Erreur vérification admin agence: $e');
+      }
+
       // 🔧 CONNEXION SPÉCIALE POUR LES AGENTS (Service avec création différée)
-      // Vérifier d'abord si c'est un agent
       try {
         final agentQuery = await FirebaseFirestore.instance
             .collection('users')
@@ -772,12 +842,47 @@ class _LoginScreenState extends State<LoginScreen> {
             };
           } else {
             print('[LOGIN] ❌ Échec connexion agent: ${result['error']}');
-
             return result;
           }
         }
       } catch (e) {
         print('[LOGIN] ⚠️ Erreur vérification agent: $e');
+      }
+
+      // 👨‍🔧 CONNEXION SPÉCIALE POUR LES EXPERTS (Service avec création différée)
+      try {
+        final expertQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .where('role', isEqualTo: 'expert')
+            .limit(1)
+            .get();
+
+        if (expertQuery.docs.isNotEmpty) {
+          print('[LOGIN] 👨‍🔧 Expert détecté, utilisation service générique...');
+          final result = await _loginWithGenericService(
+            email: email,
+            password: password,
+            role: 'expert',
+          );
+
+          if (result['success'] == true) {
+            print('[LOGIN] ✅ Connexion expert réussie');
+            return {
+              'success': true,
+              'user': result['user'],
+              'userData': result['userData'],
+              'role': 'expert',
+              'message': result['message'],
+              'directMode': false,
+            };
+          } else {
+            print('[LOGIN] ❌ Échec connexion expert: ${result['error']}');
+            return result;
+          }
+        }
+      } catch (e) {
+        print('[LOGIN] ⚠️ Erreur vérification expert: $e');
       }
 
       // 🎯 VÉRIFICATION DIRECTE DANS FIRESTORE (CONTOURNEMENT SSL)
@@ -988,6 +1093,183 @@ class _LoginScreenState extends State<LoginScreen> {
       return {
         'success': false,
         'error': 'Erreur de connexion: $e',
+      };
+    }
+  }
+
+  /// 🔐 Service de connexion générique pour les rôles avec création différée
+  Future<Map<String, dynamic>> _loginWithGenericService({
+    required String email,
+    required String password,
+    required String role,
+  }) async {
+    try {
+      debugPrint('[GENERIC_AUTH] 🔐 Tentative connexion $role: $email');
+
+      // 1. Vérifier si l'utilisateur existe dans Firestore
+      final userQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .where('role', isEqualTo: role)
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isEmpty) {
+        return {
+          'success': false,
+          'error': 'Aucun $role trouvé avec cet email',
+          'code': 'user-not-found',
+        };
+      }
+
+      final userDoc = userQuery.docs.first;
+      final userData = userDoc.data();
+      final userId = userDoc.id;
+
+      // Vérifier si l'utilisateur est actif
+      if (userData['isActive'] != true || userData['status'] != 'actif') {
+        return {
+          'success': false,
+          'error': 'Compte désactivé. Contactez l\'administrateur.',
+          'code': 'account-disabled',
+        };
+      }
+
+      // Vérifier le mot de passe (tous les champs possibles)
+      final storedPassword = userData['password'] ??
+                            userData['temporaryPassword'] ??
+                            userData['motDePasseTemporaire'] ??
+                            userData['temp_password'] ??
+                            userData['generated_password'];
+
+      if (storedPassword != password) {
+        return {
+          'success': false,
+          'error': 'Mot de passe incorrect',
+          'code': 'wrong-password',
+        };
+      }
+
+      // 2. Vérifier si le compte Firebase Auth existe
+      final firebaseAuthCreated = userData['firebaseAuthCreated'] ?? false;
+
+      if (!firebaseAuthCreated) {
+        // Créer le compte Firebase Auth avec le mot de passe fourni
+        debugPrint('[GENERIC_AUTH] 🔧 Création compte Firebase Auth...');
+
+        try {
+          final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+
+          // Mettre à jour le document avec l'UID Firebase Auth
+          await FirebaseFirestore.instance.collection('users').doc(userId).update({
+            'uid': userCredential.user!.uid,
+            'firebaseAuthCreated': true,
+            'firebaseAuthCreatedAt': FieldValue.serverTimestamp(),
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          });
+
+          debugPrint('[GENERIC_AUTH] ✅ Compte Firebase Auth créé: ${userCredential.user!.uid}');
+
+          return {
+            'success': true,
+            'user': userCredential.user,
+            'userData': userData,
+            'userId': userId,
+            'message': 'Connexion réussie - Compte Firebase Auth créé',
+            'firstLogin': true,
+          };
+
+        } catch (authError) {
+          debugPrint('[GENERIC_AUTH] ❌ Erreur création Firebase Auth: $authError');
+
+          // Si l'utilisateur existe déjà, essayer de se connecter
+          if (authError.toString().contains('email-already-in-use')) {
+            debugPrint('[GENERIC_AUTH] 🔄 Email déjà utilisé, tentative connexion...');
+
+            try {
+              final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+                email: email,
+                password: password,
+              );
+
+              // Mettre à jour le document
+              await FirebaseFirestore.instance.collection('users').doc(userId).update({
+                'uid': userCredential.user!.uid,
+                'firebaseAuthCreated': true,
+                'firebaseAuthCreatedAt': FieldValue.serverTimestamp(),
+                'lastLoginAt': FieldValue.serverTimestamp(),
+              });
+
+              return {
+                'success': true,
+                'user': userCredential.user,
+                'userData': userData,
+                'userId': userId,
+                'message': 'Connexion réussie',
+                'firstLogin': false,
+              };
+
+            } catch (signInError) {
+              debugPrint('[GENERIC_AUTH] ❌ Erreur connexion: $signInError');
+              return {
+                'success': false,
+                'error': 'Email ou mot de passe incorrect',
+                'code': 'invalid-credentials',
+              };
+            }
+          }
+
+          return {
+            'success': false,
+            'error': 'Erreur lors de la création du compte: $authError',
+            'code': 'auth-creation-failed',
+          };
+        }
+
+      } else {
+        // 3. Connexion normale avec Firebase Auth existant
+        try {
+          final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+
+          // Mettre à jour la dernière connexion
+          await FirebaseFirestore.instance.collection('users').doc(userId).update({
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          });
+
+          debugPrint('[GENERIC_AUTH] ✅ Connexion normale réussie');
+
+          return {
+            'success': true,
+            'user': userCredential.user,
+            'userData': userData,
+            'userId': userId,
+            'message': 'Connexion réussie',
+            'firstLogin': false,
+          };
+
+        } catch (signInError) {
+          debugPrint('[GENERIC_AUTH] ❌ Erreur connexion: $signInError');
+
+          return {
+            'success': false,
+            'error': 'Email ou mot de passe incorrect',
+            'code': 'invalid-credentials',
+          };
+        }
+      }
+
+    } catch (e) {
+      debugPrint('[GENERIC_AUTH] ❌ Erreur générale: $e');
+      return {
+        'success': false,
+        'error': 'Erreur de connexion: $e',
+        'code': 'general-error',
       };
     }
   }
